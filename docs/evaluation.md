@@ -68,14 +68,15 @@ from 2026-10-29 to 2026-12-02. A new feed changes the times: the oracle must the
 
 - `cases.js`: 10 groups (5 of 3, 5 of 4) of starting points (town halls and neighbourhood places,
   not metro stations, which would favour transit), each in 3 mode configurations: everyone walk +
-  transit; a car, a bike, then walk + transit; everyone walk + bike. Arrival slot: Tuesday
-  2026-11-03, 19:00-19:15. Candidate categories: bars (the tool's default) and all three.
+  transit; a car, a bike, then walk + transit; everyone walk + bike. Meeting time: Tuesday
+  2026-11-03, 19:00, late tolerance 10 min (the tool's default; 15 min, the former slot, until the
+  first results below). Candidate categories: bars (the tool's default) and all three.
 - `oracle.js`: for every case, every participant's time to every candidate place by walk, bike,
   car and transit. Transit is computed as the tool does (`transitTrip` of `transitous.js`
-  against the local server): `/plan` arriving by the end of the slot, an early arrival counting the
+  against the local server): `/plan` arriving by the meeting time + tolerance, an early arrival counting the
   wait until it starts. About 2.5 min per case (~12,000 `/plan` calls of ~20 ms). It also keeps
-  MOTIS one-to-many durations for an arrival at the end of the slot (`transitEstimate`), ~100 times
-  cheaper but counting the time up to the end of the slot (checked: 0 to 15 min more, plus ~2 min).
+  MOTIS one-to-many durations for an arrival at meeting time + tolerance (`transitEstimate`), ~100
+  times cheaper but counting the time up to that limit (checked with 15 min: 0 to 15 min more, plus ~2 min).
 - `baseline.js`: the tool's `evaluate()` of `engine.js`, unchanged, on every case, configuration
   and category set; its Transitous calls go to the local server and its openrouteservice
   matrices are answered with MOTIS street times, so that the tool and the oracle use the same
@@ -85,6 +86,11 @@ from 2026-10-29 to 2026-12-02. A new feed changes the times: the oracle must the
   mean, `(1 − β)·mean + β·max` with β = ½ (decided 2026-10-30). Unlike the tool's "moyenne +
   écart", lengthening someone's trip never improves it: with two people, (10, 30) min gives mean +
   gap 40 and (20, 30) gives 35, although nobody gains.
+- `journeys.js` and `sensitivity.js`: do the arrival rules change the proposals? The transit
+  journeys themselves (two `/plan` calls per pair: arriving by 19:00 and by 19:15, ~4 min per
+  case), then every place ranked under each rule (late tolerance 0, 5, 10, 15 min; with or without
+  the first one to arrive counting the time until the second one arrives) and compared with the
+  tool's (10 min, without), for the transit and mixed configurations.
 - `validate.js`: the oracle against the services the tool uses: 30 transit trips also asked to
   the Tisséo API (60 calls), and 3 openrouteservice matrices (walk, bike, car; 10 x 10).
 
@@ -156,3 +162,35 @@ proposal minus the best score of the file, in minutes per person.
   The tool found only 5 candidates around a barycenter in a sparse area.
 
 Full tables: `node scripts/eval/baseline.js` (20 s once the oracle is built).
+
+The same with a 10 min tolerance (the tool's default since 2026-10-30), oracle rebuilt: hardly any
+change. Gap median / mean / max: mean score 1.3 / 1.7 / 6.7 (bars) and 1.5 / 2.2 / 7.0 (all);
+mean + ½ (max − mean) 0.9 / 2.4 / 8.4 (bars) and 2.0 / 3.2 / 16.6 (all); rows above 5 min: 2, 4, 8,
+7. Walk + bike still close (median 0.6, max 3.1), transit and mixed not (median 2.7 and 1.8, max
+9.2 and 16.6).
+
+### Arrival rules (`sensitivity.js`, 2026-10-30)
+
+80 rows per rule (10 cases x transit and mixed x bars and all x 2 scores). Loss: how much worse,
+under the rule's own definition, the place the tool's rule (10 min) puts first is than the best
+place under the rule, in minutes per person.
+
+| rule | same first place | places in common in the top 3 | loss median / max | mean best score |
+|---|---|---|---|---|
+| 0 min | 21 % | 0.90 | 0.6 / 6.1 | 27.3 |
+| 5 min | 66 % | 2.11 | 0.0 / 6.7 | 25.5 |
+| 10 min (tool) | 100 % | 3 | 0 / 0 | 24.8 |
+| 15 min | 85 % | 2.50 | 0.0 / 2.8 | 24.6 |
+| 10 min + first alone | 91 % | 2.85 | 0.0 / 0.3 | 24.9 |
+
+- Counting the first one's wait until the second one arrives changes almost nothing (at most
+  0.3 min lost): not worth its complexity. At 0 min it changes nothing at all (everyone counts up
+  to the meeting time).
+- The tolerance reorders the places (many are within a minute of each other), but the rule
+  picked costs little: from 5 min on, the median loss is 0 and the worst 2.8 to 6.7 min; the mean
+  best score shifts with it (27.3 -> 24.6 min), most of the effect being the same for every place.
+  0 min reorders much more (same first place in 21 % of the rows).
+- Computing cost: the same for any tolerance (one arrive-by search).
+- Check: the stored journeys give back the oracle's time at 10 min for 98.2 % of the pairs
+  (119,493 / 121,730); otherwise −6 to +8 min (median +1): two lists of 5 journeys do not always
+  hold the best one. Also a sign that the tool's own 5 journeys are not always optimal.
