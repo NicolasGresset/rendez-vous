@@ -1,4 +1,4 @@
-# Location — processing pipeline
+# Rendez-vous — processing pipeline
 
 How the meeting point finder (`index.html`; code in `js/`) turns participants into a
 ranked list of places. Everything runs in the browser: Vercel only serves static files, and the
@@ -38,7 +38,7 @@ Mermaid editor (e.g. https://mermaid.live) can display or export them.
 Legend used in the diagrams:
 
 - **blue**: external API call (network, counted in the page's "Appels API" panel)
-- **green**: local data (`data/pois-toulouse.json`, served with the site, no API call)
+- **green**: local data (`data/pois-toulouse.json`, served with the page, no API call)
 - **orange**: algorithm choice
 - **grey**: browser storage or user input
 
