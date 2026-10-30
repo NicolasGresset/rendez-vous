@@ -10,11 +10,10 @@ const formatClock = iso => new Date(iso).toLocaleTimeString('fr-FR', {
 });
 
 export const PROPOSALS = 3; // best places offered: the group may prefer one it knows
-export const METRIC_LABELS = { total: 'temps total', fair: 'moyenne + écart', half: 'moyenne + ½ (max − moyenne)' };
+export const METRIC_LABELS = { half: 'équitable', mean: 'égalitaire' };
 const METRIC_DESCRIPTIONS = {
-    total: 'somme des trajets de tous',
-    fair: 'trajet moyen plus écart entre le plus long et le plus court',
-    half: 'trajet moyen plus la moitié de ce que le plus long a en plus',
+    half: 'le trajet moyen plus la moitié de ce que le plus long a en plus, pour ne pas trop pénaliser celui qui vient de loin',
+    mean: 'le trajet moyen, chaque minute comptant pareil quel que soit celui qui la passe',
 };
 
 export function choiceText(choice) {
@@ -118,7 +117,7 @@ function proposalButton(c, j, rank, selected) {
         <li><button type="button" class="proposal" data-place="${j}" aria-pressed="${j === selected}">
             <span class="rank-pin proposal-rank"><span>${rank + 1}</span></span>
             <span class="proposal-name">${escapeHtml(c.name)}</span>
-            <span class="proposal-times">total ${formatDuration(c.total)} · écart ${formatDuration(c.spread)}</span>
+            <span class="proposal-times">moyenne ${formatDuration(c.mean)} · le plus long ${formatDuration(c.longest)}</span>
         </button></li>`;
 }
 
@@ -156,7 +155,7 @@ export function resultsHtml(data, selected, categoryLabels, { demo = false } = {
                 <select id="place-select">${options}</select>
             </label>` : ''}
         </div>
-        <p class="location-muted location-ranking">Classées par ${METRIC_LABELS[data.metric]} (réglages) :
+        <p class="location-muted location-ranking">Classées selon le critère ${METRIC_LABELS[data.metric]} (réglages) :
             ${METRIC_DESCRIPTIONS[data.metric]}.</p>
         <ol class="proposals">${proposals.map((j, rank) => proposalButton(data.candidates[j], j, rank, selected)).join('')}</ol>
         <p class="location-best"><span class="rank-pin rank-pin--selected location-swatch--rank"></span>

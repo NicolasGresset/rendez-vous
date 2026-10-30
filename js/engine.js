@@ -122,18 +122,19 @@ function fastest(modeTimes) {
 
 // Scores of a candidate from each participant's fastest time in seconds and the people leaving
 // from their starting point (lower is better); every person counts, so a participant of 3 people
-// counts 3 times. total: the sum, the group's whole travel time; fair: the mean plus the gap between
-// the longest and the shortest trip, so that nobody travels much longer than the others (the gap
-// does not depend on the people: theirs is the same trip)
-// half: the mean plus half the excess of the longest trip over it, (1 - β) mean + β max with β = 1/2
-// (Ogryczak): lengthening a trip never improves it, unlike fair (docs/evaluation.md)
+// counts 3 times. mean ("égalitaire"): the mean time per person, every minute counting the same
+// whoever spends it; half ("équitable", the default): the mean plus half the excess of the longest
+// trip over it, (1 - β) mean + β max with β = 1/2 (Ogryczak), so that the one coming from far is
+// not penalized much (the longest trip does not depend on the people). Both never improve when a
+// trip gets longer, unlike the former "moyenne + écart" (dropped 2026-10-30: (10, 30) min scored
+// 40 and (20, 30) 35, although nobody gains; docs/evaluation.md)
 const totalTime = (seconds, people) => seconds.reduce((s, x, i) => s + people[i] * x, 0);
 const meanTime = (seconds, people) => totalTime(seconds, people) / people.reduce((s, n) => s + n, 0);
 export const SCORES = {
-    total: totalTime,
-    fair:  (seconds, people) => meanTime(seconds, people) + Math.max(...seconds) - Math.min(...seconds),
-    half:  (seconds, people) => (meanTime(seconds, people) + Math.max(...seconds)) / 2,
+    mean: meanTime,
+    half: (seconds, people) => (meanTime(seconds, people) + Math.max(...seconds)) / 2,
 };
+export const DEFAULT_METRIC = 'half';
 
 // Sets each evaluated candidate's score for the metric (null when someone cannot reach it) and
 // returns the indices of the reachable ones, best first. A candidate is incomplete when a transit
@@ -157,7 +158,7 @@ export function rankCandidates(candidates, metric, people) {
 // keys: { ors, tisseo }, data: from loadData(),
 // calls: external API call counters, updated as calls are made
 export async function evaluate({ participants, slot, categories, transitEngine = 'transitous', maxCandidates = MAX_CANDIDATES,
-    metric = 'total' },
+    metric = DEFAULT_METRIC },
     keys, data, calls, emit) {
     const date = todayInToulouse();
     const arriveFrom = `${date} ${slot}`;
@@ -252,14 +253,16 @@ export async function evaluate({ participants, slot, categories, transitEngine =
         progress();
     });
 
-    // Each participant's fastest time; total and gap (longest - shortest) are shown whatever the metric
+    // Each participant's fastest time; the mean and the longest trip are shown whatever the metric,
+    // the total breaks ties
     const people = participants.map(p => p.people);
     const evaluated = candidates.map((c, j) => {
         const choices = participants.map((_, i) => fastest(times[i][j]));
         const seconds = choices.every(Boolean) ? choices.map(x => x.seconds) : null;
         const incomplete = participants.some((_, i) => times[i][j].transit?.failed);
         return { ...c, incomplete, choices, times: participants.map((_, i) => times[i][j]),
-            total: seconds && SCORES.total(seconds, people), spread: seconds && Math.max(...seconds) - Math.min(...seconds) };
+            total: seconds && totalTime(seconds, people), mean: seconds && meanTime(seconds, people),
+            longest: seconds && Math.max(...seconds) };
     });
     const ranking = rankCandidates(evaluated, metric, people);
     const best = ranking.length ? ranking[0] : null;

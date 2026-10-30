@@ -151,10 +151,15 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   touched, then the next one to fill; none during and after a computation), a double click only
   zooms, points draggable on computers only (the user feared it would misbehave on phones). Doc § 2.
   Not yet tried on the user's phone.
+- Later (stated by the user 2026-10-30): an "about / how it works" page (not the main page)
+  explaining the place selection, the typing optimizations of the address search, how the site is
+  tuned for Toulouse and what another city would need (the same preprocessing of OSM places, and
+  a transit source: an API key now, a GTFS feed once the home server computes).
 - Possibly more candidate categories (pub, biergarten, café): one line in `CATEGORIES`, user's call.
-- Score (decided 2026-10-30 for the evaluation; the tool's settings not changed yet): Ogryczak's
-  (1 − β)·mean + β·max with β = ½ replaces "moyenne + écart", which can prefer a place worse for
-  everyone ((10, 30) min: 40; (20, 30): 35). β = 0 is the mean (same ranking as "temps total").
+- Scores (2026-10-30): "équitable" (default, Ogryczak's (1 − β)·mean + β·max with β = ½) and
+  "égalitaire" (the mean per person); "moyenne + écart" dropped, it can prefer a place worse for
+  everyone ((10, 30) min: 40; (20, 30): 35). The user wants few, trustworthy choices: a newcomer
+  should not have to think about metrics (as on togather).
 - Arrival time (decided 2026-10-30, not implemented yet): a round meeting time T and a late
   tolerance set by the user (10 min by default), instead of the 15 min slot; each participant
   is counted alone (waiting with the others is not lost time), arriving before T counts as
@@ -190,7 +195,7 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   /plan still needed for the chosen place). Not used: estimated ~15 s instead of ~22 s, the real
   speed-up is the home server.
 - Decided 2026-10-29 after the togather study (the user values open source and open data, no Google
-  API): score picked in the settings (temps total, or moyenne + écart as togather), 3 proposals,
+  API): score picked in the settings (now équitable or égalitaire, see above), 3 proposals,
   links to OpenStreetMap / Google Maps and a share button (no share link to the tool itself),
   practical (default) and demonstrator views, no name field (the user may change their mind).
   Settings kept in localStorage (`location.settings`, in `legal.html`).
