@@ -82,6 +82,15 @@ Full pipeline: `docs/pipeline.md`.
   loading (~16 ms), ~0.4 ms per keystroke on a PC (scan fallback for very common prefixes).
 - Declined by the user: Photon, a service worker, Tisséo API (key refused), Strasbourg/CTS.
 
+## What the tool is for (stated by the user, 2026-10-30)
+
+A decision aid, not a decision maker: it answers "which place is reachable in a comparable time
+by everyone, without penalizing anyone much", quickly and objectively, for anyone; the group then
+also weighs habits, prices, a friendly waiter… Its behaviour must stay understandable and
+interpretable (results logical to someone who knows the network), not opaque or over-specified:
+prefer simple, explainable rules to fine modelling of edge cases. Lateness and personal habits
+are out of scope.
+
 ## Next big steps (stated by the user, 2026-10-28)
 
 1. **Home server**: a second-hand machine with Debian, hosted at home behind the ISP box with a port
@@ -144,6 +153,11 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
 - Score (decided 2026-10-30 for the evaluation; the tool's settings not changed yet): Ogryczak's
   (1 − β)·mean + β·max with β = ½ replaces "moyenne + écart", which can prefer a place worse for
   everyone ((10, 30) min: 40; (20, 30): 35). β = 0 is the mean (same ranking as "temps total").
+- Arrival time (decided 2026-10-30, not implemented yet): a round meeting time T and a late
+  tolerance set by the user (10 min by default), instead of the 15 min slot; each participant
+  is counted alone (waiting with the others is not lost time), arriving before T counts as
+  waiting, arriving after T + tolerance is not allowed. The slot only exists for low-frequency
+  transit (a bus arriving at 19:01 would otherwise force the one at 18:46).
 - Routing engines (2026-10-30): no Valhalla (MOTIS also gives walk, bike and car times); a
   home-made CSA later, possibly **run in the browser** (a day of Tisséo connections is a few MB),
   to investigate another day.
