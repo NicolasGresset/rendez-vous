@@ -1,8 +1,7 @@
 // scoring.js - Scores of the evaluation (lower is better), from each participant's fastest time in
-// seconds and the people leaving with them: the mean time per person (the tool's "temps total"
-// gives the same ranking), and the mean plus half the excess of the longest trip over the mean
-// (Ogryczak's (1 - β) mean + β max with β = 1/2: lengthening a trip never improves it, unlike the
-// tool's mean + gap)
+// seconds and the people leaving with them: the tool's two scores (engine.js SCORES), the mean time
+// per person ("égalitaire") and the mean plus half the excess of the longest trip over the mean
+// ("équitable", Ogryczak's (1 - β) mean + β max with β = 1/2)
 
 const mean = (seconds, people) => seconds.reduce((s, x, i) => s + people[i] * x, 0) / people.reduce((s, n) => s + n, 0);
 

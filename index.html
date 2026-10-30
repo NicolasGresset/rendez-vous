@@ -59,11 +59,12 @@
                     <fieldset class="location-categories" id="score-metric">
                         <legend>Critère</legend>
                         <div class="chips">
-                            <label class="chip"><input type="radio" name="score-metric" value="total" checked><span>temps total</span></label>
-                            <label class="chip"><input type="radio" name="score-metric" value="fair"><span>moyenne + écart</span></label>
+                            <label class="chip"><input type="radio" name="score-metric" value="half" checked><span>équitable</span></label>
+                            <label class="chip"><input type="radio" name="score-metric" value="mean"><span>égalitaire</span></label>
                         </div>
-                        <p class="location-muted">Temps total : la somme des trajets. Moyenne + écart : le trajet moyen plus l'écart
-                            entre le plus long et le plus court, pour que personne ne voyage beaucoup plus que les autres.</p>
+                        <p class="location-muted">Équitable : le trajet moyen plus la moitié de ce que le plus long a en plus,
+                            pour ne pas trop pénaliser celui qui vient de loin. Égalitaire : le trajet moyen, chaque minute
+                            comptant pareil quel que soit celui qui la passe.</p>
                     </fieldset>
                 </div>
                 <form class="location-keys-form" id="keys-form" autocomplete="off">

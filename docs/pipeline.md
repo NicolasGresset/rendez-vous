@@ -201,7 +201,7 @@ flowchart TB
     PARK --> SCORE
     WINDOW --> SCORE
 
-    SCORE["Each participant: fastest available mode<br/>Score (Réglages, rankCandidates), every person counted:<br/>temps total = sum of people x time, or<br/>moyenne + écart = mean per person + (longest - shortest)<br/>(candidate unreachable by one participant: excluded)"]:::algo
+    SCORE["Each participant: fastest available mode<br/>Score (Réglages, rankCandidates), every person counted:<br/>équitable (default) = (mean per person + longest) / 2, or<br/>égalitaire = mean per person<br/>(candidate unreachable by one participant: excluded)"]:::algo
     SCORE --> BEST["Ranking: lowest score first, equal scores by lower total;<br/>complete candidates only (incomplete ones only if no complete<br/>one is reachable); the first 3 are the proposals, the first one<br/>is shown; changing the score re-ranks without any call"]:::algo
 
     BEST --> ROUTES["Paths to the chosen place"]
