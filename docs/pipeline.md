@@ -1,6 +1,6 @@
 # Location — processing pipeline
 
-How the meeting point finder (`rendez-vous.html`, page called "Rendez-vous"; code in `js/location/`) turns participants into a
+How the meeting point finder (`index.html`; code in `js/`) turns participants into a
 ranked list of places. Everything runs in the browser: Vercel only serves static files, and the
 keys (openrouteservice, needed only when a participant walks, cycles or drives; Tisséo, optional) are the user's own, kept in `localStorage`
 (key `location.apiKeys`), like the settings (`location.settings`: view, score, number of candidates, transit engine).
@@ -69,7 +69,7 @@ flowchart TB
 
     ADDR --> DATA[("data/pois-toulouse.json<br/>~17,500 places, one category each,<br/>candidates: bars, restaurants, metro, bus<br/>name, position, address")]:::local
 
-    subgraph BROWSER["In the browser (js/location/)"]
+    subgraph BROWSER["In the browser (js/)"]
         direction TB
         KEY[("ORS key<br/>localStorage")]:::user
         INPUT["Participants (2 to 5): position + modes<br/>people (1 by default)<br/>(walk and transit checked by default)<br/>Arrival slot (15 min, today, Europe/Paris)<br/>Place types: stations / bars / restaurants"]:::user

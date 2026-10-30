@@ -1,7 +1,7 @@
 // search.js - Local place search: every place with an address (candidates and search-only places
 // such as companies, shops, schools…), instant and without any call. Each typed word (accents and
 // case ignored) is matched against the name, aliases, former names, category and city of every
-// place, and scored; see docs/location-pipeline.md § 2. No DOM: it runs in Node too.
+// place, and scored; see docs/pipeline.md § 2. No DOM: it runs in Node too.
 
 const MAX_SUGGESTIONS = 5;
 

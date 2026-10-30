@@ -6,7 +6,7 @@
 #      craft features, exported as GeoJSON with their OSM ids;
 #   3. scripts/build-places.js: categories, duplicate merging, Tisséo GTFS stops, addresses
 #      (IGN Géoplateforme bulk reverse geocoder) and their normalization, then writes the file.
-# Rules and fields: docs/location-pipeline.md § 6.
+# Rules and fields: docs/pipeline.md § 6.
 #
 # Needs: curl, osmium (osmium-tool), node >= 18, unzip. Network: Geofabrik, Tisséo open data,
 # IGN Géoplateforme (~4 bulk calls and ~200 single calls).

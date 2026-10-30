@@ -1,9 +1,9 @@
-// search-queries.js - Reference queries for the local place search (js/location/search.js): prints
+// search-queries.js - Reference queries for the local place search (js/search.js): prints
 // the first suggestions of each query, to compare the ranking before and after a change of its
 // constants. Usage: node scripts/search-queries.js [query…] (default: the list below)
 
 import fs from 'fs';
-import { createPlaceSearch } from '../js/location/search.js';
+import { createPlaceSearch } from '../js/search.js';
 
 const QUERIES = [
     'jean jau', 'jean', 'capi', 'mirail', 'borderouge', 'arenes', 'compans', 'st cyp', 'bagatelle',

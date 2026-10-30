@@ -2,7 +2,7 @@
 
 ## `pois-toulouse.json`
 
-Places of the Toulouse area used by the Rendez-vous page (`rendez-vous.html`): bars, restaurants,
+Places of the Toulouse area used by the meeting point finder (`index.html`): bars, restaurants,
 shops, companies… with their addresses, and the Tisséo metro stations and bus stops. It is built from:
 
 | Data | Source | Licence |
@@ -12,7 +12,7 @@ shops, companies… with their addresses, and the Tisséo metro stations and bus
 | Addresses missing from OpenStreetMap | Base Adresse Nationale, through the [IGN Géoplateforme](https://geoservices.ign.fr/) | [Licence Ouverte 2.0](https://www.etalab.gouv.fr/licence-ouverte-open-licence/) |
 
 The dates of each source are in the file's `sources` field. It is regenerated from scratch by
-`scripts/regenerate-places.sh` (see `docs/location-pipeline.md` § 6).
+`scripts/regenerate-places.sh` (see `docs/pipeline.md` § 6).
 
 **Licence**: as a database derived from ODbL data, `pois-toulouse.json` is made available under the
 [Open Database License 1.0](https://opendatacommons.org/licenses/odbl/1-0/), unlike the rest of

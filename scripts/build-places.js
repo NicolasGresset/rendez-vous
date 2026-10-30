@@ -4,7 +4,7 @@
 //     pharmacies, cafés…), found by the address search only;
 //   - metro stations and bus stops from the Tisséo GTFS feed (candidates): stop areas, metro if
 //     any metro line stops there, else bus; tram-only and cable car-only stops are left out.
-// Each place has one category code (see CATEGORY RULES below and docs/location-pipeline.md),
+// Each place has one category code (see CATEGORY RULES below and docs/pipeline.md),
 // the engine picks its candidates by code.
 //
 // To rebuild everything from scratch, run scripts/regenerate-places.sh: it downloads the extract,
