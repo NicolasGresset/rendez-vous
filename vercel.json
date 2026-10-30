@@ -1,0 +1,23 @@
+{
+    "cleanUrls": true,
+    "headers": [
+        {
+            "source": "/(.*)",
+            "headers": [
+                {
+                    "key": "Content-Security-Policy",
+                    "value": "default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org; font-src 'self'; connect-src 'self' https://api.openrouteservice.org https://api.transitous.org https://api.tisseo.fr https://data.geopf.fr; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
+                }
+            ]
+        },
+        {
+            "source": "/assets/fonts/(.*)",
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=31536000, immutable"
+                }
+            ]
+        }
+    ]
+}

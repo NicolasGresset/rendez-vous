@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Legal notice and privacy of the Rendez-vous tool: publisher, host, third-party services and what they receive.">
+    <title>Legal notice and privacy — Rendez-vous</title>
+    <link rel="stylesheet" href="css/fonts.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/legal.css">
+</head>
+
+<body>
+
+    <!-- ======= NAVIGATION ======= -->
+    <nav class="nav" aria-label="Navigation principale">
+        <div class="nav-inner">
+            <a href="/" class="nav-logo">rendez-vous.</a>
+            <ul class="nav-links" role="list">
+                <li><a href="https://github.com/NicolasGresset/rendez-vous" target="_blank" rel="noopener noreferrer">code ↗</a></li>
+                <li><a href="https://gresset-bourgeois.fr" target="_blank" rel="noopener noreferrer"><span class="nav-long">gresset-bourgeois.fr</span><span class="nav-short">ngb.</span> ↗</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- ======= PAGE HEADER ======= -->
+    <header class="page-header">
+        <div class="container">
+            <p class="page-header-label">// legal</p>
+            <h1 class="page-header-title">Legal notice and privacy</h1>
+            <p class="page-header-intro">Last updated on 30 October 2026.</p>
+        </div>
+    </header>
+
+    <main>
+        <div class="container page-main">
+            <div class="article-content">
+
+                <h2>Legal notice</h2>
+                <p>
+                    <strong>Publisher and director of publication:</strong> Nicolas Gresset-Bourgeois, private
+                    individual, Toulouse, France &mdash;
+                    <a href="mailto:nicolas@gresset-bourgeois.fr">nicolas@gresset-bourgeois.fr</a>.
+                </p>
+                <p>
+                    <strong>Host:</strong> Vercel Inc., 440 N Barranca Avenue #4133, Covina, CA 91723, United
+                    States &mdash; <a href="https://vercel.com" target="_blank" rel="noopener noreferrer">vercel.com</a>.
+                </p>
+
+                <h2>Source code</h2>
+                <p>
+                    For transparency, the whole tool is open source:
+                    <a href="https://github.com/NicolasGresset/rendez-vous" target="_blank"
+                        rel="noopener noreferrer">github.com/NicolasGresset/rendez-vous</a>.
+                    The code is under the MIT licence, the places database under the ODbL. Everything described
+                    below can be checked there: what the page sends, and to whom.
+                </p>
+
+                <h2>Privacy in short</h2>
+                <ul>
+                    <li>No account, no cookies, no analytics, no tracking, no advertising.</li>
+                    <li>The tool keeps nothing you type or choose: the computation runs in your browser.</li>
+                    <li>Your browser contacts other services to get addresses, maps and travel times, listed
+                        below with what they receive.</li>
+                </ul>
+
+                <h2>Hosting</h2>
+                <p>
+                    Vercel serves the pages. Like any web server, it receives your IP address, the address of
+                    the page requested, your browser's description (user agent) and the page you came from, and
+                    keeps them in its logs to run and protect the service, under
+                    <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer">its
+                    privacy policy</a>. Vercel is in the United States and relies on the EU-U.S. Data Privacy
+                    Framework. The fonts, the map library and the places database are served by the tool itself,
+                    not by third parties.
+                </p>
+
+                <h2>Third-party services contacted by your browser</h2>
+                <p>
+                    Each of these services receives, like any website, your IP address and your browser's
+                    description, plus what is listed, and processes them under its own privacy policy.
+                </p>
+                <ul>
+                    <li>
+                        <strong>OpenStreetMap</strong> (OpenStreetMap Foundation, United Kingdom),
+                        <code>tile.openstreetmap.org</code>: the map images, hence the area you look at.
+                    </li>
+                    <li>
+                        <strong>IGN Géoplateforme</strong> (Institut national de l'information géographique et
+                        forestière, France), <code>data.geopf.fr</code>: what you type in an address field (from 3
+                        characters), and your position when you click &laquo;&nbsp;ma position actuelle&nbsp;&raquo;,
+                        to find its address.
+                    </li>
+                    <li>
+                        <strong>openrouteservice</strong> (HeiGIT gGmbH, Germany), <code>api.openrouteservice.org</code>:
+                        the positions of the participants and of the candidate places, to get walking, cycling and
+                        driving times and paths, with the API key you entered.
+                    </li>
+                    <li>
+                        <strong>Transitous</strong> (community project, <a href="https://transitous.org"
+                            target="_blank" rel="noopener noreferrer">transitous.org</a>),
+                        <code>api.transitous.org</code>: the same positions with the arrival date and time slot, to
+                        get public transport journeys (default choice).
+                    </li>
+                    <li>
+                        <strong>Tisséo</strong> (Toulouse public transport, France), <code>api.tisseo.fr</code>:
+                        only if you enter a Tisséo key and choose Tisséo, the same positions and times with your key,
+                        instead of Transitous.
+                    </li>
+                </ul>
+                <p>
+                    The addresses you enter may be other people's: they go to these services as described, so a
+                    nearby landmark (a metro station, a square) works as well as an exact home address. The
+                    OpenStreetMap and Google Maps links of a proposed place send nothing until you follow them;
+                    &laquo;&nbsp;Partager le lieu&nbsp;&raquo; hands the place's name, address and OpenStreetMap
+                    link to your device's share menu or clipboard, not to this site. Links to other sites (GitHub,
+                    the author's site…) send nothing until you follow them.
+                </p>
+
+                <h2>Cookies and local storage</h2>
+                <p>
+                    The tool sets no cookies, so there is no consent banner. It stores the API keys you enter and
+                    its settings (view, criterion, number of places, transit engine) in your browser's local
+                    storage, on your device only: each key is sent to its own service, never to this site, and
+                    the settings are sent nowhere. &laquo;&nbsp;Effacer les clés&nbsp;&raquo; removes the keys,
+                    clearing your browser data removes both. This storage only serves features you ask for, which
+                    exempts it from consent (article 82 of the French Data Protection Act). Your position is only
+                    read when you click &laquo;&nbsp;ma position actuelle&nbsp;&raquo;, after your browser asks
+                    your permission.
+                </p>
+
+                <h2>Your rights</h2>
+                <p>
+                    These transfers rest on the legitimate interest of running the tool and providing the
+                    features you use (article 6(1)(f) of the GDPR). The GDPR gives you rights over data about
+                    you (access, rectification, erasure, restriction, objection); here is where such data
+                    actually is:
+                </p>
+                <ul>
+                    <li>
+                        <strong>With me:</strong> nothing, unless you write to me. The tool has no server of its
+                        own, no database, no accounts and no logs. If you send me an email, I keep it as long as
+                        our exchange needs it, and delete it if you ask.
+                    </li>
+                    <li>
+                        <strong>With the host:</strong> Vercel's logs, kept and deleted under its own policy. I
+                        cannot read them by visitor; you can write to Vercel at
+                        <a href="mailto:privacy@vercel.com">privacy@vercel.com</a>, or ask me to pass your request
+                        on.
+                    </li>
+                    <li>
+                        <strong>With the third-party services listed above:</strong> each answers for what it
+                        receives, under its own privacy policy; write to it directly.
+                    </li>
+                </ul>
+                <p>
+                    Contact: <a href="mailto:nicolas@gresset-bourgeois.fr">nicolas@gresset-bourgeois.fr</a>.
+                    You may also lodge a complaint with the French data protection authority, the
+                    <a href="https://www.cnil.fr" target="_blank" rel="noopener noreferrer">CNIL</a>.
+                </p>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- ======= FOOTER ======= -->
+    <footer class="footer">
+        <div class="footer-inner">
+            <span class="footer-text">© 2026 <a href="https://gresset-bourgeois.fr">Nicolas Gresset-Bourgeois</a></span>
+            <span class="footer-text">Toulouse, France &middot; <a href="legal">mentions légales et confidentialité</a></span>
+        </div>
+    </footer>
+
+</body>
+
+</html>

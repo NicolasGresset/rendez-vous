@@ -1,8 +1,7 @@
 // map.js - Leaflet drawing on the page's OpenStreetMap map: barycenter, candidates and the
 // participants' paths (participant markers stay with the form, in main.js)
 
-import { escapeHtml } from '../format.js';
-import { MODE_LABELS, COLORS, formatDuration } from './labels.js';
+import { MODE_LABELS, COLORS, formatDuration, escapeHtml } from './labels.js';
 
 export const TOULOUSE = [43.6045, 1.4440]; // place du Capitole
 

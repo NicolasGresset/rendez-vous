@@ -1,0 +1,7 @@
+# Development files, left out of the deployment
+scripts/
+docs/
+CLAUDE.md
+README.md
+data/README.md
+data/tisseo-area.json

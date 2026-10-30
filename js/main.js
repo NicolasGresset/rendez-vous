@@ -9,8 +9,7 @@ import { createPlaceSearch } from './search.js';
 import { slotPicker } from './slots.js';
 import { TOULOUSE, createMap, drawCenter, drawCandidates, drawRoute as drawPath } from './map.js';
 import { resultsHtml, choiceText, placeLinks, shareText, PROPOSALS, METRIC_LABELS } from './results.js';
-import { MODE_LABELS, PARTICIPANT_COLORS } from './labels.js';
-import { escapeHtml } from '../format.js';
+import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
 
 (function () {
     const form = document.getElementById('location-form');

@@ -3,8 +3,7 @@
 // every candidate), links to it on OpenStreetMap and Google Maps, and each participant's trip to it
 // (mode and time, the steps folded in the practical view)
 
-import { escapeHtml } from '../format.js';
-import { MODE_LABELS, formatDuration } from './labels.js';
+import { MODE_LABELS, formatDuration, escapeHtml } from './labels.js';
 
 const formatClock = iso => new Date(iso).toLocaleTimeString('fr-FR', {
     hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris',

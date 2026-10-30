@@ -25,7 +25,7 @@
 const fs   = require('fs');
 const path = require('path');
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3001';
 const FIXTURE_FILE = path.join(__dirname, 'fixtures/rendez-vous.json');
 const TIMEOUT_MS = 120000;
 
@@ -99,7 +99,7 @@ function preload(fixture) {
 }
 
 // Installs the preload script and loads the page; record: real calls, kept for saving
-async function openWithFixture({ send, context }, { record = false, url = `${BASE_URL}/rendez-vous` } = {}) {
+async function openWithFixture({ send, context }, { record = false, url = `${BASE_URL}/` } = {}) {
     const fixture = record ? { now: null } : JSON.parse(fs.readFileSync(FIXTURE_FILE, 'utf8'));
     const args = JSON.stringify({ baseUrl: BASE_URL, now: fixture.now, responses: fixture.responses });
     await send('script.addPreloadScript', { functionDeclaration: `() => (${preload})(${args})`, contexts: [context] });
