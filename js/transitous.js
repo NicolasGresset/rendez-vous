@@ -57,7 +57,8 @@ function decodePolyline(points, precision) {
 }
 
 // Itinerary legs -> walking portions and transit lines, with what the page shows and draws
-function itineraryLegs(itinerary) {
+// (also for the local MOTIS of the demonstrator, motis.js)
+export function itineraryLegs(itinerary) {
     return itinerary.legs.map(leg => {
         const common = {
             path:      leg.legGeometry?.points ? decodePolyline(leg.legGeometry.points, leg.legGeometry.precision) : [],
@@ -95,8 +96,8 @@ export function bestJourney(journeys, arriveFrom, arriveTo) {
 
 // Transit trip (walking included) to be there for the slot [arriveFrom, arriveTo]:
 // { seconds (wait included), wait, departure, arrival, legs } (times in ISO), or null when no
-// journey arrives by the end of the slot
-export async function transitTrip(from, to, arriveFrom, arriveTo) {
+// journey arrives by the end of the slot. planUrl: another MOTIS server (the demonstrator's local one)
+export async function transitTrip(from, to, arriveFrom, arriveTo, planUrl = PLAN_URL) {
     const params = new URLSearchParams({
         fromPlace: `${from.lat},${from.lon}`,
         toPlace:   `${to.lat},${to.lon}`,
@@ -104,7 +105,7 @@ export async function transitTrip(from, to, arriveFrom, arriveTo) {
         arriveBy:  'true',
         ...PLAN_OPTIONS,
     });
-    const res = await fetch(`${PLAN_URL}?${params}`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+    const res = await fetch(`${planUrl}?${params}`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
     if (res.status === 429) throw new Error('Transitous rate limit reached');
     if (!res.ok) throw new Error(`Transitous plan failed: ${res.status}`);
     const data = await res.json();

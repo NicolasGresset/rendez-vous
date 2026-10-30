@@ -10,7 +10,12 @@ const formatClock = iso => new Date(iso).toLocaleTimeString('fr-FR', {
 });
 
 export const PROPOSALS = 3; // best places offered: the group may prefer one it knows
-export const METRIC_LABELS = { total: 'temps total', fair: 'moyenne + écart' };
+export const METRIC_LABELS = { total: 'temps total', fair: 'moyenne + écart', half: 'moyenne + ½ (max − moyenne)' };
+const METRIC_DESCRIPTIONS = {
+    total: 'somme des trajets de tous',
+    fair: 'trajet moyen plus écart entre le plus long et le plus court',
+    half: 'trajet moyen plus la moitié de ce que le plus long a en plus',
+};
 
 export function choiceText(choice) {
     return choice ? `${formatDuration(choice.seconds)} (${MODE_LABELS[choice.mode]})` : 'injoignable';
@@ -152,7 +157,7 @@ export function resultsHtml(data, selected, categoryLabels, { demo = false } = {
             </label>` : ''}
         </div>
         <p class="location-muted location-ranking">Classées par ${METRIC_LABELS[data.metric]} (réglages) :
-            ${data.metric === 'fair' ? 'trajet moyen plus écart entre le plus long et le plus court' : 'somme des trajets de tous'}.</p>
+            ${METRIC_DESCRIPTIONS[data.metric]}.</p>
         <ol class="proposals">${proposals.map((j, rank) => proposalButton(data.candidates[j], j, rank, selected)).join('')}</ol>
         <p class="location-best"><span class="rank-pin rank-pin--selected location-swatch--rank"></span>
             <strong>${escapeHtml(place.name)}</strong>
@@ -166,4 +171,43 @@ export function resultsHtml(data, selected, categoryLabels, { demo = false } = {
         ${place.incomplete ? `<p class="location-warning">Calcul incomplet pour ce lieu : des trajets en transports
             en commun ont échoué deux fois${selected === data.best ? ', et aucun lieu au calcul complet n\'est atteignable par tous' : ''}.</p>` : ''}
         <div class="trip-cards">${data.participants.map((p, i) => tripCard(p, i, place, demo)).join('')}</div>`;
+}
+
+// Demonstrator with the local MOTIS (demo-motis.js): the tool's first proposal against the best
+// places of the whole file, for the same score and times
+const km = (a, b) => {
+    const rad = d => d * Math.PI / 180;
+    const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lon - a.lon) / 2) ** 2;
+    return (2 * 6371 * Math.asin(Math.sqrt(h))).toLocaleString('fr-FR', { maximumFractionDigits: 1 });
+};
+
+export function enumerationHtml(data, enumeration, categoryLabels) {
+    const { places, ranking, estimated } = enumeration;
+    const head = `<div class="chart-header"><h2 class="chart-title">Tous les lieux du fichier (MOTIS local)</h2></div>`;
+    if (!ranking.length) return `<section class="location-enum">${head}<p>Aucun lieu du fichier n'est atteignable par tous.</p></section>`;
+    const best = places[ranking[0]];
+    const tool = data.best != null ? data.candidates[data.best] : null;
+    const toolIndex = tool ? places.findIndex(p => p.id === tool.id) : -1;
+    const toolPlace = toolIndex >= 0 ? places[toolIndex] : null;
+    const row = (p, label, pin) => `<tr>
+        <td>${pin}</td><td>${label}</td>
+        <td><strong>${escapeHtml(p.name)}</strong> <span class="location-muted">(${categoryLabels[p.category]})</span></td>
+        <td>${formatDuration(p.score)}${p === best ? '' : ` <span class="location-muted">${p.score - best.score < 30 ? '≈' : `+${formatDuration(p.score - best.score)}`}</span>`}</td>
+        <td>${p.choices.map(choiceText).join(' · ')}</td>
+        <td>${km(data.center, p)} km</td></tr>`;
+    const gap = toolPlace ? toolPlace.score - best.score : null;
+    return `<section class="location-enum">${head}
+        <p>${places.length} lieux candidats évalués${estimated ? ` (${estimated} avec un temps bus/métro seulement estimé, trop long de 0 à 15 min)` : ''},
+            score ${METRIC_LABELS[data.metric]}.
+            ${toolPlace ? `Proposition n° 1 de l'outil : <strong>${gap > 0 ? `+${formatDuration(gap)} (+${Math.round(gap / best.score * 100)} %)` : 'le meilleur du fichier'}</strong>,
+            rang ${ranking.indexOf(toolIndex) + 1} sur ${ranking.length} lieux atteignables.` : ''}</p>
+        <div class="location-enum-scroll"><table class="location-enum-table">
+            <thead><tr><th></th><th>rang</th><th>lieu</th><th>score</th><th>trajets (participants 1, 2…)</th><th>au barycentre</th></tr></thead>
+            <tbody>${ranking.slice(0, 3).map((j, rank) => row(places[j], rank + 1,
+                `<span class="rank-pin rank-pin--best location-swatch--rank"><span>${rank + 1}</span></span>`)).join('')}
+            ${toolPlace && !ranking.slice(0, 3).includes(toolIndex) ? row(toolPlace, ranking.indexOf(toolIndex) + 1,
+                '<span class="rank-pin location-swatch--rank"><span>1</span></span>') : ''}</tbody>
+        </table></div>
+        <p class="location-muted">Sur la carte : chaque lieu, du vert (le meilleur) au jaune (50 % de plus) et au rouge (le double ou au-delà) ; pointillés : le rayon de recherche de l'outil autour du barycentre.</p>
+    </section>`;
 }

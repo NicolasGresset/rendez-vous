@@ -3,7 +3,8 @@
 // time (see .slot-options), with native-select keyboard behavior
 
 // slot: the button showing the picked range, slotOptions: its list of ranges;
-// returns a function giving the picked range's start ("HH:MM")
+// returns a function giving the picked range's start ("HH:MM"), whose select("HH:MM") picks a
+// range by its start when it is in the list (the demonstrator's test cases), returning whether it is
 export function slotPicker(slot, slotOptions) {
     const hhmm = minutes => `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
     const slotLabel = minutes => `${hhmm(minutes)} – ${hhmm(minutes + 15)}`;
@@ -78,5 +79,11 @@ export function slotPicker(slot, slotOptions) {
         if (!slotOptions.hidden && !e.target.closest('.slot-field')) closeSlots(false);
     });
 
-    return () => hhmm(slots[slotIndex]);
+    const picked = () => hhmm(slots[slotIndex]);
+    picked.select = start => {
+        const index = slots.findIndex(m => hhmm(m) === start);
+        if (index >= 0) selectSlot(index);
+        return index >= 0;
+    };
+    return picked;
 }

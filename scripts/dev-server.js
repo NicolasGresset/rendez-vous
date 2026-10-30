@@ -4,6 +4,10 @@
 //
 // The headers and cleanUrls of vercel.json are applied as on Vercel. To check a Content-Security-Policy change, set
 // CSP_REPORT=1 (violations logged here, policy enforced) or CSP_REPORT=only (logged, not enforced).
+//
+// /motis/... is relayed to a local MOTIS server (MOTIS_URL, default http://localhost:8080; see
+// docs/evaluation.md): the page's demonstrator engine calls it on its own origin, so neither the
+// Content-Security-Policy nor CORS are involved. Not on Vercel: there the engine is not offered.
 
 const http = require('http');
 const fs   = require('fs');
@@ -12,6 +16,8 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const PORT = process.env.PORT || 3001;
 const CSP_REPORT_PATH = '/__csp-report';
+const MOTIS_PREFIX = '/motis/';
+const MOTIS_URL = process.env.MOTIS_URL || 'http://localhost:8080';
 
 const VERCEL_CONFIG = JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8'));
 
@@ -42,7 +48,7 @@ const MIME = {
 
 http.createServer((req, res) => {
     const url = new URL(req.url, `http://localhost:${PORT}`);
-    console.log(req.method, url.pathname);
+    if (!url.pathname.startsWith(MOTIS_PREFIX)) console.log(req.method, url.pathname);
 
     if (url.pathname === CSP_REPORT_PATH) {
         let body = '';
@@ -54,6 +60,16 @@ http.createServer((req, res) => {
             res.statusCode = 204;
             res.end();
         });
+        return;
+    }
+    if (url.pathname.startsWith(MOTIS_PREFIX)) {
+        const target = new URL(url.pathname.slice(MOTIS_PREFIX.length - 1) + url.search, MOTIS_URL);
+        const proxied = http.request(target, { method: req.method, headers: { 'content-type': req.headers['content-type'] || '' } }, answer => {
+            res.writeHead(answer.statusCode, { 'Content-Type': answer.headers['content-type'] || 'application/json' });
+            answer.pipe(res);
+        });
+        proxied.on('error', () => { res.statusCode = 502; res.end('{"error":"MOTIS unreachable"}'); });
+        req.pipe(proxied);
         return;
     }
     setVercelHeaders(url.pathname, res);

@@ -7,9 +7,12 @@ import { loadData, evaluate, placeRoutes, rankCandidates } from './engine.js';
 import { loadKeys, saveKeys, clearKeys, loadSettings, saveSettings } from './keys.js';
 import { createPlaceSearch } from './search.js';
 import { slotPicker } from './slots.js';
-import { TOULOUSE, createMap, drawCenter, drawCandidates, drawRoute as drawPath } from './map.js';
-import { resultsHtml, choiceText, placeLinks, shareText, PROPOSALS, METRIC_LABELS } from './results.js';
+import { TOULOUSE, createMap, drawCenter, drawCandidates, drawRoute as drawPath, drawEnumeration, drawRadius,
+    drawNetworkLines } from './map.js';
+import { resultsHtml, enumerationHtml, choiceText, placeLinks, shareText, PROPOSALS, METRIC_LABELS } from './results.js';
 import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
+import * as motis from './motis.js';
+import { enumeratePlaces, scorePlaces } from './demo-motis.js';
 
 (function () {
     const form = document.getElementById('location-form');
@@ -72,7 +75,8 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
     const engineHint = document.getElementById('transit-engine-hint');
     const keysSummary = document.getElementById('keys-summary');
     const candidateCount = document.getElementById('candidate-count');
-    const ENGINE_NAMES = { transitous: 'Transitous', tisseo: 'Tisséo' };
+    const ENGINE_NAMES = { transitous: 'Transitous', tisseo: 'Tisséo', motis: 'MOTIS local' };
+    let motisReady = false; // a local MOTIS answers through the dev server (demonstrator, motis.js)
     let keys = loadKeys();
 
     function showKeys(message) {
@@ -121,6 +125,7 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
     // openrouteservice computes walking, cycling and driving only: without its key, a computation
     // with bus/metro participants only can still run. Returns why it cannot, or null
     function submitBlocker() {
+        if (checkedValue('transit-engine') === 'motis') return null; // street times from MOTIS too
         const needsOrs = [...list.querySelectorAll('[name="modes"]:checked')].some(c => ORS_MODES.includes(c.value));
         return needsOrs && !keys.ors
             ? 'La marche, le vélo et la voiture sont calculés par openrouteservice : saisissez votre clé dans les réglages, ou ne gardez que bus/métro.'
@@ -151,7 +156,7 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
     });
 
     // ---- External API calls: last computation and whole session (since the page was loaded) ----
-    const session = { geocode: 0, orsMatrix: 0, orsDirections: 0, transitous: 0, tisseo: 0 };
+    const session = { geocode: 0, orsMatrix: 0, orsDirections: 0, transitous: 0, tisseo: 0, motis: 0 };
     let lastRun = null;   // calls of the last (or running) computation
     let running = false;  // lastRun is not yet added to session
     // { limit, remaining, reset } per openrouteservice service, from its last answer
@@ -173,7 +178,8 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
             + row('openrouteservice matrix', 'orsMatrix', quota(orsQuota.matrix))
             + row('openrouteservice directions', 'orsDirections', quota(orsQuota.directions))
             + row('Transitous', 'transitous', ' <span class="location-muted">(au-delà de 720/24 h, se coordonner avec Transitous)</span>')
-            + row('Tisséo', 'tisseo', ' <span class="location-muted">(2 appels par trajet)</span>');
+            + row('Tisséo', 'tisseo', ' <span class="location-muted">(2 appels par trajet)</span>')
+            + (motisReady ? row('MOTIS local', 'motis', ' <span class="location-muted">(démonstrateur, sans l\'énumération)</span>') : '');
     }
     renderCalls();
 
@@ -746,6 +752,10 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
         const place = data.candidates[selected];
         const demo = isDemo();
         resultLayer.clearLayers();
+        if (demo && current.enum) {
+            drawRadius(resultLayer, data.center, current.radius);
+            drawEnumeration(resultLayer, current.enum.places, current.enum.ranking, categoryLabels, METRIC_LABELS[data.metric]);
+        }
         if (demo) drawCenter(resultLayer, data.center);
         drawCandidates(resultLayer, data.candidates, categoryLabels,
             { selected, proposals: data.ranking.slice(0, PROPOSALS), all: demo, onSelect: selectPlace });
@@ -757,6 +767,7 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
         if (place) data.participants.forEach((_, i) => drawRoute(i));
         if (fit) {
             const shown = demo ? data.candidates : data.ranking.slice(0, PROPOSALS).map(j => data.candidates[j]);
+            if (demo && current.enum) shown.push(...current.enum.ranking.slice(0, 3).map(j => current.enum.places[j]));
             const points = [...shown.map(c => [c.lat, c.lon]), ...data.participants.map(p => [p.lat, p.lon])];
             if (points.length) map.fitBounds(points, { padding: [30, 30], maxZoom: 16 });
         }
@@ -790,7 +801,8 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
     }
 
     function renderResults() {
-        results.innerHTML = resultsHtml(current.data, current.selected, categoryLabels, { demo: isDemo() });
+        results.innerHTML = resultsHtml(current.data, current.selected, categoryLabels, { demo: isDemo() })
+            + (isDemo() && current.enum ? enumerationHtml(current.data, current.enum, categoryLabels) : '');
         results.querySelector('#place-select')?.addEventListener('change', e => selectPlace(Number(e.target.value)));
         results.querySelectorAll('.proposal').forEach(button =>
             button.addEventListener('click', () => selectPlace(Number(button.dataset.place))));
@@ -832,6 +844,7 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
         const { data } = current;
         data.metric = checkedValue('score-metric');
         data.ranking = rankCandidates(data.candidates, data.metric, data.participants.map(p => p.people));
+        if (current.enum) current.enum.ranking = scorePlaces(current.enum.places, data.metric, data.participants.map(p => p.people));
         data.best = data.ranking.length ? data.ranking[0] : null;
         if (data.best != null && data.best !== current.selected) return selectPlace(data.best);
         renderResults();
@@ -869,6 +882,7 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
             break;
         }
         case 'candidates':
+            state.radius = event.radius;
             setStep('candidates', 'done', `${describeCandidates(event.candidates)} `
                 + `à moins de ${(event.radius / 1000).toLocaleString('fr-FR')} km `
                 + `(données OSM du ${event.sources.osm || '—'}, GTFS du ${event.sources.gtfs})`);
@@ -909,7 +923,7 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
             setStep('routes', state.routesTotal ? 'running' : 'done',
                 state.routesTotal ? `0/${state.routesTotal}` : 'aucun lieu retenu');
             setProgress(0.95, event.best != null ? 'Tracé des itinéraires…' : 'Aucun lieu atteignable par tous.');
-            current = { data: event, rows, selected: event.best, routes: new Map() };
+            current = { data: event, rows, selected: event.best, routes: new Map(), radius: state.radius };
             drawSelection(true);
             renderResults();
             // Score changed during the computation
@@ -937,6 +951,7 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
         storeSettings();
         showSettingsSummary();
         clearResults();
+        updateSubmit();
     }));
     document.getElementById('score-metric').addEventListener('change', () => {
         storeSettings();
@@ -970,9 +985,10 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
         setActive(null); // a click on the result map no longer moves anyone
         clearResults();
         resetSteps();
+        if (checkedValue('transit-engine') === 'motis') motisStepLabels();
         scrollToSection(document.getElementById('location-progress'));
         submit.disabled = true;
-        lastRun = { orsMatrix: 0, orsDirections: 0, transitous: 0, tisseo: 0 };
+        lastRun = { orsMatrix: 0, orsDirections: 0, transitous: 0, tisseo: 0, motis: 0 };
         running = true;
         renderCalls();
         const rows = participants.map(p => p.row);
@@ -987,6 +1003,7 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
                 handleEvent(event, participants, rows, state);
                 renderCalls();
             });
+            if (input.transitEngine === 'motis' && current) await enumerate(input, data, state);
         } catch (err) {
             console.error(err);
             failRunningStep(err.message || 'calcul impossible');
@@ -999,7 +1016,84 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
         }
     });
 
+    // ---- Demonstrator with a local MOTIS (dev server only): every candidate place of the file
+    //      scored, test cases of scripts/eval, the network's lines on the map ----
+    // The steps' labels name openrouteservice: the demonstrator's engine computes everything locally
+    function motisStepLabels() {
+        const label = (id, text) => { steps.querySelector(`[data-step="${id}"] .progress-label`).textContent = text; };
+        label('matrix', 'Temps marche, vélo, voiture (MOTIS local)');
+        label('routes', 'Tracés des itinéraires (MOTIS local)');
+    }
+
+    async function enumerate(input, data, state) {
+        const shown = current;
+        steps.insertAdjacentHTML('beforeend', `<li class="progress-step" data-step="enum" data-state="running">
+            <span class="progress-label">Tous les lieux candidats du fichier (MOTIS local, démonstrateur)</span>
+            <span class="progress-detail location-muted"></span></li>`);
+        const progress = text => {
+            setStep('enum', 'running', text);
+            setProgress(0.97, text);
+        };
+        const found = await enumeratePlaces(input.participants, input.categories, shown.data.slot, data, progress);
+        if (current !== shown) return; // the result was cleared meanwhile
+        const people = input.participants.map(p => p.people);
+        current.enum = { ...found, ranking: scorePlaces(found.places, current.data.metric, people) };
+        setStep('enum', 'done', `${found.places.length} lieux${found.estimated ? `, dont ${found.estimated} avec bus/métro estimé` : ''}`);
+        setProgress(1, `Terminé en ${Math.round((performance.now() - state.startedAt) / 1000)} s (énumération comprise).`);
+        drawSelection(true);
+        renderResults();
+    }
+
+    function loadCase(testCase, modes) {
+        [...list.children].forEach(row => {
+            participantMarkers.get(row)?.remove();
+            participantMarkers.delete(row);
+            row.remove();
+        });
+        testCase.points.forEach((point, i) => {
+            const row = addParticipant();
+            row.querySelectorAll('[name="modes"]').forEach(box => { box.checked = modes(i).includes(box.value); });
+            if (point.people > 1) setPeople(row, point.people);
+            setPosition(row, { lat: point.lat, lon: point.lon, label: point.name }, { fit: false });
+        });
+        refreshRows();
+        setActive(null);
+        fitParticipants();
+        if (!slotValue.select('19:00')) setStatus('Créneau 19:00 passé pour aujourd\'hui : créneau inchangé.');
+        clearResults();
+    }
+
+    async function setupMotisDemo() {
+        motisReady = true;
+        document.querySelector('#transit-engine .chips').insertAdjacentHTML('beforeend',
+            '<label class="chip"><input type="radio" name="transit-engine" value="motis"><span>MOTIS local (démo)</span></label>');
+        if (loadSettings().engine === 'motis') engineInput('motis').checked = true;
+        showSettingsSummary();
+        updateSubmit();
+        renderCalls();
+
+        map.createPane('network').style.zIndex = 350; // under the other drawings (overlay pane: 400)
+        const linesLayer = L.layerGroup();
+        L.control.layers(null, { 'Lignes Tisséo (MOTIS local)': linesLayer }, { collapsed: false }).addTo(map);
+        map.on('overlayadd', async e => {
+            if (e.layer !== linesLayer || linesLayer.getLayers().length) return;
+            drawNetworkLines(linesLayer, await motis.networkLines(43.42, 1.20, 43.75, 1.62), 'network');
+        });
+
+        // Test cases: served by the dev server from scripts/ (not deployed)
+        const { CASES, CONFIGS } = await import('/scripts/eval/cases.js');
+        list.insertAdjacentHTML('beforebegin', `<div class="location-field demo-only demo-cases">
+            <label for="demo-case">Cas de test (scripts/eval, démonstrateur)</label>
+            <select id="demo-case"><option value="">—</option>${CASES.flatMap(c => Object.entries(CONFIGS).map(([k, config]) =>
+                `<option value="${c.id}:${k}">${c.id} ${escapeHtml(c.label)} · ${escapeHtml(config.label)}</option>`)).join('')}</select></div>`);
+        document.getElementById('demo-case').addEventListener('change', e => {
+            const [id, config] = e.target.value.split(':');
+            if (id) loadCase(CASES.find(c => c.id === id), CONFIGS[config].modes);
+        });
+    }
+
     restoreSettings();
     applyView();
     showKeys();
+    motis.available().then(ok => ok && setupMotisDemo());
 })();

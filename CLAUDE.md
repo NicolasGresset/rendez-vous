@@ -52,6 +52,8 @@ This file is excluded from the deployment (`.vercelignore`) but versioned on Git
   the whole file, on 10 fixed groups x 3 mode configurations, with exact times from a **local
   MOTIS** (`~/motis`, Tisséo GTFS + OSM extract, port 8080, setup in the doc; no quota). Oracle
   files in `~/motis/eval`. Scores there: mean per person, and mean + ½ (max − mean).
+  Branch `demo-motis` (not merged, not deployed): the page's demonstrator with a "MOTIS local"
+  engine scoring every candidate place, test case picker, Tisséo lines layer (doc § Demonstrator).
 - `docs/`, `scripts/`, `data/README.md` (sources, ODbL licence of the places file) and
   `data/tisseo-area.json` (input of the places build) are not deployed.
 

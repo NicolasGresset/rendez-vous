@@ -11,6 +11,7 @@
 import { durationMatrix, routePath } from './ors.js';
 import { transitTrip, forEachLimited } from './transitous.js';
 import { tisseoTrip, TisseoKeyError } from './tisseo.js';
+import * as motis from './motis.js';
 
 const ORS_MODES = ['walk', 'bike', 'car'];
 const RETRY_DELAY_MS = 2000; // a transit journey failing for a technical reason is tried once more
@@ -20,7 +21,11 @@ const RETRY_DELAY_MS = 2000; // a transit journey failing for a technical reason
 const TRANSIT_ENGINES = {
     transitous: { trip: (keys, onCall, ...args) => (onCall(), transitTrip(...args)), parallel: 3 },
     tisseo:     { trip: (keys, onCall, ...args) => tisseoTrip(keys.tisseo, onCall, ...args), parallel: 6 },
+    // Demonstrator only (dev server and local MOTIS, motis.js): walk, bike and car times and paths
+    // come from it too, instead of openrouteservice
+    motis:      { trip: (keys, onCall, ...args) => (onCall(), motis.trip(...args)), parallel: 8 },
 };
+const ENGINE_NAMES = { transitous: 'Transitous', tisseo: 'Tisséo', motis: 'MOTIS local' };
 const SLOT_MIN = 15;
 const CAR_PARKING_S = 5 * 60;      // fixed time to park, added to every car trip
 const RADIUS_START_M = 1000;
@@ -120,11 +125,14 @@ function fastest(modeTimes) {
 // counts 3 times. total: the sum, the group's whole travel time; fair: the mean plus the gap between
 // the longest and the shortest trip, so that nobody travels much longer than the others (the gap
 // does not depend on the people: theirs is the same trip)
+// half: the mean plus half the excess of the longest trip over it, (1 - β) mean + β max with β = 1/2
+// (Ogryczak): lengthening a trip never improves it, unlike fair (docs/evaluation.md)
 const totalTime = (seconds, people) => seconds.reduce((s, x, i) => s + people[i] * x, 0);
+const meanTime = (seconds, people) => totalTime(seconds, people) / people.reduce((s, n) => s + n, 0);
 export const SCORES = {
     total: totalTime,
-    fair:  (seconds, people) => totalTime(seconds, people) / people.reduce((s, n) => s + n, 0)
-        + Math.max(...seconds) - Math.min(...seconds),
+    fair:  (seconds, people) => meanTime(seconds, people) + Math.max(...seconds) - Math.min(...seconds),
+    half:  (seconds, people) => (meanTime(seconds, people) + Math.max(...seconds)) / 2,
 };
 
 // Sets each evaluated candidate's score for the metric (null when someone cannot reach it) and
@@ -169,16 +177,24 @@ export async function evaluate({ participants, slot, categories, transitEngine =
     // times[i][j][mode] = { seconds } or { error } for participant i and candidate j
     const times = participants.map(() => candidates.map(() => ({})));
 
-    // One openrouteservice matrix per mode
+    // One openrouteservice matrix per mode (local MOTIS street times with the demonstrator's engine)
     const durations = {};
+    const localStreets = transitEngine === 'motis';
     await Promise.all(ORS_MODES.map(async mode => {
         const indices = participants.map((_, i) => i).filter(i => participants[i].modes.includes(mode));
         if (!indices.length) return;
-        calls.orsMatrix++;
-        const matrix = await durationMatrix(keys.ors, mode, indices.map(i => participants[i]), candidates);
+        const sources = indices.map(i => participants[i]);
+        let matrix;
+        if (localStreets) {
+            calls.motis++;
+            matrix = await motis.durationMatrix(mode, sources, candidates);
+        } else {
+            calls.orsMatrix++;
+            matrix = await durationMatrix(keys.ors, mode, sources, candidates);
+        }
         durations[mode] = new Map(indices.map((i, k) => [i, matrix.durations[k]]));
         emit({ type: 'matrix', mode, sources: indices.length, destinations: candidates.length,
-            orsQuota: { service: 'matrix', ...matrix.quota } });
+            ...(matrix.quota && { orsQuota: { service: 'matrix', ...matrix.quota } }) });
     }));
 
     const transitPairs = [];
@@ -197,7 +213,7 @@ export async function evaluate({ participants, slot, categories, transitEngine =
     const engine = TRANSIT_ENGINES[transitEngine];
     // A technical failure (timeout, rate limit, server error) is tried once more after a pause;
     // if it fails again, the journey is marked failed: its candidate is incomplete (see below)
-    const engineName = transitEngine === 'tisseo' ? 'Tisséo' : 'Transitous';
+    const engineName = ENGINE_NAMES[transitEngine];
     const onCall = () => { calls[transitEngine]++; };
     const trip = (i, j) => engine.trip(keys, onCall, participants[i], candidates[j], arriveFrom, arriveTo);
     const tripWithRetry = async (i, j) => {
@@ -249,14 +265,14 @@ export async function evaluate({ participants, slot, categories, transitEngine =
     const best = ranking.length ? ranking[0] : null;
 
     emit({ type: 'result', ...base, candidates: evaluated, ranking, best, metric });
-    if (best != null) await placeRoutes(participants, evaluated[best], keys, calls, emit);
+    if (best != null) await placeRoutes(participants, evaluated[best], keys, calls, emit, transitEngine);
     emit({ type: 'done' });
 }
 
 // Paths to a place with each participant's retained mode, emitted as route events: the legs of
 // the Transitous journey already fetched, or one openrouteservice directions call per participant
-// (made only for the places actually displayed)
-export async function placeRoutes(participants, place, keys, calls, emit) {
+// (made only for the places actually displayed; local MOTIS paths with the demonstrator's engine)
+export async function placeRoutes(participants, place, keys, calls, emit, transitEngine = 'transitous') {
     await Promise.all(participants.map(async (p, i) => {
         const choice = place.choices[i];
         if (!choice) return emit({ type: 'route', place: place.id, participant: i, legs: null, error: 'injoignable' });
@@ -266,10 +282,16 @@ export async function placeRoutes(participants, place, keys, calls, emit) {
             return emit({ type: 'route', place: place.id, participant: i, mode, legs: legs || null, error: legs ? null : 'tracé indisponible' });
         }
         try {
-            calls.orsDirections++;
-            const route = await routePath(keys.ors, mode, p, place);
+            let route;
+            if (transitEngine === 'motis') {
+                calls.motis++;
+                route = await motis.routePath(mode, p, place);
+            } else {
+                calls.orsDirections++;
+                route = await routePath(keys.ors, mode, p, place);
+            }
             emit({ type: 'route', place: place.id, participant: i, mode, legs: [{ kind: mode, path: route.path }],
-                orsQuota: { service: 'directions', ...route.quota } });
+                ...(route.quota && { orsQuota: { service: 'directions', ...route.quota } }) });
         } catch (err) {
             console.error(err);
             emit({ type: 'route', place: place.id, participant: i, mode, legs: null, error: 'tracé indisponible' });

@@ -833,3 +833,11 @@ a.location-button { display: inline-flex; align-items: center; text-decoration: 
     .location-meeting-fields > .slot-field,
     .location-place-select { width: 100%; }
 }
+
+/* Demonstrator with the local MOTIS: the best places of the whole file, green pins */
+.rank-pin--best { background: #15803D; color: #FFFFFF; }
+.location-swatch--best { background: #15803D; }
+.location-enum { margin-top: 1.5rem; }
+.location-enum-scroll { overflow-x: auto; }
+.location-enum-table { border-collapse: collapse; font-size: 0.875rem; width: 100%; }
+.location-enum-table :is(th, td) { padding: 0.35rem 0.5rem; text-align: left; border-bottom: 1px solid var(--color-border, #DDE3EA); vertical-align: top; }

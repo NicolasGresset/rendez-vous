@@ -61,9 +61,12 @@
                         <div class="chips">
                             <label class="chip"><input type="radio" name="score-metric" value="total" checked><span>temps total</span></label>
                             <label class="chip"><input type="radio" name="score-metric" value="fair"><span>moyenne + écart</span></label>
+                            <label class="chip"><input type="radio" name="score-metric" value="half"><span>moyenne + ½ (max − moyenne)</span></label>
                         </div>
                         <p class="location-muted">Temps total : la somme des trajets. Moyenne + écart : le trajet moyen plus l'écart
-                            entre le plus long et le plus court, pour que personne ne voyage beaucoup plus que les autres.</p>
+                            entre le plus long et le plus court, pour que personne ne voyage beaucoup plus que les autres.
+                            Moyenne + ½ (max − moyenne) : le trajet moyen plus la moitié de ce que le plus long a en plus ;
+                            allonger un trajet ne l'améliore jamais, contrairement à moyenne + écart.</p>
                     </fieldset>
                 </div>
                 <form class="location-keys-form" id="keys-form" autocomplete="off">

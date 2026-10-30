@@ -72,3 +72,52 @@ export function drawRoute(group, p, place, route, color) {
             .addTo(group);
     });
 }
+
+// ---- Demonstrator with the local MOTIS (demo-motis.js) ----
+
+// Every enumerated place as a dot colored by how far its score is from the best (green: the best,
+// yellow: 50 % worse, red: twice the best or more), and the best 3 as green numbered pins. ranking: indices, best first.
+// Drawn on a canvas: thousands of dots stay fluid
+export function drawEnumeration(layer, places, ranking, categoryLabels, metricLabel) {
+    if (!ranking.length) return;
+    const best = places[ranking[0]].score;
+    const renderer = L.canvas({ padding: 0.3 });
+    [...ranking].reverse().forEach(j => {
+        const p = places[j];
+        const excess = Math.min(1, (p.score - best) / best);
+        const color = `hsl(${Math.round(120 * (1 - excess))} 75% 42%)`;
+        const pct = Math.round((p.score / best - 1) * 100);
+        L.circleMarker([p.lat, p.lon], { renderer, radius: 3.5, color, weight: 1, fillColor: color, fillOpacity: 0.8,
+            bubblingMouseEvents: false })
+            .bindTooltip(`${escapeHtml(p.name)} · ${categoryLabels[p.category]} · ${metricLabel} ${formatDuration(p.score)}`
+                + ` (${pct ? `+${pct} %` : 'le meilleur'})${p.estimated ? ' · bus/métro estimé' : ''}`)
+            .addTo(layer);
+    });
+    ranking.slice(0, 3).forEach((j, rank) => {
+        const p = places[j];
+        L.marker([p.lat, p.lon], {
+            icon: L.divIcon({ className: 'rank-marker', html: `<span class="rank-pin rank-pin--best"><span>${rank + 1}</span></span>`,
+                iconSize: [26, 26], iconAnchor: [13, Math.round(13 + 26 / Math.SQRT2)], tooltipAnchor: [0, -13] }),
+            zIndexOffset: 800, keyboard: false, title: '',
+        }).bindTooltip(`meilleur n° ${rank + 1} du fichier : ${escapeHtml(p.name)} · ${metricLabel} ${formatDuration(p.score)}`)
+            .addTo(layer);
+    });
+}
+
+// The barycenter's search radius, as engine.js used it
+export function drawRadius(layer, center, radius) {
+    L.circle([center.lat, center.lon], { radius, color: COLORS.center, weight: 1, dashArray: '4 6', fill: false, interactive: false })
+        .addTo(layer);
+}
+
+// Transit lines (motis.js networkLines): metro and tram drawn thick, buses thin, in `pane` (under
+// the other drawings)
+export function drawNetworkLines(layer, lines, pane) {
+    const heavy = new Set(['SUBWAY', 'TRAM', 'RAIL', 'AERIAL_LIFT']);
+    [...lines].sort((a, b) => heavy.has(a.mode) - heavy.has(b.mode)).forEach(line => {
+        L.polyline(line.path, { pane, color: line.color, weight: heavy.has(line.mode) ? 5 : 2,
+            opacity: heavy.has(line.mode) ? 0.85 : 0.45, interactive: true })
+            .bindTooltip(`${MODE_LABELS.transit} ${escapeHtml(line.names.join(', '))}`, { sticky: true })
+            .addTo(layer);
+    });
+}

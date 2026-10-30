@@ -88,6 +88,26 @@ from 2026-10-29 to 2026-12-02. A new feed changes the times: the oracle must the
 - `validate.js`: the oracle against the services the tool uses: 30 transit trips also asked to
   the Tisséo API (60 calls), and 3 openrouteservice matrices (walk, bike, car; 10 x 10).
 
+## Demonstrator in the page (branch `demo-motis`, not deployed)
+
+With the dev server and a local MOTIS, the page offers a fourth transit engine, "MOTIS local
+(démo)", and the demonstrator view a test case picker (the cases of `cases.js`, x 3 mode
+configurations, slot 19:00 today) and a "Lignes Tisséo" map layer.
+
+- `scripts/dev-server.js` relays `/motis/…` to `MOTIS_URL` (default `http://localhost:8080`): the
+  page calls its own origin, no Content-Security-Policy or CORS change. On Vercel `/motis/` does
+  not exist, so `motis.available()` is false and nothing is offered.
+- With that engine, the tool runs as usual (barycenter, 8 candidates), its street times and
+  paths also from MOTIS (no openrouteservice key needed), then `demo-motis.js` scores every
+  candidate place of the picked categories: exact transit times for every place up to 400 places
+  (bars: 240, ~5 s), beyond that a cheap estimate for every place and exact times for the 100
+  best of each score (all categories: ~40 s).
+- Map: every place as a dot from green (the best) through yellow (+50 %) to red (twice the best),
+  the best 3 as green pins, the tool's search radius dashed. Results: the tool's first proposal
+  against the best of the file (gap, rank), the best 3 with each participant's mode and time.
+- Lines: MOTIS `/api/experimental/map/routes` (GTFS shapes and colors), metro and tram thick.
+- A third score in the settings, "moyenne + ½ (max − moyenne)" (`half` in `engine.js`).
+
 ## Results (2026-10-30)
 
 ### The oracle against the services the tool uses (`validate.js`)
