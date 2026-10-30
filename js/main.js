@@ -8,11 +8,11 @@ import { loadKeys, saveKeys, clearKeys, loadSettings, saveSettings } from './key
 import { createPlaceSearch } from './search.js';
 import { slotPicker } from './slots.js';
 import { TOULOUSE, createMap, drawCenter, drawCandidates, drawRoute as drawPath, drawEnumeration, drawRadius,
-    drawNetworkLines } from './map.js';
+    drawNetworkLines, drawTimeGrid } from './map.js';
 import { resultsHtml, enumerationHtml, choiceText, placeLinks, shareText, PROPOSALS, METRIC_LABELS } from './results.js';
 import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
 import * as motis from './motis.js';
-import { enumeratePlaces, scorePlaces } from './demo-motis.js';
+import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
 
 (function () {
     const form = document.getElementById('location-form');
@@ -77,6 +77,7 @@ import { enumeratePlaces, scorePlaces } from './demo-motis.js';
     const candidateCount = document.getElementById('candidate-count');
     const ENGINE_NAMES = { transitous: 'Transitous', tisseo: 'Tisséo', motis: 'MOTIS local' };
     let motisReady = false; // a local MOTIS answers through the dev server (demonstrator, motis.js)
+    let timeLayer = null;   // its time map layer, once offered
     let keys = loadKeys();
 
     function showKeys(message) {
@@ -345,6 +346,7 @@ import { enumeratePlaces, scorePlaces } from './demo-motis.js';
     // Any change to the participants makes the displayed result stale
     function clearResults() {
         resultLayer.clearLayers();
+        timeLayer?.clearLayers();
         routeLayers = [];
         current = null;
         participantMarkers.forEach(m => m.unbindPopup());
@@ -845,6 +847,7 @@ import { enumeratePlaces, scorePlaces } from './demo-motis.js';
         data.metric = checkedValue('score-metric');
         data.ranking = rankCandidates(data.candidates, data.metric, data.participants.map(p => p.people));
         if (current.enum) current.enum.ranking = scorePlaces(current.enum.places, data.metric, data.participants.map(p => p.people));
+        if (current.grid) showTimeGrid();
         data.best = data.ranking.length ? data.ranking[0] : null;
         if (data.best != null && data.best !== current.selected) return selectPlace(data.best);
         renderResults();
@@ -1042,6 +1045,26 @@ import { enumeratePlaces, scorePlaces } from './demo-motis.js';
         setProgress(1, `Terminé en ${Math.round((performance.now() - state.startedAt) / 1000)} s (énumération comprise).`);
         drawSelection(true);
         renderResults();
+        if (map.hasLayer(timeLayer)) await computeTimeGrid();
+    }
+
+    // Time map: computed once per result, when its layer is on; another score only redraws it
+    async function computeTimeGrid() {
+        const shown = current;
+        if (!shown?.enum || shown.grid || shown.gridPending) return;
+        shown.gridPending = true;
+        const best = shown.enum.ranking.slice(0, 10).map(j => shown.enum.places[j]);
+        const grid = await timeGrid(shown.data.participants, best, shown.data.slot, text => setProgress(0.99, text));
+        if (current !== shown) return;
+        shown.grid = grid;
+        setProgress(1, `Carte des temps : ${grid.cells.length} cases (bus/métro estimé, trop long de 0 à 15 min).`);
+        showTimeGrid();
+    }
+
+    function showTimeGrid() {
+        scorePlaces(current.grid.cells, current.data.metric, current.data.participants.map(p => p.people));
+        timeLayer.clearLayers();
+        drawTimeGrid(timeLayer, current.grid);
     }
 
     function loadCase(testCase, modes) {
@@ -1074,14 +1097,19 @@ import { enumeratePlaces, scorePlaces } from './demo-motis.js';
 
         map.createPane('network').style.zIndex = 350; // under the other drawings (overlay pane: 400)
         const linesLayer = L.layerGroup();
-        L.control.layers(null, { 'Lignes Tisséo (MOTIS local)': linesLayer }, { collapsed: false }).addTo(map);
+        timeLayer = L.layerGroup();
+        L.control.layers(null, { 'Lignes Tisséo (MOTIS local)': linesLayer, 'Carte des temps (estimée)': timeLayer },
+            { collapsed: false }).addTo(map);
         map.on('overlayadd', async e => {
+            if (e.layer === timeLayer) return computeTimeGrid();
             if (e.layer !== linesLayer || linesLayer.getLayers().length) return;
             drawNetworkLines(linesLayer, await motis.networkLines(43.42, 1.20, 43.75, 1.62), 'network');
         });
 
         // Test cases: served by the dev server from scripts/ (not deployed)
-        const { CASES, CONFIGS } = await import('/scripts/eval/cases.js');
+        const module = await import('/scripts/eval/cases.js');
+        const { CONFIGS } = module;
+        const CASES = [...module.CASES, ...(module.DEMO_CASES || [])];
         list.insertAdjacentHTML('beforebegin', `<div class="location-field demo-only demo-cases">
             <label for="demo-case">Cas de test (scripts/eval, démonstrateur)</label>
             <select id="demo-case"><option value="">—</option>${CASES.flatMap(c => Object.entries(CONFIGS).map(([k, config]) =>

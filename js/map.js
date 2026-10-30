@@ -121,3 +121,23 @@ export function drawNetworkLines(layer, lines, pane) {
             .addTo(layer);
     });
 }
+
+// Time map (demo-motis.js timeGrid, scored with scorePlaces): one pixel per cell, stretched (and
+// smoothed by the browser) over the grid's box, same colors as the places relative to the grid's
+// best cell; cells nobody can reach all stay clear
+export function drawTimeGrid(layer, grid) {
+    const scores = grid.cells.map(c => c.score).filter(s => s != null);
+    if (!scores.length) return;
+    const best = Math.min(...scores);
+    const canvas = document.createElement('canvas');
+    canvas.width = grid.cols;
+    canvas.height = grid.rows;
+    const context = canvas.getContext('2d');
+    grid.cells.forEach((cell, k) => {
+        if (cell.score == null) return;
+        context.fillStyle = `hsl(${Math.round(120 * (1 - Math.min(1, (cell.score - best) / best)))} 80% 45%)`;
+        context.fillRect(k % grid.cols, Math.floor(k / grid.cols), 1, 1);
+    });
+    L.imageOverlay(canvas.toDataURL(), [[grid.south, grid.west], [grid.north, grid.east]],
+        { opacity: 0.45, interactive: false, className: 'time-grid' }).addTo(layer);
+}

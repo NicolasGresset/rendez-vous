@@ -73,3 +73,51 @@ export function scorePlaces(places, metric, people) {
     });
     return places.map((_, j) => j).filter(j => places[j].score != null).sort((a, b) => places[a].score - places[b].score);
 }
+
+// Time map: a grid over the participants and the `around` points (the best places) + GRID_MARGIN_M,
+// at most GRID_MAX_CELLS cells
+// of GRID_MIN_STEP_M or more. Street times exact, transit the cheap estimate (one call per cell
+// for all participants), so 0 to 15 min too long. Returns { south, west, north, east, rows, cols,
+// cells: [{ lat, lon, times: [{ mode: seconds }] }] }, row 0 in the north
+const GRID_MARGIN_M = 1500;
+const GRID_MAX_CELLS = 2500;
+const GRID_MIN_STEP_M = 200;
+
+export async function timeGrid(participants, around, slot, onProgress) {
+    const mPerLat = 111320;
+    const mPerLon = mPerLat * Math.cos(participants[0].lat * Math.PI / 180);
+    const lats = [...participants, ...around].map(p => p.lat);
+    const lons = [...participants, ...around].map(p => p.lon);
+    const south = Math.min(...lats) - GRID_MARGIN_M / mPerLat;
+    const north = Math.max(...lats) + GRID_MARGIN_M / mPerLat;
+    const west = Math.min(...lons) - GRID_MARGIN_M / mPerLon;
+    const east = Math.max(...lons) + GRID_MARGIN_M / mPerLon;
+    const area = (north - south) * mPerLat * (east - west) * mPerLon;
+    const step = Math.max(GRID_MIN_STEP_M, Math.sqrt(area / GRID_MAX_CELLS));
+    const rows = Math.ceil((north - south) * mPerLat / step);
+    const cols = Math.ceil((east - west) * mPerLon / step);
+    const cells = [];
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            cells.push({ lat: north - (r + 0.5) * (north - south) / rows, lon: west + (c + 0.5) * (east - west) / cols,
+                times: participants.map(() => ({})) });
+        }
+    }
+    onProgress(`carte des temps : ${cells.length} cases de ${Math.round(step)} m, marche, vélo, voiture…`);
+    await Promise.all(participants.flatMap((p, i) => STREET_MODES.filter(m => p.modes.includes(m)).map(async mode => {
+        (await motis.streetDurations(mode, p, cells)).forEach((d, k) => {
+            if (d != null) cells[k].times[i][mode] = Math.round(d + (mode === 'car' ? CAR_PARKING_S : 0));
+        });
+    })));
+    const transit = participants.map((p, i) => i).filter(i => participants[i].modes.includes('transit'));
+    if (transit.length) {
+        const arriveBy = parseParis(slot.to);
+        let done = 0;
+        await forEachLimited(cells.map((_, k) => k), PARALLEL, async k => {
+            const estimates = await motis.transitEstimates(cells[k], transit.map(i => participants[i]), arriveBy);
+            estimates.forEach((d, n) => { if (d != null) cells[k].times[transit[n]].transit = d; });
+            if (++done % 250 === 0) onProgress(`carte des temps : bus/métro ${done}/${cells.length} cases`);
+        });
+    }
+    return { south, west, north, east, rows, cols, cells };
+}

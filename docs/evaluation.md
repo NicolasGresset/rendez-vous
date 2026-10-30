@@ -106,6 +106,11 @@ configurations, slot 19:00 today) and a "Lignes Tisséo" map layer.
   the best 3 as green pins, the tool's search radius dashed. Results: the tool's first proposal
   against the best of the file (gap, rank), the best 3 with each participant's mode and time.
 - Lines: MOTIS `/api/experimental/map/routes` (GTFS shapes and colors), metro and tram thick.
+- Time map (layer "Carte des temps (estimée)", computed when switched on, ~30 s): a grid of at
+  most 2,500 cells (200 m or more) over the participants and the 10 best places + 1.5 km, scored
+  like the places; street times exact, transit the cheap estimate (0 to 15 min too long). One
+  pixel per cell stretched over the box, same colors as the places. Another score only redraws it.
+- Test cases: those of `cases.js`, plus `DEMO_CASES` found with the demonstrator (picker only).
 - A third score in the settings, "moyenne + ½ (max − moyenne)" (`half` in `engine.js`).
 
 ## Results (2026-10-30)
