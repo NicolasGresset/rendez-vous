@@ -8,13 +8,13 @@
 import fs from 'fs';
 import { createRequire } from 'module';
 import { durationMatrix } from '../../js/ors.js';
-import { CASES, DATE, SLOT } from './cases.js';
+import { CASES, DATE, SLOT, TOLERANCE_MIN } from './cases.js';
 import { candidatePlaces, loadOracle } from './oracle.js';
 
 const { withFirefox } = createRequire(import.meta.url)('../firefox-bidi.js');
 const DEV_URL = 'http://localhost:3001/';
 const TRIPS_PER_CASE = 3;
-const SLOT_TO = SLOT.replace(/\d+$/, m => String(Number(m) + 15).padStart(2, '0'));
+const SLOT_TO = SLOT.replace(/\d+$/, m => String(Number(m) + TOLERANCE_MIN).padStart(2, '0'));
 
 const env = Object.fromEntries(fs.readFileSync(new URL('../../.env', import.meta.url), 'utf8')
     .split('\n').filter(l => l.includes('=')).map(l => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]));

@@ -8,7 +8,7 @@ import { loadKeys, saveKeys, clearKeys, loadSettings, saveSettings } from './key
 import { createPlaceSearch } from './search.js';
 import { slotPicker } from './slots.js';
 import { TOULOUSE, createMap, drawCenter, drawCandidates, drawRoute as drawPath } from './map.js';
-import { resultsHtml, choiceText, placeLinks, shareText, PROPOSALS, METRIC_LABELS } from './results.js';
+import { resultsHtml, choiceText, placeLinks, shareText, PROPOSALS, METRIC_DESCRIPTIONS } from './results.js';
 import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
 
 (function () {
@@ -70,8 +70,9 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
     const engineInput = value => document.querySelector(`[name="transit-engine"][value="${value}"]`);
     const tisseoEngine = engineInput('tisseo');
     const engineHint = document.getElementById('transit-engine-hint');
-    const keysSummary = document.getElementById('keys-summary');
     const candidateCount = document.getElementById('candidate-count');
+    const lateTolerance = document.getElementById('late-tolerance');
+    const scoreDescription = document.getElementById('score-description');
     const ENGINE_NAMES = { transitous: 'Transitous', tisseo: 'Tisséo' };
     let keys = loadKeys();
 
@@ -87,19 +88,17 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
         tisseoEngine.disabled = !keys.tisseo;
         if (!keys.tisseo && tisseoEngine.checked) engineInput('transitous').checked = true;
         engineHint.textContent = keys.tisseo ? '' : 'Tisséo : saisissez votre clé ci-dessus.';
-        showSettingsSummary();
         updateSubmit();
     }
 
-    // The folded settings line: each key's state and the transit engine
-    function showSettingsSummary() {
-        const engine = ENGINE_NAMES[checkedValue('transit-engine')];
-        keysSummary.textContent = `${isDemo() ? 'démonstrateur' : 'pratique'} · ${METRIC_LABELS[checkedValue('score-metric')]}`
-            + ` · openrouteservice ${keys.ors ? '✓' : 'à renseigner'} · Tisséo ${keys.tisseo ? '✓' : 'facultative'}`
-            + ` · bus/métro : ${engine} · ${candidateCount.value} lieux`;
+    // Under the criteria, only the picked one's explanation
+    function showScoreDescription() {
+        const text = METRIC_DESCRIPTIONS[checkedValue('score-metric')];
+        scoreDescription.textContent = `${text[0].toUpperCase()}${text.slice(1)}.`;
     }
 
-    // ---- Settings, kept in this browser: view, score, number of candidates, transit engine ----
+    // ---- Settings, kept in this browser: view, score, number of candidates, transit engine,
+    //      late tolerance ----
     const checkedValue = name => document.querySelector(`[name="${name}"]:checked`).value;
     const isDemo = () => checkedValue('view-mode') === 'demo';
     const SETTING_RADIOS = { view: 'view-mode', metric: 'score-metric', engine: 'transit-engine' };
@@ -111,11 +110,12 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
             if (input) input.checked = true;
         });
         if ([...candidateCount.options].some(o => o.value === saved.candidates)) candidateCount.value = saved.candidates;
+        if ([...lateTolerance.options].some(o => o.value === saved.tolerance)) lateTolerance.value = saved.tolerance;
     }
 
     function storeSettings() {
         saveSettings({ ...Object.fromEntries(Object.entries(SETTING_RADIOS).map(([key, name]) => [key, checkedValue(name)])),
-            candidates: candidateCount.value });
+            candidates: candidateCount.value, tolerance: lateTolerance.value });
     }
 
     // openrouteservice computes walking, cycling and driving only: without its key, a computation
@@ -933,19 +933,17 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
     // Other place types, candidates or transit engine make the displayed result stale; another
     // score or view only changes how it is ranked or shown
     document.getElementById('categories').addEventListener('change', clearResults);
-    [candidateCount, document.getElementById('transit-engine')].forEach(input => input.addEventListener('change', () => {
+    [candidateCount, lateTolerance, document.getElementById('transit-engine')].forEach(input => input.addEventListener('change', () => {
         storeSettings();
-        showSettingsSummary();
         clearResults();
     }));
     document.getElementById('score-metric').addEventListener('change', () => {
         storeSettings();
-        showSettingsSummary();
+        showScoreDescription();
         rerank();
     });
     document.getElementById('view-mode').addEventListener('change', () => {
         storeSettings();
-        showSettingsSummary();
         applyView();
     });
 
@@ -979,7 +977,8 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
         const state = { startedAt: performance.now() };
         try {
             const data = await getData();
-            const input = { slot: slotValue(), categories, transitEngine: checkedValue('transit-engine'),
+            const input = { slot: slotValue(), tolerance: Number(lateTolerance.value), categories,
+                transitEngine: checkedValue('transit-engine'),
                 maxCandidates: Number(candidateCount.value), metric: checkedValue('score-metric'),
                 participants: participants.map(({ row, ...p }) => p) };
             // lastRun is updated by the engine as calls are made
@@ -1000,6 +999,7 @@ import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
     });
 
     restoreSettings();
+    showScoreDescription();
     applyView();
     showKeys();
 })();

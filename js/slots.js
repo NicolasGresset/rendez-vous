@@ -1,13 +1,12 @@
-// slots.js - Arrival slot picker: today's 15 min ranges, from the one before the current range;
-// default to the first one starting in 30 min or more. A list button showing about 10 ranges at a
-// time (see .slot-options), with native-select keyboard behavior
+// slots.js - Meeting time picker: today's quarter hours, from the one before the current time;
+// default to the first one in 30 min or more. A list button showing about 10 times at a time (see
+// .slot-options), with native-select keyboard behavior
 
-// slot: the button showing the picked range, slotOptions: its list of ranges;
-// returns a function giving the picked range's start ("HH:MM")
+// slot: the button showing the picked time, slotOptions: its list of times;
+// returns a function giving the picked time ("HH:MM")
 export function slotPicker(slot, slotOptions) {
     const hhmm = minutes => `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
-    const slotLabel = minutes => `${hhmm(minutes)} – ${hhmm(minutes + 15)}`;
-    const slots = []; // range starts, in minutes since midnight
+    const slots = []; // meeting times, in minutes since midnight
     let slotIndex = 0;
 
     // Scroll the list itself (scrollIntoView would also scroll the page)
@@ -24,7 +23,7 @@ export function slotPicker(slot, slotOptions) {
 
     function selectSlot(index) {
         slotIndex = Math.max(0, Math.min(slots.length - 1, index));
-        slot.textContent = slotLabel(slots[slotIndex]);
+        slot.textContent = hhmm(slots[slotIndex]);
         [...slotOptions.children].forEach((li, i) => li.setAttribute('aria-selected', i === slotIndex ? 'true' : 'false'));
         slotOptions.setAttribute('aria-activedescendant', `slot-option-${slotIndex}`);
         if (!slotOptions.hidden) revealSlot(false);
@@ -48,13 +47,13 @@ export function slotPicker(slot, slotOptions) {
         const minutes = now.getHours() * 60 + now.getMinutes();
         for (let m = Math.max(0, Math.floor(minutes / 15) * 15 - 15); m < 24 * 60; m += 15) slots.push(m);
         slotOptions.innerHTML = slots.map((m, i) =>
-            `<li role="option" id="slot-option-${i}" data-index="${i}" aria-selected="false">${slotLabel(m)}</li>`).join('');
+            `<li role="option" id="slot-option-${i}" data-index="${i}" aria-selected="false">${hhmm(m)}</li>`).join('');
         const soon = slots.findIndex(m => m >= minutes + 30);
         selectSlot(soon >= 0 ? soon : slots.length - 1);
     })();
 
     slot.addEventListener('click', () => (slotOptions.hidden ? openSlots() : closeSlots(true)));
-    // Closed: arrows change the range directly, as on a native select
+    // Closed: arrows change the time directly, as on a native select
     slot.addEventListener('keydown', e => {
         if (e.key === 'ArrowDown' && e.altKey) { e.preventDefault(); openSlots(); }
         else if (e.key === 'ArrowDown') { e.preventDefault(); selectSlot(slotIndex + 1); }

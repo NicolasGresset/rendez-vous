@@ -4,7 +4,7 @@
 // /plan arriving by the end of the slot, an early arrival counting the wait until it starts).
 // Also transitEstimate: MOTIS one-to-many durations for an arrival at the end of the slot (one
 // call per place for all participants, ~100x cheaper; it counts the time up to the end of the
-// slot, so 0 to 15 min more, plus ~2 min), kept to try cheap filtering methods.
+// slot, so 0 to TOLERANCE_MIN more, plus ~2 min), kept to try cheap filtering methods.
 // Written to EVAL_DIR/oracle-<case>.json (default ~/motis/eval), reused when present.
 // Usage: node scripts/eval/oracle.js [case id…] [--force]
 // ~5 min per case on a 16-core PC: one /plan call per participant and place (~20 ms each), one
@@ -16,12 +16,11 @@ import path from 'path';
 import { CATEGORIES } from '../../js/engine.js';
 import { parseParis, forEachLimited, transitTrip } from '../../js/transitous.js';
 import { MOTIS_URL, streetDurations, transitDurationsTo } from './motis.js';
-import { CASES, DATE, SLOT } from './cases.js';
+import { CASES, DATE, SLOT, TOLERANCE_MIN } from './cases.js';
 
 export const EVAL_DIR = process.env.EVAL_DIR || path.join(os.homedir(), 'motis', 'eval');
 const PARALLEL = 16;
-const SLOT_MIN = 15;
-const SLOT_TO = SLOT.replace(/\d+$/, m => String(Number(m) + SLOT_MIN).padStart(2, '0'));
+const SLOT_TO = SLOT.replace(/\d+$/, m => String(Number(m) + TOLERANCE_MIN).padStart(2, '0'));
 
 // transitous.js calls Transitous: sent to the local server instead
 const realFetch = globalThis.fetch;
@@ -33,7 +32,7 @@ export function candidatePlaces(data) {
     return data.places.filter(p => categories.has(p.category));
 }
 
-export const slotEnd = () => new Date(parseParis(`${DATE} ${SLOT}`).getTime() + SLOT_MIN * 60000);
+export const slotEnd = () => new Date(parseParis(`${DATE} ${SLOT}`).getTime() + TOLERANCE_MIN * 60000);
 export const oraclePath = id => path.join(EVAL_DIR, `oracle-${id}.json`);
 
 // { venues: [id], times: [participant][mode][venue] seconds or null, failures }

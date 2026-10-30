@@ -11,7 +11,7 @@ const formatClock = iso => new Date(iso).toLocaleTimeString('fr-FR', {
 
 export const PROPOSALS = 3; // best places offered: the group may prefer one it knows
 export const METRIC_LABELS = { half: 'équitable', mean: 'égalitaire' };
-const METRIC_DESCRIPTIONS = {
+export const METRIC_DESCRIPTIONS = {
     half: 'le trajet moyen plus la moitié de ce que le plus long a en plus, pour ne pas trop pénaliser celui qui vient de loin',
     mean: 'le trajet moyen, chaque minute comptant pareil quel que soit celui qui la passe',
 };
@@ -82,10 +82,16 @@ export function placeLinks(place) {
     return { osm, google: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` };
 }
 
-// Text sent by the share button: the place, its address, the slot and its OpenStreetMap link
+// Meeting time and late tolerance of a result's slot { from, to } ("YYYY-MM-DD HH:MM")
+function meetingText(slot) {
+    const late = Math.round((Date.parse(slot.to.replace(' ', 'T')) - Date.parse(slot.from.replace(' ', 'T'))) / 60000);
+    return `rendez-vous à ${slot.from.slice(11)}${late ? ` (retard toléré ${late} min)` : ''}`;
+}
+
+// Text sent by the share button: the place, its address, the meeting time and its OpenStreetMap link
 export function shareText(place, slot) {
     const address = placeAddress(place);
-    return `${place.name}${address ? `, ${address}` : ''} — arrivée ${slot.from.slice(11)} – ${slot.to.slice(11)}`;
+    return `${place.name}${address ? `, ${address}` : ''} — rendez-vous à ${slot.from.slice(11)}`;
 }
 
 // A participant's trip: numbered disc (and ×3 for 3 people leaving from there), lines taken, mode and time, then the details (steps,
@@ -125,7 +131,6 @@ function proposalButton(c, j, rank, selected) {
 // candidate with its score, to pick any of them
 export function resultsHtml(data, selected, categoryLabels, { demo = false } = {}) {
     const place = selected != null ? data.candidates[selected] : null;
-    const slotText = `${data.slot.from.slice(11)} – ${data.slot.to.slice(11)}`;
 
     if (!place) {
         return `
@@ -160,7 +165,7 @@ export function resultsHtml(data, selected, categoryLabels, { demo = false } = {
         <ol class="proposals">${proposals.map((j, rank) => proposalButton(data.candidates[j], j, rank, selected)).join('')}</ol>
         <p class="location-best"><span class="rank-pin rank-pin--selected location-swatch--rank"></span>
             <strong>${escapeHtml(place.name)}</strong>
-            <span>(${categoryLabels[place.category]})${placeAddress(place) ? ` · ${escapeHtml(placeAddress(place))}` : ''} — arrivée ${slotText}</span></p>
+            <span>(${categoryLabels[place.category]})${placeAddress(place) ? ` · ${escapeHtml(placeAddress(place))}` : ''} — ${meetingText(data.slot)}</span></p>
         <p class="location-share">
             <a class="location-button" href="${links.osm}" ${external}>OpenStreetMap ↗</a>
             <a class="location-button" href="${links.google}" ${external}>Google Maps ↗</a>
