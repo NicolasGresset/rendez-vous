@@ -69,7 +69,7 @@ Full pipeline: `docs/pipeline.md`.
   for the address search. Address split into street / postcode / city (normalized at generation),
   `addrSrc`, `near`; `aliases` and `oldNames` apart. Same name within 300 m = one place (bar > restaurant
   > …). Rules and fields: `docs/pipeline.md` § 6. Rebuilt from scratch by
-  `scripts/regenerate-places.sh` (download + osmium + `scripts/build-places.js`; output reproducible). ~3.1 MB raw, ~325 KB brotli, loaded once the page is shown (window load).
+  `scripts/regenerate-places.sh` (download + osmium + `scripts/build-places.js`; output reproducible). ~3.1 MB raw, ~325 KB at the highest brotli level but ~490 KB as Vercel serves it (measured 2026-10-30), loaded once the page is shown (window load).
 - Local search: scored over name, aliases, oldNames, category label + synonyms, city; weights and bonuses
   are constants in `search.js` (`SEARCH_WEIGHTS`…), doc § 2. Sorted word index built in the browser after
   loading (~16 ms), ~0.4 ms per keystroke on a PC (scan fallback for very common prefixes).
