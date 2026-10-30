@@ -47,6 +47,11 @@ This file is excluded from the deployment (`.vercelignore`) but versioned on Git
   then `runComputation(page, scenario)` inside `withFirefox`; `node scripts/location-fixture.js shot`
   screenshots the results, `record` re-records (~24 Transitous calls, only when the format changes).
   Use it for every graphical / UX change of the results.
+- Evaluation of the proposals (since 2026-10-30, `docs/evaluation.md`): `scripts/eval/` compares
+  the tool's 3 proposals (its own `evaluate()`, calls redirected) with the best candidate places of
+  the whole file, on 10 fixed groups x 3 mode configurations, with exact times from a **local
+  MOTIS** (`~/motis`, Tisséo GTFS + OSM extract, port 8080, setup in the doc; no quota). Oracle
+  files in `~/motis/eval`. Scores there: mean per person, and mean + ½ (max − mean).
 - `docs/`, `scripts/`, `data/README.md` (sources, ODbL licence of the places file) and
   `data/tisseo-area.json` (input of the places build) are not deployed.
 
@@ -136,6 +141,12 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   zooms, points draggable on computers only (the user feared it would misbehave on phones). Doc § 2.
   Not yet tried on the user's phone.
 - Possibly more candidate categories (pub, biergarten, café): one line in `CATEGORIES`, user's call.
+- Score (decided 2026-10-30 for the evaluation; the tool's settings not changed yet): Ogryczak's
+  (1 − β)·mean + β·max with β = ½ replaces "moyenne + écart", which can prefer a place worse for
+  everyone ((10, 30) min: 40; (20, 30): 35). β = 0 is the mean (same ranking as "temps total").
+- Routing engines (2026-10-30): no Valhalla (MOTIS also gives walk, bike and car times); a
+  home-made CSA later, possibly **run in the browser** (a day of Tisséo connections is a few MB),
+  to investigate another day.
 - Transitous is the slow step: (A) cache and pruning, or (C) local Connection Scan Algorithm on Tisséo
   GTFS (~2.6 MB/day of connections, estimated 600–900 lines). Waiting for the user's decision.
 - Comparison with togather (meettogather.com), studied 2026-10-29: Astro + React page, Google Maps JS
