@@ -8,6 +8,8 @@ import { createPlaceSearch } from '../js/search.js';
 const QUERIES = [
     'jean jau', 'jean', 'capi', 'mirail', 'borderouge', 'arenes', 'compans', 'st cyp', 'bagatelle',
     'basso', 'esquirol', 'carmes', 'mcdo', 'cinema', 'pharmacie', 'la cale', 'universite', 'gare',
+    // With typos
+    'jaurse', 'capitolle', 'esquriol', 'mirial', 'st cyprein', 'bagatele', 'compnas', 'pharmacei',
 ];
 const SHOWN = 3;
 const CAPITOLE = { lat: 43.6045, lon: 1.4440 };

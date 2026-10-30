@@ -94,9 +94,9 @@ flowchart LR
     classDef user fill:#F1F5F9,stroke:#7A90AA,color:#0C1A2E
 
     TYPE["User types<br/>in an address field"]:::user
-    TYPE -->|">= 2 chars, instant"| LOCAL["Local search: typed words<br/>(accents / case ignored, split on apostrophes)<br/>against name, aliases, former names,<br/>category label + synonyms, city;<br/>stop words optional, every other word required;<br/>sorted word index: only the places of the<br/>most selective word are scored (all if it<br/>matches > 25 %), ~0.4 ms on a PC"]:::algo
+    TYPE -->|">= 2 chars, instant"| LOCAL["Local search: typed words<br/>(accents / case ignored, split on apostrophes)<br/>against name, aliases, former names,<br/>category label + synonyms, city;<br/>stop words optional, every other word required;<br/>typos tolerated from 4 letters (1) and 8 (2);<br/>sorted word index: only the places of the<br/>most selective word are scored (all if it<br/>matches > 25 %), ~0.4 ms on a PC"]:::algo
     LOCAL --> JSON[("pois-toulouse.json<br/>loaded once the page is shown; words per field<br/>and sorted word index built then, ~16 ms")]:::local
-    LOCAL --> RANK["Rank: score rounded down,<br/>then metro > others > bus,<br/>then distance to the located participants<br/>(Capitole if none), then shortest name; max 5"]:::algo
+    LOCAL --> RANK["Rank: places found without typos first,<br/>then score rounded down,<br/>then metro > others > bus,<br/>then distance to the located participants<br/>(Capitole if none), then shortest name; max 5"]:::algo
     TYPE -->|">= 3 chars, 250 ms debounce"| COMPLETION[("Géoplateforme completion<br/>addresses + IGN points of interest,<br/>Haute-Garonne only, max 6")]:::api
     RANK --> LIST["Suggestions:<br/>local places first, then addresses"]
     COMPLETION --> LIST
@@ -124,7 +124,8 @@ after a map placement.
 Score of a place (constants at the top of `search.js`, starting values to tune):
 
 - each typed word keeps its best match over all fields: quality × field weight;
-- quality: whole word 3 (also for an abbreviation: `st` = `saint`), start of a word 2;
+- quality: whole word 3 (also for an abbreviation: `st` = `saint`), start of a word 2, start of a
+  word with typos 1 (see below), only when the place has no word equal to it or starting with it;
 - weight: name 1, alias 0.8, category label or synonym 0.6, city 0.6, former name 0.3;
 - + 2 when the name starts with the whole query, + 1 when every required word matches in the name;
 - stop words (le, la, les, l, de, du, des, d, au, aux) add their match but may match nothing,
@@ -136,6 +137,23 @@ built in the browser right after the data file. Shipping it precomputed would ad
 binary search; only the places of the most selective required word are scored. Same results as
 a scan of every place (checked on 830 queries); ~0.4 ms per keystroke on average on a PC instead
 of ~3 ms, and never slower: a very common prefix (one letter, "to" for Toulouse) falls back to the scan.
+
+Typos: a typed word of 4 letters or more may start a word with 1 typo, from 8 letters with 2 (a
+letter replaced, added or removed, or two neighbouring letters swapped: optimal string alignment
+distance to a start of the word, so that a word still being typed matches). Shorter words get
+none: with 3 letters and 2 typos almost every word matches. Places matched only through a typo
+come after every place found without one, whatever their score (otherwise "la cale" put "Les
+Caves de la Maréchale" before "Le Cale Pain", the stop word adding its whole-word match). The
+typo search walks the sorted word index as an implicit trie, with no extra memory but the number
+of first letters each word shares with the next one (one byte per word): one row of distances
+per letter, kept while the next words share the letters, and every word sharing a start skipped
+once that start decides. Measured 2026-10-30 on a PC over 1,000 typed words with one random typo:
+0.08 ms per word (0.5 ms at worst) with 1 typo, 0.27 ms (1.3 ms) with 2; same words as a distance
+computed over every word (400 checks); a keystroke costs ~0.3 ms more on average. About 30 words
+and 250 places per typed word with 1 typo, 480 and 3,800 with 2, hence the thresholds. Measured
+earlier (2026-10-29, bench not kept): counting a swap as one typo catches 13 % more typos for the
+same cost; a deletion index (SymSpell) would take 24–32 MB and 0.2–0.6 s to build, for 0.1 ms
+less. Not done: phonetic matching ("jores" for "jaures", two typos at 5 letters; declined).
 
 ## 3. Computation (engine.js)
 

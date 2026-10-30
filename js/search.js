@@ -11,6 +11,7 @@ const words = str => normalize(str).split(/[^a-z0-9]+/).filter(Boolean);
 const SEARCH_WEIGHTS = { name: 1, alias: 0.8, category: 0.6, city: 0.6, oldName: 0.3 };
 const MATCH_EXACT = 3;       // the typed word is a whole word of the field
 const MATCH_PREFIX = 2;      // the typed word starts a word of the field
+const MATCH_TYPO = 1;        // the typed word starts a word of the field with typos (see maxTypos)
 const BONUS_NAME_START = 2;  // the name starts with the whole query
 const BONUS_ALL_IN_NAME = 1; // every required typed word matches in the name
 // Optional words: they add to the score when they match, but are not required
@@ -24,6 +25,9 @@ const CATEGORY_SYNONYMS = {
     'amenity=hospital': 'chu', 'amenity=doctors': 'docteur cabinet medical', 'amenity=cinema': 'cine',
     'office=company': 'societe', 'shop=hairdresser': 'coiffure',
 };
+// Typos allowed in a typed word (letter replaced, added, removed, or two letters swapped): none in
+// short words, which would match almost anything
+const maxTypos = token => (token.length >= 8 ? 2 : token.length >= 4 ? 1 : 0);
 // At equal score: metro stations, then every other place, then the numerous bus stops (before the
 // distance, so that "jean jau" gives the metro station before a nearer hairdresser of the same name)
 const categoryRank = category => (category === 'metro' ? 0 : category === 'bus' ? 2 : 1);
@@ -50,6 +54,7 @@ export function createPlaceSearch(data) {
     // binary search instead of a scan of every place
     let indexWords = null;    // sorted distinct words
     let indexPostings = null; // indexPostings[i]: placeIndex positions of the places with indexWords[i]
+    let indexShared = null;   // indexShared[i]: number of first letters indexWords[i] shares with the next word
 
     function buildWordIndex() {
         const postings = new Map();
@@ -62,6 +67,13 @@ export function createPlaceSearch(data) {
         });
         indexWords = [...postings.keys()].sort();
         indexPostings = indexWords.map(w => postings.get(w));
+        indexShared = new Uint8Array(indexWords.length);
+        for (let i = 0; i + 1 < indexWords.length; i++) {
+            const [a, b] = [indexWords[i], indexWords[i + 1]];
+            let n = 0;
+            while (n < 255 && n < a.length && a[n] === b[n]) n++;
+            indexShared[i] = n;
+        }
     }
     buildWordIndex();
 
@@ -77,10 +89,65 @@ export function createPlaceSearch(data) {
         return low;
     }
 
-    // Indexed words matching token (starting with it, or equal to its abbreviation's word):
-    // { positions in indexWords, size: number of places listed, duplicates included }, or null as
-    // soon as more than limit places are listed
-    function indexRange(token, limit) {
+    // Positions in indexWords of the words starting with token with at most typos typos (optimal
+    // string alignment distance between token and a start of the word, so that a word still being
+    // typed matches). The sorted words are walked as an implicit trie: one row of distances per
+    // letter of the word, kept for the next word as long as it shares the letters (indexShared),
+    // and every word sharing a start is skipped (all match, or none can) once that start decides
+    function typoPositions(token, typos) {
+        const width = token.length + 1;
+        // Row j (token vs the first j letters of the word) at j * width; grown for longer words
+        let rows = new Int32Array(width * 32);
+        for (let t = 0; t < width; t++) rows[t] = t;
+        const positions = [];
+        let shared = 0; // letters the current word shares with the last one walked
+        let i = 0;
+        while (i < indexWords.length) {
+            const word = indexWords[i];
+            if ((word.length + 1) * width > rows.length) {
+                const grown = new Int32Array((word.length + 1) * width * 2);
+                grown.set(rows);
+                rows = grown;
+            }
+            let decided = word.length + 1; // the start of word whose letters decide, if any
+            let match = false;
+            for (let j = shared + 1; j <= word.length; j++) {
+                const row = j * width;
+                const above = row - width;
+                const letter = word.charCodeAt(j - 1);
+                const before = j > 1 ? word.charCodeAt(j - 2) : -1;
+                rows[row] = j;
+                let lowest = j;
+                for (let t = 1; t < width; t++) {
+                    const typed = token.charCodeAt(t - 1);
+                    let d = Math.min(rows[above + t] + 1, rows[row + t - 1] + 1, rows[above + t - 1] + (typed === letter ? 0 : 1));
+                    if (t > 1 && typed === before && token.charCodeAt(t - 2) === letter) {
+                        d = Math.min(d, rows[above - width + t - 2] + 1);
+                    }
+                    rows[row + t] = d;
+                    if (d < lowest) lowest = d;
+                }
+                match = rows[row + width - 1] <= typos;
+                if (match || lowest > typos) {
+                    decided = j;
+                    break;
+                }
+            }
+            // Next word not starting with the deciding letters; shared: least common start on the way
+            shared = word.length;
+            do {
+                if (match) positions.push(i);
+                shared = Math.min(shared, indexShared[i]);
+                i++;
+            } while (i < indexWords.length && shared >= decided);
+        }
+        return positions;
+    }
+
+    // Indexed words matching token (starting with it, possibly with typos, see typoPositions, or
+    // equal to its abbreviation's word): { positions in indexWords, size: number of places listed,
+    // duplicates included }, or null as soon as more than limit places are listed
+    function indexRange(token, typoMatches, limit) {
         const positions = [];
         let size = 0;
         const add = i => {
@@ -88,8 +155,12 @@ export function createPlaceSearch(data) {
             size += indexPostings[i].length;
             return size <= limit;
         };
-        for (let i = lowerBound(token); i < indexWords.length && indexWords[i].startsWith(token); i++) {
-            if (!add(i)) return null;
+        if (typoMatches) {
+            for (const i of typoMatches) if (!add(i)) return null;
+        } else {
+            for (let i = lowerBound(token); i < indexWords.length && indexWords[i].startsWith(token); i++) {
+                if (!add(i)) return null;
+            }
         }
         const expanded = ABBREVIATIONS[token];
         if (expanded && !expanded.startsWith(token)) {
@@ -103,10 +174,10 @@ export function createPlaceSearch(data) {
     // others), in placeIndex order; every place when even that word is very common ("to" matches
     // the city Toulouse): building that set would cost more than a scan
     const SCAN_RATIO = 0.25;
-    function candidatePlaces(tokens, required) {
+    function candidatePlaces(tokens, typoMatches, required) {
         let best = null;
         tokens.forEach((token, i) => {
-            const range = required[i] && indexRange(token, best ? best.size : placeIndex.length * SCAN_RATIO);
+            const range = required[i] && indexRange(token, typoMatches[i], best ? best.size : placeIndex.length * SCAN_RATIO);
             if (range) best = range;
         });
         if (!best) return placeIndex;
@@ -115,8 +186,9 @@ export function createPlaceSearch(data) {
         return [...found].sort((a, b) => a - b).map(j => placeIndex[j]);
     }
 
-    // Best match of one typed word in a place: { score, inName }
-    function bestMatch(entry, token) {
+    // Best match of one typed word in a place: { score, inName, typo }; typoWords (words it starts with
+    // typos, or null) only count when the place has no word equal to it or starting with it
+    function bestMatch(entry, token, typoWords) {
         const expanded = ABBREVIATIONS[token];
         let score = 0;
         let inName = false;
@@ -127,23 +199,33 @@ export function createPlaceSearch(data) {
                 if (quality && field === 'name') inName = true;
             }
         }
-        return { score, inName };
+        if (score || !typoWords) return { score, inName, typo: false };
+        for (const { field, weight, words: fieldWords } of entry.fields) {
+            if (fieldWords.some(w => typoWords.has(w))) {
+                if (MATCH_TYPO * weight > score) score = MATCH_TYPO * weight;
+                if (field === 'name') inName = true;
+            }
+        }
+        return { score, inName, typo: score > 0 };
     }
 
-    // Score of a place for the typed words, null when a required word matches nothing
-    function scorePlace(entry, tokens, required) {
+    // Score of a place for the typed words: { score, typo: some word matched only with typos },
+    // null when a required word matches nothing
+    function scorePlace(entry, tokens, typoWords, required) {
         let score = 0;
         let allInName = true;
+        let typo = false;
         for (let i = 0; i < tokens.length; i++) {
-            const match = bestMatch(entry, tokens[i]);
+            const match = bestMatch(entry, tokens[i], typoWords[i]);
             if (!match.score && required[i]) return null;
             score += match.score;
+            if (match.typo) typo = true;
             if (required[i] && !match.inName) allInName = false;
         }
         if (entry.name.startsWith(tokens.join(' '))
             || entry.name.startsWith(tokens.map(t => ABBREVIATIONS[t] || t).join(' '))) score += BONUS_NAME_START;
         if (allInName) score += BONUS_ALL_IN_NAME;
-        return score;
+        return { score, typo };
     }
 
     // origin: center of the participants already located (Capitole if none), to rank near places first
@@ -153,16 +235,20 @@ export function createPlaceSearch(data) {
         // Stop words are optional, unless the query has nothing else
         const onlyStopWords = tokens.every(t => STOP_WORDS.has(t));
         const required = tokens.map(t => onlyStopWords || !STOP_WORDS.has(t));
+        const typoMatches = tokens.map(t => (maxTypos(t) ? typoPositions(t, maxTypos(t)) : null));
+        const typoWords = typoMatches.map(m => m && new Set(m.map(i => indexWords[i])));
         // Squared equirectangular distance: enough to compare places a few km apart
         const cosLat = Math.cos(origin.lat * Math.PI / 180);
         const distance = p => (p.lat - origin.lat) ** 2 + ((p.lon - origin.lon) * cosLat) ** 2;
         const found = [];
-        for (const entry of candidatePlaces(tokens, required)) {
-            const score = scorePlace(entry, tokens, required);
-            if (score != null) found.push({ entry, score: Math.floor(score), distance: distance(entry.place) });
+        for (const entry of candidatePlaces(tokens, typoMatches, required)) {
+            const match = scorePlace(entry, tokens, typoWords, required);
+            if (match) found.push({ entry, typo: match.typo, score: Math.floor(match.score), distance: distance(entry.place) });
         }
+        // Places found without typos first, whatever their score
         return found
-            .sort((a, b) => b.score - a.score
+            .sort((a, b) => a.typo - b.typo
+                || b.score - a.score
                 || a.entry.rank - b.entry.rank
                 || a.distance - b.distance
                 || a.entry.nameLength - b.entry.nameLength)
