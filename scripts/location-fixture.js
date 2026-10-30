@@ -45,6 +45,8 @@ const SCENARIO = {
 function preload(fixture) {
     if (location.origin !== new URL(fixture.baseUrl).origin) return;
     localStorage.setItem('location.apiKeys', JSON.stringify({ ors: 'fixture' }));
+    // Recorded with the former 15 min slot: a 15 min late tolerance asks Transitous the same times
+    localStorage.setItem('location.settings', JSON.stringify({ tolerance: '15' }));
 
     if (fixture.now != null) {
         const RealDate = Date;

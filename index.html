@@ -46,7 +46,7 @@
 
             <!-- ======= SETTINGS: view, score, API keys and transit engine (stored only in this browser) ======= -->
             <details class="chart-card location-keys" id="keys-panel">
-                <summary class="chart-title">Réglages <span class="location-keys-summary" id="keys-summary"></span></summary>
+                <summary class="chart-title">Réglages</summary>
                 <div class="location-settings-row">
                     <fieldset class="location-categories" id="view-mode">
                         <legend>Affichage</legend>
@@ -62,9 +62,8 @@
                             <label class="chip"><input type="radio" name="score-metric" value="half" checked><span>équitable</span></label>
                             <label class="chip"><input type="radio" name="score-metric" value="mean"><span>égalitaire</span></label>
                         </div>
-                        <p class="location-muted">Équitable : le trajet moyen plus la moitié de ce que le plus long a en plus,
-                            pour ne pas trop pénaliser celui qui vient de loin. Égalitaire : le trajet moyen, chaque minute
-                            comptant pareil quel que soit celui qui la passe.</p>
+                        <!-- The selected criterion's explanation (main.js) -->
+                        <p class="location-muted" id="score-description"></p>
                     </fieldset>
                 </div>
                 <form class="location-keys-form" id="keys-form" autocomplete="off">
@@ -104,6 +103,15 @@
                     </select>
                     <span class="location-muted">8 au plus : chaque lieu coûte un trajet bus/métro par participant.</span>
                 </div>
+                <div class="location-field location-candidates">
+                    <label for="late-tolerance">Retard toléré</label>
+                    <select id="late-tolerance">
+                        <option value="0">0 min</option><option value="5">5 min</option>
+                        <option value="10" selected>10 min</option><option value="15">15 min</option>
+                    </select>
+                    <span class="location-muted">Chacun arrive au plus tard à l'heure du rendez-vous plus ce retard ;
+                        arriver en avance compte comme de l'attente.</span>
+                </div>
             </details>
 
             <!-- ======= INPUTS: one form over two cards (display: contents, see the CSS) ======= -->
@@ -134,7 +142,7 @@
                         </fieldset>
                         <!-- Custom list: a native <select> cannot limit how many ranges it shows -->
                         <div class="location-field slot-field">
-                            <span id="slot-label">Arrivée entre</span>
+                            <span id="slot-label">Rendez-vous à</span>
                             <button type="button" class="slot-button" id="slot" aria-haspopup="listbox"
                                 aria-expanded="false" aria-controls="slot-options" aria-labelledby="slot-label slot"></button>
                             <ul class="slot-options" id="slot-options" role="listbox" aria-labelledby="slot-label"

@@ -9,7 +9,7 @@ import { createPlaceSearch } from './search.js';
 import { slotPicker } from './slots.js';
 import { TOULOUSE, createMap, drawCenter, drawCandidates, drawRoute as drawPath, drawEnumeration, drawRadius,
     drawNetworkLines, drawTimeGrid } from './map.js';
-import { resultsHtml, enumerationHtml, choiceText, placeLinks, shareText, PROPOSALS, METRIC_LABELS } from './results.js';
+import { resultsHtml, enumerationHtml, choiceText, placeLinks, shareText, PROPOSALS, METRIC_LABELS, METRIC_DESCRIPTIONS } from './results.js';
 import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
 import * as motis from './motis.js';
 import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
@@ -73,8 +73,9 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
     const engineInput = value => document.querySelector(`[name="transit-engine"][value="${value}"]`);
     const tisseoEngine = engineInput('tisseo');
     const engineHint = document.getElementById('transit-engine-hint');
-    const keysSummary = document.getElementById('keys-summary');
     const candidateCount = document.getElementById('candidate-count');
+    const lateTolerance = document.getElementById('late-tolerance');
+    const scoreDescription = document.getElementById('score-description');
     const ENGINE_NAMES = { transitous: 'Transitous', tisseo: 'Tisséo', motis: 'MOTIS local' };
     let motisReady = false; // a local MOTIS answers through the dev server (demonstrator, motis.js)
     let timeLayer = null;   // its time map layer, once offered
@@ -92,19 +93,17 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
         tisseoEngine.disabled = !keys.tisseo;
         if (!keys.tisseo && tisseoEngine.checked) engineInput('transitous').checked = true;
         engineHint.textContent = keys.tisseo ? '' : 'Tisséo : saisissez votre clé ci-dessus.';
-        showSettingsSummary();
         updateSubmit();
     }
 
-    // The folded settings line: each key's state and the transit engine
-    function showSettingsSummary() {
-        const engine = ENGINE_NAMES[checkedValue('transit-engine')];
-        keysSummary.textContent = `${isDemo() ? 'démonstrateur' : 'pratique'} · ${METRIC_LABELS[checkedValue('score-metric')]}`
-            + ` · openrouteservice ${keys.ors ? '✓' : 'à renseigner'} · Tisséo ${keys.tisseo ? '✓' : 'facultative'}`
-            + ` · bus/métro : ${engine} · ${candidateCount.value} lieux`;
+    // Under the criteria, only the picked one's explanation
+    function showScoreDescription() {
+        const text = METRIC_DESCRIPTIONS[checkedValue('score-metric')];
+        scoreDescription.textContent = `${text[0].toUpperCase()}${text.slice(1)}.`;
     }
 
-    // ---- Settings, kept in this browser: view, score, number of candidates, transit engine ----
+    // ---- Settings, kept in this browser: view, score, number of candidates, transit engine,
+    //      late tolerance ----
     const checkedValue = name => document.querySelector(`[name="${name}"]:checked`).value;
     const isDemo = () => checkedValue('view-mode') === 'demo';
     const SETTING_RADIOS = { view: 'view-mode', metric: 'score-metric', engine: 'transit-engine' };
@@ -116,11 +115,12 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
             if (input) input.checked = true;
         });
         if ([...candidateCount.options].some(o => o.value === saved.candidates)) candidateCount.value = saved.candidates;
+        if ([...lateTolerance.options].some(o => o.value === saved.tolerance)) lateTolerance.value = saved.tolerance;
     }
 
     function storeSettings() {
         saveSettings({ ...Object.fromEntries(Object.entries(SETTING_RADIOS).map(([key, name]) => [key, checkedValue(name)])),
-            candidates: candidateCount.value });
+            candidates: candidateCount.value, tolerance: lateTolerance.value });
     }
 
     // openrouteservice computes walking, cycling and driving only: without its key, a computation
@@ -950,20 +950,18 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
     // Other place types, candidates or transit engine make the displayed result stale; another
     // score or view only changes how it is ranked or shown
     document.getElementById('categories').addEventListener('change', clearResults);
-    [candidateCount, document.getElementById('transit-engine')].forEach(input => input.addEventListener('change', () => {
+    [candidateCount, lateTolerance, document.getElementById('transit-engine')].forEach(input => input.addEventListener('change', () => {
         storeSettings();
-        showSettingsSummary();
         clearResults();
         updateSubmit();
     }));
     document.getElementById('score-metric').addEventListener('change', () => {
         storeSettings();
-        showSettingsSummary();
+        showScoreDescription();
         rerank();
     });
     document.getElementById('view-mode').addEventListener('change', () => {
         storeSettings();
-        showSettingsSummary();
         applyView();
     });
 
@@ -998,7 +996,8 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
         const state = { startedAt: performance.now() };
         try {
             const data = await getData();
-            const input = { slot: slotValue(), categories, transitEngine: checkedValue('transit-engine'),
+            const input = { slot: slotValue(), tolerance: Number(lateTolerance.value), categories,
+                transitEngine: checkedValue('transit-engine'),
                 maxCandidates: Number(candidateCount.value), metric: checkedValue('score-metric'),
                 participants: participants.map(({ row, ...p }) => p) };
             // lastRun is updated by the engine as calls are made
@@ -1082,7 +1081,7 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
         refreshRows();
         setActive(null);
         fitParticipants();
-        if (!slotValue.select('19:00')) setStatus('Créneau 19:00 passé pour aujourd\'hui : créneau inchangé.');
+        if (!slotValue.select('19:00')) setStatus('19:00 est passé pour aujourd\'hui : heure du rendez-vous inchangée.');
         clearResults();
     }
 
@@ -1091,7 +1090,6 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
         document.querySelector('#transit-engine .chips').insertAdjacentHTML('beforeend',
             '<label class="chip"><input type="radio" name="transit-engine" value="motis"><span>MOTIS local (démo)</span></label>');
         if (loadSettings().engine === 'motis') engineInput('motis').checked = true;
-        showSettingsSummary();
         updateSubmit();
         renderCalls();
 
@@ -1121,6 +1119,7 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
     }
 
     restoreSettings();
+    showScoreDescription();
     applyView();
     showKeys();
     motis.available().then(ok => ok && setupMotisDemo());

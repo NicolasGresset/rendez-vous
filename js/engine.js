@@ -1,6 +1,7 @@
 // engine.js - Meeting point computation, in the browser: candidates around the participants'
 // barycenter (weighted by the people leaving from each starting point), each participant's travel
-// time per mode to arrive today within [slot, slot + 15 min], and the candidates ranked by a score
+// time per mode to be there today at the meeting time, at most `tolerance` minutes late (arriving
+// early counts as waiting), and the candidates ranked by a score
 // of each participant's fastest time (see SCORES).
 //
 // Progress is reported through emit(event), with event.type:
@@ -26,7 +27,7 @@ const TRANSIT_ENGINES = {
     motis:      { trip: (keys, onCall, ...args) => (onCall(), motis.trip(...args)), parallel: 8 },
 };
 const ENGINE_NAMES = { transitous: 'Transitous', tisseo: 'Tisséo', motis: 'MOTIS local' };
-const SLOT_MIN = 15;
+const DEFAULT_TOLERANCE_MIN = 10;
 const CAR_PARKING_S = 5 * 60;      // fixed time to park, added to every car trip
 const RADIUS_START_M = 1000;
 const RADIUS_STEP_M = 500;
@@ -152,17 +153,20 @@ export function rankCandidates(candidates, metric, people) {
         .sort((a, b) => candidates[a].score - candidates[b].score || candidates[a].total - candidates[b].total);
 }
 
-// participants: [{ lat, lon, modes, people }], slot: "HH:MM",
+// participants: [{ lat, lon, modes, people }], slot: the meeting time "HH:MM", tolerance: minutes late
+// allowed (the arrival window is [slot, slot + tolerance]; it exists for low-frequency transit: a bus
+// arriving at 19:01 would otherwise force the one arriving at 18:46),
 // categories: keys of CATEGORIES (1 to 3), transitEngine: key of TRANSIT_ENGINES,
 // maxCandidates: places evaluated, at most MAX_CANDIDATES, metric: key of SCORES,
 // keys: { ors, tisseo }, data: from loadData(),
 // calls: external API call counters, updated as calls are made
-export async function evaluate({ participants, slot, categories, transitEngine = 'transitous', maxCandidates = MAX_CANDIDATES,
+export async function evaluate({ participants, slot, tolerance = DEFAULT_TOLERANCE_MIN, categories,
+    transitEngine = 'transitous', maxCandidates = MAX_CANDIDATES,
     metric = DEFAULT_METRIC },
     keys, data, calls, emit) {
     const date = todayInToulouse();
     const arriveFrom = `${date} ${slot}`;
-    const arriveTo = addMinutes(arriveFrom, SLOT_MIN);
+    const arriveTo = addMinutes(arriveFrom, tolerance);
     const center = barycenter(participants);
     const base = { date, slot: { from: arriveFrom, to: arriveTo }, center, participants };
     emit({ type: 'start', ...base });
@@ -241,7 +245,7 @@ export async function evaluate({ participants, slot, categories, transitEngine =
         try {
             const trip = await tripWithRetry(i, j);
             times[i][j].transit = trip == null
-                ? { error: 'aucun trajet n\'arrive avant la fin de la plage' }
+                ? { error: 'aucun trajet n\'arrive à temps, retard toléré compris' }
                 : { seconds: trip.seconds, trip };
         } catch (err) {
             if (err instanceof TisseoKeyError) throw err;

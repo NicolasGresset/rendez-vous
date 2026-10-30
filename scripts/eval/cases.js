@@ -6,7 +6,8 @@
 
 // A Tuesday evening within the Tisséo GTFS validity (2026-10-29 to 2026-12-02)
 export const DATE = '2026-11-03';
-export const SLOT = '19:00';
+export const SLOT = '19:00';      // meeting time
+export const TOLERANCE_MIN = 10; // late tolerance, the tool's default
 
 const p = (name, lat, lon, people = 1) => ({ name, lat, lon, people });
 

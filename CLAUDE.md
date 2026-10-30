@@ -59,7 +59,7 @@ This file is excluded from the deployment (`.vercelignore`) but versioned on Git
 
 ## The tool (`index.html`, `js/`)
 
-Proposes the 3 meeting places with the best score (group's total travel time, or mean + gap) for an arrival within a 15 min slot,
+Proposes the 3 meeting places with the best score (équitable or égalitaire) for a meeting time with a late tolerance (10 min by default),
 Toulouse area. Fully client-side; the user's own openrouteservice key is stored in localStorage only.
 Full pipeline: `docs/pipeline.md`.
 
@@ -155,12 +155,14 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   explaining the place selection, the typing optimizations of the address search, how the site is
   tuned for Toulouse and what another city would need (the same preprocessing of OSM places, and
   a transit source: an API key now, a GTFS feed once the home server computes).
+- No keys for visitors (stated by the user 2026-10-30): as a private person they would not enter
+  a key on an unknown site, nor create one; the service should work without any (home server).
 - Possibly more candidate categories (pub, biergarten, café): one line in `CATEGORIES`, user's call.
 - Scores (2026-10-30): "équitable" (default, Ogryczak's (1 − β)·mean + β·max with β = ½) and
   "égalitaire" (the mean per person); "moyenne + écart" dropped, it can prefer a place worse for
   everyone ((10, 30) min: 40; (20, 30): 35). The user wants few, trustworthy choices: a newcomer
   should not have to think about metrics (as on togather).
-- Arrival time (decided 2026-10-30, not implemented yet): a round meeting time T and a late
+- Arrival time (done 2026-10-30): a round meeting time T (quarter hours) and a late
   tolerance set by the user (10 min by default), instead of the 15 min slot; each participant
   is counted alone (waiting with the others is not lost time), arriving before T counts as
   waiting, arriving after T + tolerance is not allowed. The slot only exists for low-frequency
