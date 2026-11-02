@@ -161,6 +161,12 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
 - Participants (decided 2026-11-02): 5 at most with the public services, whose quota is shared; 10 with the local MOTIS.
 - Links to stops (decided 2026-11-02): no link to their OSM page, a marker there and a Google Maps text search (kind,
   name, city), checked on Carmes. OSM has several points per bus stop; 36 of the 37 metro stations would match.
+- Zones kept (stated by the user 2026-11-02: good engineering, `docs/evaluation.md` § What the zones bring). Idea of the user, not
+  done: a maximum of members per zone, to bound the third phase. Measured (the 3 zones kept: ~12 places in all on average; the
+  members closest to the representative exact): no loss on the first proposal down to 5 per zone, third phase 18 -> 12 journeys on
+  average, 76 -> 40 at most; it matters mostly for restaurants (a zone of 31). Whether to split zones or only limit exact times: open.
+- Later (stated by the user 2026-11-02): on the home server, maybe an engine of one's own instead of MOTIS, doing only what is
+  needed; the user has ideas on the transit times.
 - Tuned on Toulouse's bars, to do again elsewhere (stated by the user, 2026-11-02): the 5 min on foot of
   the zones, the 500 m between zones, the 20 exact zones and the 700 m between candidates are measures on this data. For
   another city, export the reasoning and redo the measures (`scripts/eval/centers.js`, `zones.js`), not the values.
@@ -184,7 +190,7 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   computing time, not brute force, so that the service scales): every zone's representative estimated (MOTIS one-to-many,
   one forward search per participant, leaving 60 min before the meeting time; no center nor radius), the 20 best exact, the best 3 zones at least 500 m apart, then every place of these 3
   exact. Cafés and restaurants get zones the same way. The geometric median was measured worse on the
-  équitable score, not adopted. Practical view (branch `practical-zones`, 2026-11-02, MOTIS engine only, not merged): proposes each zone's best
+  équitable score, not adopted. Practical view (2026-11-02, MOTIS engine only, so not visible online until the home server): proposes each zone's best
   place, its zone as context, no address (stated by the user), the zone's other places folded and selectable, also as small grey pins for the zone of the chosen place only, whose proposal stays pressed (`evaluateByZones`); with stations (no
   zones) the former method. Done: `zone` + `zones` table
   in the data file (`scripts/build-zones.js`), "Zones de bars" layer of the debug view,
