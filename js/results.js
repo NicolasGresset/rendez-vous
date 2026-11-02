@@ -17,7 +17,7 @@ export const METRIC_DESCRIPTIONS = {
 };
 
 export function choiceText(choice) {
-    return choice ? `${formatDuration(choice.seconds)} (${MODE_LABELS[choice.mode]})` : 'injoignable';
+    return choice ? `${formatDuration(choice.travel)} (${MODE_LABELS[choice.mode]})` : 'injoignable';
 }
 
 // Transitous names the trip's ends START and END
@@ -63,7 +63,7 @@ function transitSteps(trip, placeName) {
 function modeDetails(modeTimes, retained) {
     return Object.entries(modeTimes)
         .filter(([mode]) => mode !== retained)
-        .map(([mode, t]) => `${MODE_LABELS[mode]} : ${t.seconds != null ? formatDuration(t.seconds) : escapeHtml(t.error)}`)
+        .map(([mode, t]) => `${MODE_LABELS[mode]} : ${t.seconds != null ? formatDuration(t.seconds - (t.trip?.wait ?? 0)) : escapeHtml(t.error)}`)
         .join(' · ');
 }
 
@@ -105,19 +105,23 @@ function tripCard(p, i, place, demo) {
                 ${p.people > 1 ? `<span class="trip-card-people" aria-hidden="true">×${p.people}</span>` : ''}
                 <span class="visually-hidden">${escapeHtml(p.label)}${p.people > 1 ? `, ${p.people} personnes` : ''}</span>
                 ${lines.length ? `<span class="trip-card-lines">${lines.map(lineBadge).join(' → ')}</span>` : ''}
-                <span class="trip-card-mode">${MODE_LABELS[choice.mode]} · ${formatDuration(choice.seconds)}</span></h3>
+                <span class="trip-card-mode">${MODE_LABELS[choice.mode]} · ${formatDuration(choice.travel)}</span></h3>
             ${place.times[i].transit?.failed ? `<p class="location-warning">Transports en commun inconnus pour
                 ce trajet (${escapeHtml(place.times[i].transit.error)}) : le temps retenu peut être trop long.</p>` : ''}
             ${demo ? details : `<details class="trip-details"><summary>Voir l'itinéraire</summary>${details}</details>`}
         </article>`;
 }
 
-function proposalButton(c, j, rank, selected) {
+// A proposal: the mean per person and the longest door-to-door trip
+function proposalButton(c, j, rank, selected, participants) {
+    const trips = c.choices.map(choice => choice.travel);
+    const people = participants.reduce((sum, p) => sum + p.people, 0);
+    const mean = trips.reduce((sum, t, i) => sum + participants[i].people * t, 0) / people;
     return `
         <li><button type="button" class="proposal" data-place="${j}" aria-pressed="${j === selected}">
             <span class="rank-pin proposal-rank"><span>${rank + 1}</span></span>
             <span class="proposal-name">${escapeHtml(c.name)}</span>
-            <span class="proposal-times">moyenne ${formatDuration(c.mean)} · le plus long ${formatDuration(c.longest)}</span>
+            <span class="proposal-times">moyenne ${formatDuration(mean)} · le plus long ${formatDuration(Math.max(...trips))}</span>
         </button></li>`;
 }
 
@@ -156,7 +160,7 @@ export function resultsHtml(data, selected, categoryLabels, { demo = false } = {
         </div>
         <p class="location-muted location-ranking">Classées selon le critère ${METRIC_LABELS[data.metric]} (réglages) :
             ${METRIC_DESCRIPTIONS[data.metric]}.</p>
-        <ol class="proposals">${proposals.map((j, rank) => proposalButton(data.candidates[j], j, rank, selected)).join('')}</ol>
+        <ol class="proposals">${proposals.map((j, rank) => proposalButton(data.candidates[j], j, rank, selected, data.participants)).join('')}</ol>
         <p class="location-best"><span class="rank-pin rank-pin--selected location-swatch--rank"></span>
             <strong>${escapeHtml(place.name)}</strong>
             <span>(${categoryLabels[place.category]})${placeAddress(place) ? ` · ${escapeHtml(placeAddress(place))}` : ''} — rendez-vous à ${data.slot.from.slice(11)}</span></p>

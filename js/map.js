@@ -30,7 +30,7 @@ export function drawCandidates(layer, candidates, categoryLabels, { selected = n
         const rank = proposals.indexOf(j);
         if (rank < 0 && !isSelected && !all) return;
         const tooltip = `${rank >= 0 ? `${rank + 1}. ` : ''}${escapeHtml(c.name)} · ${categoryLabels[c.category]}`
-            + (c.choices ? ` · ${c.score != null ? `moyenne ${formatDuration(c.mean)}, le plus long ${formatDuration(c.longest)}` : 'injoignable'}` : '');
+            + (c.choices ? ` · ${c.score != null ? `trajets ${c.choices.map(choice => formatDuration(choice.travel)).join(', ')}` : 'injoignable'}` : '');
         // Every place is a pin: numbered for the proposals, orange for the chosen one, small and
         // grey for the other candidates. Tip of a pin of size s: s / √2 below its center
         const small = rank < 0 && !isSelected;

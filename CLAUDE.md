@@ -158,6 +158,9 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   a transit source: an API key now, a GTFS feed once the home server computes).
 - No keys for visitors (stated by the user 2026-10-30): as a private person they would not enter
   a key on an unknown site, nor create one; the service should work without any (home server).
+- Results card (2026-11-02): times shown are door-to-door, without the wait until the meeting
+  time (still in the score). Proposals show the mean and the longest trip; per-participant bars
+  were tried and removed, the user will decide later what to show.
 - Possibly more candidate categories (pub, biergarten, café): one line in `CATEGORIES`, user's call.
 - Scores (2026-10-30): "équitable" (default, Ogryczak's (1 − β)·mean + β·max with β = ½) and
   "égalitaire" (the mean per person); "moyenne + écart" dropped, it can prefer a place worse for

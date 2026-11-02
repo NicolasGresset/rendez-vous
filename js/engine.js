@@ -116,11 +116,14 @@ function findCandidates(places, center, categories, total) {
     return { candidates, radius };
 }
 
-// Fastest available mode of one participant to one candidate, null if none
+// Fastest available mode of one participant to one candidate, null if none. seconds: the time that
+// is scored, with the wait until the meeting time when arriving early; travel: the door-to-door
+// time that is shown, without it
 function fastest(modeTimes) {
     return Object.entries(modeTimes)
         .filter(([, t]) => t.seconds != null)
-        .reduce((best, [mode, t]) => (!best || t.seconds < best.seconds ? { mode, seconds: t.seconds } : best), null);
+        .reduce((best, [mode, t]) => (!best || t.seconds < best.seconds
+            ? { mode, seconds: t.seconds, travel: t.seconds - (t.trip?.wait ?? 0) } : best), null);
 }
 
 // Scores of a candidate from each participant's fastest time in seconds and the people leaving
@@ -257,16 +260,14 @@ export async function evaluate({ participants, slot, categories,
         progress();
     });
 
-    // Each participant's fastest time; the mean and the longest trip are shown whatever the metric,
-    // the total breaks ties
+    // Each participant's fastest time; the total breaks ties
     const people = participants.map(p => p.people);
     const evaluated = candidates.map((c, j) => {
         const choices = participants.map((_, i) => fastest(times[i][j]));
         const seconds = choices.every(Boolean) ? choices.map(x => x.seconds) : null;
         const incomplete = participants.some((_, i) => times[i][j].transit?.failed);
         return { ...c, incomplete, choices, times: participants.map((_, i) => times[i][j]),
-            total: seconds && totalTime(seconds, people), mean: seconds && meanTime(seconds, people),
-            longest: seconds && Math.max(...seconds) };
+            total: seconds && totalTime(seconds, people) };
     });
     const ranking = rankCandidates(evaluated, metric, people);
     const best = ranking.length ? ranking[0] : null;

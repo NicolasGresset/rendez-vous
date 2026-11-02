@@ -21,7 +21,7 @@ const STREET_MODES = ['walk', 'bike', 'car'];
 export async function enumeratePlaces(participants, categories, slot, data, onProgress) {
     const allowed = new Set(categories.flatMap(c => CATEGORIES[c]));
     const places = data.places.filter(p => allowed.has(p.category))
-        .map(p => ({ ...p, times: participants.map(() => ({})), estimated: false }));
+        .map(p => ({ ...p, times: participants.map(() => ({})), waits: participants.map(() => 0), estimated: false }));
 
     onProgress(`temps marche, vélo, voiture vers ${places.length} lieux…`);
     await Promise.all(participants.flatMap((p, i) => STREET_MODES.filter(m => p.modes.includes(m)).map(async mode => {
@@ -54,8 +54,12 @@ export async function enumeratePlaces(participants, categories, slot, data, onPr
         let done = 0;
         await forEachLimited(pairs, PARALLEL, async ([i, j]) => {
             const trip = await motis.trip(participants[i], places[j], slot.from, slot.to);
-            if (trip) places[j].times[i].transit = trip.seconds;
-            else delete places[j].times[i].transit;
+            if (trip) {
+                places[j].times[i].transit = trip.seconds;
+                places[j].waits[i] = trip.wait;
+            } else {
+                delete places[j].times[i].transit;
+            }
             if (++done % 100 === 0) onProgress(`trajets bus/métro exacts : ${done}/${pairs.length}`);
         });
         exactPlaces.forEach(j => { places[j].estimated = false; });
@@ -67,8 +71,9 @@ export async function enumeratePlaces(participants, categories, slot, data, onPr
 // (null when someone cannot reach it); returns the indices of the reachable places, best first
 export function scorePlaces(places, metric, people) {
     places.forEach(p => {
-        p.choices = p.times.map(t => Object.entries(t).reduce((best, [mode, seconds]) =>
-            (!best || seconds < best.seconds ? { mode, seconds } : best), null));
+        p.choices = p.times.map((t, i) => Object.entries(t).reduce((best, [mode, seconds]) =>
+            (!best || seconds < best.seconds
+                ? { mode, seconds, travel: seconds - (mode === 'transit' ? p.waits?.[i] ?? 0 : 0) } : best), null));
         p.score = p.choices.every(Boolean) ? SCORES[metric](p.choices.map(c => c.seconds), people) : null;
     });
     return places.map((_, j) => j).filter(j => places[j].score != null).sort((a, b) => places[a].score - places[b].score);
