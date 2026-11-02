@@ -40,7 +40,7 @@ const data = JSON.parse(fs.readFileSync(new URL('../../data/pois-toulouse.json',
 const bars = candidatePlaces(data).filter(p => CATEGORIES.bar.includes(p.category));
 const members = data.zones.map(() => []);
 bars.forEach(p => members[p.zone].push(p));
-const zones = data.zones.map((zone, index) => ({ ...zone, bars: members[index] }));
+const zones = data.zones.map((zone, index) => ({ ...zone, bars: members[index] })).filter(z => z.kind === 'bar');
 
 const rows = {};
 const add = (name, row) => (rows[name] ??= []).push(row);
@@ -71,6 +71,10 @@ for (const testCase of CASES) {
             record('outil : 8 bars espacés', ranked(toolPool).slice(0, PROPOSALS), toolPool.length, 0);
             // The whole file, best 3 at least SPACING_M apart: what scoring everything would give
             record('tous les bars, espacés', spacedOut(ranked(bars), SPACING_M, PROPOSALS), bars.length, 0);
+            // The whole file without any rule: how close the 3 best are, how many share a zone
+            const rawTop = ranked(bars).slice(0, PROPOSALS);
+            record('tous les bars, sans règle', rawTop, bars.length, 0);
+            add(`${metric}|sameZone`, new Set(rawTop.map(p => p.zone)).size < rawTop.length);
 
             for (const [name, start] of [['toutes les zones', RADIUS_MAX_M], ['zones à 2 km', 2000], ['zones à 3 km', 3000], ['zones à 4 km', 4000]]) {
                 let radius = start;
@@ -87,6 +91,17 @@ for (const testCase of CASES) {
                 record(`${name}, représentant`, kept.map(z => z.rep), pool.length, radius);
                 const refined = kept.map(z => ranked(z.bars)[0]).sort((a, b) => score(a) - score(b));
                 record(`${name}, puis recalcul`, refined, pool.length + kept.reduce((s, z) => s + z.bars.length - 1, 0), radius);
+                // Why the best bar of the file was missed: its zone out of the radius, its zone's
+                // representative not good enough, or a better zone too close
+                if (name === 'zones à 3 km') {
+                    const gap = (score(refined[0]) - best) / 60;
+                    const target = data.zones[ranked(bars)[0].zone];
+                    const reason = gap < 0.01 ? 'trouvé'
+                        : !pool.some(z => z.name === target.name) ? 'hors du rayon'
+                            : scoredZones.slice(0, PROPOSALS).some(z => z.name === target.name) ? 'trop près d\'une meilleure zone'
+                                : 'représentant moins bon que le meilleur lieu de sa zone';
+                    add(`${metric}|reasons`, { reason, gap });
+                }
             }
         }
     }
@@ -95,14 +110,19 @@ for (const testCase of CASES) {
 const quantile = (xs, f) => [...xs].sort((a, b) => a - b)[Math.floor(f * (xs.length - 1))];
 const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
 for (const metric of Object.keys(METRICS)) {
-    console.log(`\n## ${METRICS[metric].label}, bars et cafés, ${rows[`${metric}|outil : 8 bars espacés`].length} lignes (min, écart au meilleur bar du fichier)\n`);
+    console.log(`\n## ${METRICS[metric].label}, bars, ${rows[`${metric}|outil : 8 bars espacés`].length} lignes (min, écart au meilleur bar du fichier)\n`);
     console.log('| méthode | n° 1 méd. / moy. / max | > 5 min | dernier moy. | 2 plus proches, méd. | < 3 propositions | lieux notés moy. | trajets TC moy. / max |');
     console.log('|---|---|---|---|---|---|---|---|');
-    for (const [key, list] of Object.entries(rows).filter(([k]) => k.startsWith(`${metric}|`))) {
+    for (const [key, list] of Object.entries(rows).filter(([k]) => k.startsWith(`${metric}|`) && !/\|(sameZone|reasons)$/.test(k))) {
         const first = list.map(r => r.first).filter(x => x != null);
         console.log(`| ${key.split('|')[1]} | ${quantile(first, .5).toFixed(1)} / ${mean(first).toFixed(1)} / ${Math.max(...first).toFixed(1)} `
             + `| ${first.filter(x => x > 5).length} | ${mean(list.map(r => r.last).filter(x => x != null)).toFixed(1)} `
             + `| ${Math.round(quantile(list.map(r => r.closest).filter(Number.isFinite), .5))} m | ${list.filter(r => r.count < PROPOSALS).length} `
             + `| ${mean(list.map(r => r.scored)).toFixed(0)} | ${mean(list.map(r => r.journeys)).toFixed(0)} / ${Math.max(...list.map(r => r.journeys))} |`);
     }
+    console.log(`\nLes 3 meilleurs bars du fichier partagent une zone : ${rows[`${metric}|sameZone`].filter(Boolean).length} lignes.`);
+    const byReason = {};
+    rows[`${metric}|reasons`].forEach(({ reason, gap }) => (byReason[reason] ??= []).push(gap));
+    console.log('Zones à 3 km, n° 1 par rapport au meilleur bar :');
+    Object.entries(byReason).forEach(([reason, gaps]) => console.log(`- ${reason} : ${gaps.length} lignes, écart moyen ${mean(gaps).toFixed(1)}, max ${Math.max(...gaps).toFixed(1)} min`));
 }

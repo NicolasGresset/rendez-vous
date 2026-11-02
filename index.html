@@ -52,9 +52,9 @@
                         <legend>Affichage</legend>
                         <div class="chips">
                             <label class="chip"><input type="radio" name="view-mode" value="practical" checked><span>pratique</span></label>
-                            <label class="chip"><input type="radio" name="view-mode" value="demo"><span>démonstrateur</span></label>
+                            <label class="chip"><input type="radio" name="view-mode" value="debug"><span>debug</span></label>
                         </div>
-                        <p class="location-muted">Démonstrateur : barycentre et candidats sur la carte, étapes du calcul, appels API, score de chaque candidat.</p>
+                        <p class="location-muted">Debug : barycentre et candidats sur la carte, étapes du calcul, appels API, score de chaque candidat.</p>
                     </fieldset>
                     <fieldset class="location-categories" id="score-metric">
                         <legend>Critère</legend>
@@ -127,7 +127,8 @@
                             <legend>Types de lieux</legend>
                             <div class="chips">
                                 <label class="chip"><input type="checkbox" name="categories" value="station"><span>stations</span></label>
-                                <label class="chip"><input type="checkbox" name="categories" value="bar" checked><span>bars et cafés</span></label>
+                                <label class="chip"><input type="checkbox" name="categories" value="bar" checked><span>bars</span></label>
+                                <label class="chip"><input type="checkbox" name="categories" value="cafe"><span>cafés</span></label>
                                 <label class="chip"><input type="checkbox" name="categories" value="restaurant"><span>restaurants</span></label>
                             </div>
                         </fieldset>
@@ -151,7 +152,7 @@
                 <div class="chart-header">
                     <h2 class="chart-title" id="location-progress-title">Calcul</h2>
                 </div>
-                <!-- Practical view: one bar; demonstrator view: every step and the API calls -->
+                <!-- Practical view: one bar; debug view: every step and the API calls -->
                 <div class="progress-simple">
                     <progress id="progress-bar" max="1" value="0"></progress>
                     <span class="location-muted" id="progress-text" aria-live="polite"></span>
@@ -171,8 +172,8 @@
                         <li><span class="location-swatch location-swatch--participant">1</span>participant</li>
                         <li><span class="rank-pin location-swatch--rank"><span>1</span></span>proposition</li>
                         <li><span class="rank-pin rank-pin--selected location-swatch--rank"></span>lieu choisi</li>
-                        <li class="demo-only"><span class="location-swatch location-swatch--center"></span>barycentre</li>
-                        <li class="demo-only"><span class="rank-pin location-swatch--rank location-swatch--candidate"></span>autre candidat</li>
+                        <li class="debug-only"><span class="location-swatch location-swatch--center"></span>barycentre</li>
+                        <li class="debug-only"><span class="rank-pin location-swatch--rank location-swatch--candidate"></span>autre candidat</li>
                     </ul>
                 </div>
                 <p class="location-map-hint location-muted" id="map-hint" aria-live="polite"></p>

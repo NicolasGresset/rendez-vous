@@ -9,7 +9,7 @@ Participants have no name field (removed 2026-10-29): they are "participant 1, 2
 shown as a disc in their color with their number (the label is kept for screen readers). The
 proposals are numbered pins (map, legend, results), so that places and people do not look alike;
 the chosen place is orange, and a pin without a number when it is not a proposal (picked in the
-demonstrator view's list); the other candidates (demonstrator view) are small grey pins.
+debug view's list); the other candidates (debug view) are small grey pins.
 
 People per participant (2026-10-29): after the modes, a chip (a person icon and 1) opening a
 stepper − [n] +, folded again when the focus leaves it with one person (1 by default, no upper
@@ -21,14 +21,14 @@ every person (n x the participant's time) and the mean divides by the number of 
 depends on it. Shown as ×n next to the participant's disc on the map and in their trip.
 At least 2 participants with a position are needed.
 
-Two views, picked in "Réglages" (`location--demo` class on the layout, CSS only, no new computation):
+Two views, picked in "Réglages" (`location--debug` class on the layout, CSS only, no new computation):
 
 - **pratique** (default): one progress bar; the map shows the participants and the 3 proposals;
   each participant's trip is one line (mode, time, lines taken), the steps folded under
   "Voir l'itinéraire" (each person usually follows their own navigation app to the shared address);
   a click anywhere on the trip card also folds or unfolds them (except on the unfolded steps
   themselves, or when text is selected);
-- **démonstrateur**: the computation steps and the "Appels API" panel; the map also shows the
+- **debug**: the computation steps and the "Appels API" panel; the map also shows the
   barycenter and every other candidate; the results add a list of every candidate with its score,
   and the trips' steps are shown unfolded.
 
@@ -169,7 +169,7 @@ flowchart TB
 
     subgraph CANDIDATES["Candidate selection (no API call)"]
         direction TB
-        R0["Only the candidate categories:<br/>amenity=bar, pub, biergarten, cafe,<br/>amenity=restaurant, metro, bus"]:::algo
+        R0["Only the candidate categories, 4 types: stations (metro, bus),<br/>bars (amenity=bar, pub, biergarten),<br/>cafés (amenity=cafe), restaurants"]:::algo
         R1["Haversine distance to the barycenter,<br/>dedupe same category + name"]:::algo
         R2["Radius 1 km, + 500 m while fewer candidates than<br/>the number set (default 8), up to 5 km"]:::algo
         R3["Quota per type (maximums): the number of<br/>candidates set in the page (1 to 8, default 8)<br/>split evenly, first types first:<br/>8 over 3 types: 3 stations, 3 bars, 2 restaurants"]:::algo
@@ -209,7 +209,7 @@ flowchart TB
     ROUTES --> DIRECTIONS[("openrouteservice directions<br/>1 call per walk / bike / car participant")]:::api
     ROUTES --> LEGS["Transit: legs of the journey already fetched<br/>(lines, direction; stops count with Transitous only)"]:::local
 
-    BEST -.->|"user picks another proposal<br/>(button or map; demonstrator: any candidate)"| OTHER["Same details for that place:<br/>transit legs kept, ORS directions<br/>fetched once per place shown"]:::algo
+    BEST -.->|"user picks another proposal<br/>(button or map; debug view: any candidate)"| OTHER["Same details for that place:<br/>transit legs kept, ORS directions<br/>fetched once per place shown"]:::algo
 ```
 
 ## 4. API calls of one computation
@@ -323,7 +323,7 @@ Labels: a listed code gets its own label (`office=company` → "entreprise"); an
 The code always keeps the precise OSM tag, so a label can be refined later without
 regenerating the file's codes.
 
-Candidates: the engine only picks `amenity=bar`, `pub`, `biergarten`, `cafe` (the page's "bars et cafés": somewhere to have a drink and talk, whichever OSM tag), `amenity=restaurant`, `metro` and `bus`
+Candidates: the engine only picks `amenity=bar`, `pub`, `biergarten` (the page's "bars"), `amenity=cafe` ("cafés"), `amenity=restaurant`, `metro` and `bus`
 places (`CATEGORIES` in `engine.js`); every other place is for the address search only. Only
 candidates keep their OSM or GTFS `id` (the engine keys its route cache with it); the ids of
 the other places would weigh a quarter of the file.
@@ -349,14 +349,15 @@ Fields (generation normalizes them, the browser only reads them):
 | `near` | some `ban` | the BAN address is more than 30 m away ("près de") |
 | `aliases` | ~700 | OSM `short_name`, `alt_name`, `official_name` (split on `;`) |
 | `oldNames` | ~140 | OSM `old_name`, kept apart: it sometimes names the previous business at the address |
-| `zone` | bars | index in the top-level `zones` table |
+| `zone` | bars, cafés, restaurants | index in the top-level `zones` table |
 
-Zones of bars (`scripts/build-zones.js`, last step of the regeneration, needs a local MOTIS; alone:
-11 s): complete linkage, so that no two bars of a zone are more than 5 min apart on foot, either
+Zones (`scripts/build-zones.js`, last step of the regeneration, needs a local MOTIS; alone: ~20 s), one
+kind at a time (bars, cafés, restaurants): complete linkage, so that no two places of a zone are more than 5 min apart on foot, either
 way, with MOTIS's walking times (no chaining: it runs away, `docs/evaluation.md` § Clusters); lone
-bars are zones of one. Top-level `zones`: `[{ name, lat, lon }]`, the position of the representative,
-the bar closest to the zone's centroid. Names, automatic: a lone bar's own name; otherwise the metro station or bus stop closest
+places are zones of one. Top-level `zones`: `[{ kind, name, lat, lon }]`, the position of the representative,
+the place closest to the zone's centroid. Names, automatic: a lone place's own name; otherwise the metro station or bus stop closest
 to the representative; several zones on one stop: the closest to it keeps the name, the others
 take their most represented street not taken yet (ties in alphabetical order), else the stop and a number.
-227 zones: 59 of 3 bars or more, 29 of 2, 139 of 1; largest 18. Only drawn so far, by the
-demonstrator's "Zones de bars" map layer (dev server + local MOTIS): the engine does not use them.
+161 zones of bars (36 of 3 places or more, 21 of 2, 104 of 1; largest 12), 109 of cafés (31, 17, 61; 15),
+581 of restaurants (153, 124, 304; 31). Used by the debug view only (dev server + local MOTIS): its
+map layers, and the method by zones (`js/debug-motis.js` `scoreZones`, doc `docs/evaluation.md`); not by the engine.

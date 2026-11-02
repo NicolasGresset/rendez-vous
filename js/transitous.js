@@ -57,7 +57,7 @@ function decodePolyline(points, precision) {
 }
 
 // Itinerary legs -> walking portions and transit lines, with what the page shows and draws
-// (also for the local MOTIS of the demonstrator, motis.js)
+// (also for the local MOTIS of the debug view, motis.js)
 export function itineraryLegs(itinerary) {
     return itinerary.legs.map(leg => {
         const common = {
@@ -96,7 +96,7 @@ export function bestJourney(journeys, arriveFrom, arriveTo) {
 
 // Transit trip (walking included) to be there for the slot [arriveFrom, arriveTo]:
 // { seconds (wait included), wait, departure, arrival, legs } (times in ISO), or null when no
-// journey arrives by the end of the slot. planUrl: another MOTIS server (the demonstrator's local one)
+// journey arrives by the end of the slot. planUrl: another MOTIS server (the debug view's local one)
 export async function transitTrip(from, to, arriveFrom, arriveTo, planUrl = PLAN_URL) {
     const params = new URLSearchParams({
         fromPlace: `${from.lat},${from.lon}`,

@@ -54,12 +54,12 @@ export const CONFIGS = {
     soft:    { label: 'marche + vélo', modes: () => ['walk', 'bike'] },
 };
 
-// Candidate categories: the tool's default (bars), and all three
-export const CATEGORY_SETS = { bars: ['bar'], all: ['station', 'bar', 'restaurant'] };
+// Candidate categories: the tool's default (bars), and all four
+export const CATEGORY_SETS = { bars: ['bar'], all: ['station', 'bar', 'cafe', 'restaurant'] };
 
-// Scenarios found with the demonstrator, offered in its test case picker only (not in the
+// Scenarios found with the debug view, offered in its test case picker only (not in the
 // evaluation, whose set stays fixed)
-export const DEMO_CASES = [
+export const DEBUG_CASES = [
     { id: 'D1', label: 'trois stations, le meilleur entre deux lignes', points: [
         p('Rue des Fauvettes (Ramonville)', 43.552865, 1.47322), p('Jardin Niel (Empalot / Saint-Agne)', 43.5794, 1.4474),
         p('Université du Mirail', 43.5752, 1.4018)] },

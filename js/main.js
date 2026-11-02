@@ -1,5 +1,5 @@
 // main.js - Meeting point prototype, entirely in the browser: the user's API keys and settings
-// (practical or demonstrator view, score), participants form with address autocompletion,
+// (practical or debug view, score), participants form with address autocompletion,
 // computation progress, API call counters and the glue between the engine and the page's other
 // modules (search, slots, map, results).
 
@@ -8,11 +8,11 @@ import { loadKeys, saveKeys, clearKeys, loadSettings, saveSettings } from './key
 import { createPlaceSearch } from './search.js';
 import { slotPicker } from './slots.js';
 import { TOULOUSE, createMap, drawCenter, drawCandidates, drawRoute as drawPath, drawEnumeration, drawRadius,
-    drawNetworkLines, drawTimeGrid, drawZones } from './map.js';
-import { resultsHtml, enumerationHtml, choiceText, placeLinks, shareText, PROPOSALS, METRIC_LABELS, METRIC_DESCRIPTIONS } from './results.js';
+    drawNetworkLines, drawTimeGrid, drawZones, drawZoneResults } from './map.js';
+import { resultsHtml, enumerationHtml, zonesHtml, choiceText, placeLinks, shareText, PROPOSALS, METRIC_LABELS, METRIC_DESCRIPTIONS } from './results.js';
 import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
 import * as motis from './motis.js';
-import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
+import { enumeratePlaces, scorePlaces, scoreZones, timeGrid } from './debug-motis.js';
 
 (function () {
     const form = document.getElementById('location-form');
@@ -77,8 +77,11 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
     const candidateCount = document.getElementById('candidate-count');
     const scoreDescription = document.getElementById('score-description');
     const ENGINE_NAMES = { transitous: 'Transitous', tisseo: 'Tisséo', motis: 'MOTIS local' };
-    let motisReady = false; // a local MOTIS answers through the dev server (demonstrator, motis.js)
+    let motisReady = false; // a local MOTIS answers through the dev server (debug view, motis.js)
     let timeLayer = null;   // its time map layer, once offered
+    let enumLayer = null;   // its layer of every place of the file (off by default), once offered
+    let layersControl = null; // the map's optional layers, debug view only
+    let optionalLayers = {};
     let keys = loadKeys();
 
     function showKeys(message) {
@@ -104,7 +107,7 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
 
     // ---- Settings, kept in this browser: view, score, number of candidates, transit engine ----
     const checkedValue = name => document.querySelector(`[name="${name}"]:checked`).value;
-    const isDemo = () => checkedValue('view-mode') === 'demo';
+    const isDebug = () => checkedValue('view-mode') === 'debug';
     const SETTING_RADIOS = { view: 'view-mode', metric: 'score-metric', engine: 'transit-engine' };
 
     function restoreSettings() {
@@ -178,7 +181,7 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
             + row('openrouteservice directions', 'orsDirections', quota(orsQuota.directions))
             + row('Transitous', 'transitous', ' <span class="location-muted">(au-delà de 720/24 h, se coordonner avec Transitous)</span>')
             + row('Tisséo', 'tisseo', ' <span class="location-muted">(2 appels par trajet)</span>')
-            + (motisReady ? row('MOTIS local', 'motis', ' <span class="location-muted">(démonstrateur, sans l\'énumération)</span>') : '');
+            + (motisReady ? row('MOTIS local', 'motis', ' <span class="location-muted">(debug, sans l\'énumération)</span>') : '');
     }
     renderCalls();
 
@@ -345,6 +348,7 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
     function clearResults() {
         resultLayer.clearLayers();
         timeLayer?.clearLayers();
+        enumLayer?.clearLayers();
         routeLayers = [];
         current = null;
         participantMarkers.forEach(m => m.unbindPopup());
@@ -746,19 +750,21 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
         drawPath(routeLayers[i], p, place, route, p.color);
     }
 
-    // Practical view: the proposals only; demonstrator view: the barycenter and every candidate too
+    // Practical view: the proposals only; debug view: the barycenter and every candidate too
     function drawSelection(fit) {
         const { data, rows, selected } = current;
         const place = data.candidates[selected];
-        const demo = isDemo();
+        const debug = isDebug();
         resultLayer.clearLayers();
-        if (demo && current.enum) {
+        enumLayer?.clearLayers();
+        if (debug && current.enum) {
             drawRadius(resultLayer, data.center, current.radius);
-            drawEnumeration(resultLayer, current.enum.places, current.enum.ranking, categoryLabels, METRIC_LABELS[data.metric]);
+            drawEnumeration(enumLayer, current.enum.places, current.enum.ranking, categoryLabels, METRIC_LABELS[data.metric]);
         }
-        if (demo) drawCenter(resultLayer, data.center);
+        if (debug && current.zones) drawZoneResults(resultLayer, current.zones.zones, METRIC_LABELS[data.metric]);
+        if (debug) drawCenter(resultLayer, data.center);
         drawCandidates(resultLayer, data.candidates, categoryLabels,
-            { selected, proposals: data.ranking.slice(0, PROPOSALS), all: demo, onSelect: selectPlace });
+            { selected, proposals: data.ranking.slice(0, PROPOSALS), all: debug, onSelect: selectPlace });
         routeLayers = data.participants.map((p, i) => {
             participantMarkers.get(rows[i])
                 ?.bindPopup(`<strong>${escapeHtml(p.label)}</strong><br>${choiceText(place?.choices[i])}`);
@@ -766,8 +772,9 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
         });
         if (place) data.participants.forEach((_, i) => drawRoute(i));
         if (fit) {
-            const shown = demo ? data.candidates : data.ranking.slice(0, PROPOSALS).map(j => data.candidates[j]);
-            if (demo && current.enum) shown.push(...current.enum.ranking.slice(0, 3).map(j => current.enum.places[j]));
+            const shown = debug ? data.candidates : data.ranking.slice(0, PROPOSALS).map(j => data.candidates[j]);
+            if (debug && current.enum && map.hasLayer(enumLayer)) shown.push(...current.enum.ranking.slice(0, 3).map(j => current.enum.places[j]));
+            if (debug && current.zones) shown.push(...current.zones.zones.flatMap(zone => zone.places));
             const points = [...shown.map(c => [c.lat, c.lon]), ...data.participants.map(p => [p.lat, p.lon])];
             if (points.length) map.fitBounds(points, { padding: [30, 30], maxZoom: 16 });
         }
@@ -795,22 +802,23 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
             if (event.orsQuota) orsQuota.directions = event.orsQuota;
             storeRoute(event);
             renderCalls();
-        });
+        }, checkedValue('transit-engine'));
         if (!running) session.orsDirections += lastRun.orsDirections - before;
         renderCalls();
     }
 
     function renderResults() {
-        results.innerHTML = resultsHtml(current.data, current.selected, categoryLabels, { demo: isDemo() })
-            + (isDemo() && current.enum ? enumerationHtml(current.data, current.enum, categoryLabels) : '');
+        results.innerHTML = resultsHtml(current.data, current.selected, categoryLabels, { debug: isDebug() })
+            + (isDebug() && current.zones ? zonesHtml(current.data, current.zones, current.enum, categoryLabels) : '')
+            + (isDebug() && current.enum ? enumerationHtml(current.data, current.enum, categoryLabels) : '');
         results.querySelector('#place-select')?.addEventListener('change', e => selectPlace(Number(e.target.value)));
         results.querySelectorAll('.proposal').forEach(button =>
             button.addEventListener('click', () => selectPlace(Number(button.dataset.place))));
         results.querySelector('#place-share')?.addEventListener('click', sharePlace);
-        // Practical view: a click anywhere on a trip card folds or unfolds its steps; the summary
-        // toggles natively, the unfolded steps and a text selection are left alone
-        results.querySelectorAll('.trip-card').forEach(card => card.addEventListener('click', e => {
-            const details = card.querySelector('.trip-details');
+        // A click anywhere on a card folds or unfolds its details; the summary toggles natively,
+        // the unfolded details and a text selection are left alone
+        results.querySelectorAll('.trip-card, .zone-card').forEach(card => card.addEventListener('click', e => {
+            const details = card.querySelector('details');
             if (!details || e.target.closest('summary, a, button')) return;
             if (details.open && details.contains(e.target)) return;
             if (String(window.getSelection())) return;
@@ -846,14 +854,24 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
         data.ranking = rankCandidates(data.candidates, data.metric, data.participants.map(p => p.people));
         if (current.enum) current.enum.ranking = scorePlaces(current.enum.places, data.metric, data.participants.map(p => p.people));
         if (current.grid) showTimeGrid();
+        if (current.zones) computeZones().catch(console.error);
         data.best = data.ranking.length ? data.ranking[0] : null;
         if (data.best != null && data.best !== current.selected) return selectPlace(data.best);
         renderResults();
         drawSelection(false);
     }
 
+    // The practical view has the default map and no option: the debug view's layers go with it
+    function showMapOptions() {
+        if (!layersControl) return;
+        if (isDebug()) return layersControl.addTo(map);
+        layersControl.remove();
+        Object.values(optionalLayers).forEach(layer => map.removeLayer(layer));
+    }
+
     function applyView() {
-        layout.classList.toggle('location--demo', isDemo());
+        layout.classList.toggle('location--debug', isDebug());
+        showMapOptions();
         if (!current) return;
         renderResults();
         drawSelection(false);
@@ -877,7 +895,7 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
             setStep('center', 'done', `${event.center.lat.toFixed(4)}, ${event.center.lon.toFixed(4)}`);
             setStep('candidates', 'running', 'recherche autour du barycentre…');
             resultLayer.clearLayers();
-            if (isDemo()) drawCenter(resultLayer, event.center);
+            if (isDebug()) drawCenter(resultLayer, event.center);
             state.matrixModes = ORS_MODES.filter(m => participants.some(p => p.modes.includes(m)));
             state.matrixDone = [];
             break;
@@ -887,7 +905,7 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
             setStep('candidates', 'done', `${describeCandidates(event.candidates)} `
                 + `à moins de ${(event.radius / 1000).toLocaleString('fr-FR')} km `
                 + `(données OSM du ${event.sources.osm || '—'}, GTFS du ${event.sources.gtfs})`);
-            if (isDemo()) drawCandidates(resultLayer, event.candidates, categoryLabels);
+            if (isDebug()) drawCandidates(resultLayer, event.candidates, categoryLabels);
             setProgress(0.05, `${describeCandidates(event.candidates)} : calcul des trajets…`);
             setStep('matrix', state.matrixModes.length ? 'running' : 'done',
                 state.matrixModes.length ? `0/${state.matrixModes.length} matrice(s)` : 'aucun participant concerné');
@@ -1002,7 +1020,11 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
                 handleEvent(event, participants, rows, state);
                 renderCalls();
             });
-            if (input.transitEngine === 'motis' && current) await enumerate(input, data, state);
+            if (input.transitEngine === 'motis' && current) {
+                current.zoneInput = { categories: input.categories, data };
+                await addZones(state);
+                await enumerate(input, data, state);
+            }
         } catch (err) {
             console.error(err);
             failRunningStep(err.message || 'calcul impossible');
@@ -1015,19 +1037,45 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
         }
     });
 
-    // ---- Demonstrator with a local MOTIS (dev server only): every candidate place of the file
+    // ---- Debug view with a local MOTIS (dev server only): every candidate place of the file
     //      scored, test cases of scripts/eval, the network's lines on the map ----
-    // The steps' labels name openrouteservice: the demonstrator's engine computes everything locally
+    // The steps' labels name openrouteservice: the debug view's engine computes everything locally
     function motisStepLabels() {
         const label = (id, text) => { steps.querySelector(`[data-step="${id}"] .progress-label`).textContent = text; };
         label('matrix', 'Temps marche, vélo, voiture (MOTIS local)');
         label('routes', 'Tracés des itinéraires (MOTIS local)');
     }
 
+    // The method by zones; another score changes the zones kept, so it is computed again (local, no quota)
+    async function computeZones(onProgress = text => setProgress(0.99, text)) {
+        const shown = current;
+        const { data } = shown;
+        const result = await scoreZones(data.participants, shown.zoneInput.categories, data.center, data.slot,
+            shown.zoneInput.data, data.metric, onProgress);
+        if (current !== shown) return result; // the result was cleared meanwhile
+        shown.zones = result;
+        renderResults();
+        drawSelection(false);
+        return result;
+    }
+
+    async function addZones(state) {
+        steps.insertAdjacentHTML('beforeend', `<li class="progress-step" data-step="zones" data-state="running">
+            <span class="progress-label">Par zones : représentants à moins de 3 km, puis les meilleures (MOTIS local, debug)</span>
+            <span class="progress-detail location-muted"></span></li>`);
+        const result = await computeZones(text => {
+            setStep('zones', 'running', text);
+            setProgress(0.96, text);
+        });
+        setStep('zones', 'done', result
+            ? `${result.zonesScored} zones, ${result.journeys} trajets bus/métro, ${result.seconds.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} s`
+            : 'aucune zone pour ces types de lieux');
+    }
+
     async function enumerate(input, data, state) {
         const shown = current;
         steps.insertAdjacentHTML('beforeend', `<li class="progress-step" data-step="enum" data-state="running">
-            <span class="progress-label">Tous les lieux candidats du fichier (MOTIS local, démonstrateur)</span>
+            <span class="progress-label">Tous les lieux candidats du fichier (MOTIS local, debug)</span>
             <span class="progress-detail location-muted"></span></li>`);
         const progress = text => {
             setStep('enum', 'running', text);
@@ -1082,10 +1130,10 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
         clearResults();
     }
 
-    async function setupMotisDemo() {
+    async function setupMotisDebug() {
         motisReady = true;
         document.querySelector('#transit-engine .chips').insertAdjacentHTML('beforeend',
-            '<label class="chip"><input type="radio" name="transit-engine" value="motis"><span>MOTIS local (démo)</span></label>');
+            '<label class="chip"><input type="radio" name="transit-engine" value="motis"><span>MOTIS local (debug)</span></label>');
         if (loadSettings().engine === 'motis') engineInput('motis').checked = true;
         updateSubmit();
         renderCalls();
@@ -1093,14 +1141,19 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
         map.createPane('network').style.zIndex = 350; // under the other drawings (overlay pane: 400)
         const linesLayer = L.layerGroup();
         timeLayer = L.layerGroup();
-        const zonesLayer = L.layerGroup();
-        L.control.layers(null, { 'Lignes Tisséo (MOTIS local)': linesLayer, 'Carte des temps (estimée)': timeLayer,
-            'Zones de bars': zonesLayer }, { collapsed: false }).addTo(map);
+        enumLayer = L.layerGroup();
+        const zoneLayers = new Map([['bar', L.layerGroup()], ['cafe', L.layerGroup()], ['restaurant', L.layerGroup()]]);
+        optionalLayers = { 'Tous les lieux du fichier': enumLayer, 'Lignes Tisséo (MOTIS local)': linesLayer,
+            'Carte des temps (estimée)': timeLayer, 'Zones de bars': zoneLayers.get('bar'),
+            'Zones de cafés': zoneLayers.get('cafe'), 'Zones de restaurants': zoneLayers.get('restaurant') };
+        layersControl = L.control.layers(null, optionalLayers, { collapsed: false });
+        showMapOptions();
         map.on('overlayadd', async e => {
             if (e.layer === timeLayer) return computeTimeGrid();
-            if (e.layer === zonesLayer && !zonesLayer.getLayers().length) {
+            const kind = [...zoneLayers].find(([, layer]) => layer === e.layer)?.[0];
+            if (kind && !e.layer.getLayers().length) {
                 const { zones, places } = await getData();
-                return drawZones(zonesLayer, zones, places);
+                return drawZones(e.layer, zones, places, kind);
             }
             if (e.layer !== linesLayer || linesLayer.getLayers().length) return;
             drawNetworkLines(linesLayer, await motis.networkLines(43.42, 1.20, 43.75, 1.62), 'network');
@@ -1109,12 +1162,12 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
         // Test cases: served by the dev server from scripts/ (not deployed)
         const module = await import('/scripts/eval/cases.js');
         const { CONFIGS } = module;
-        const CASES = [...module.CASES, ...(module.DEMO_CASES || [])];
-        list.insertAdjacentHTML('beforebegin', `<div class="location-field demo-only demo-cases">
-            <label for="demo-case">Cas de test (scripts/eval, démonstrateur)</label>
-            <select id="demo-case"><option value="">—</option>${CASES.flatMap(c => Object.entries(CONFIGS).map(([k, config]) =>
+        const CASES = [...module.CASES, ...(module.DEBUG_CASES || [])];
+        list.insertAdjacentHTML('beforebegin', `<div class="location-field debug-only debug-cases">
+            <label for="debug-case">Cas de test (scripts/eval, debug)</label>
+            <select id="debug-case"><option value="">—</option>${CASES.flatMap(c => Object.entries(CONFIGS).map(([k, config]) =>
                 `<option value="${c.id}:${k}">${c.id} ${escapeHtml(c.label)} · ${escapeHtml(config.label)}</option>`)).join('')}</select></div>`);
-        document.getElementById('demo-case').addEventListener('change', e => {
+        document.getElementById('debug-case').addEventListener('change', e => {
             const [id, config] = e.target.value.split(':');
             if (id) loadCase(CASES.find(c => c.id === id), CONFIGS[config].modes);
         });
@@ -1124,5 +1177,5 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
     showScoreDescription();
     applyView();
     showKeys();
-    motis.available().then(ok => ok && setupMotisDemo());
+    motis.available().then(ok => ok && setupMotisDebug());
 })();

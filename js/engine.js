@@ -22,7 +22,7 @@ const RETRY_DELAY_MS = 2000; // a transit journey failing for a technical reason
 const TRANSIT_ENGINES = {
     transitous: { trip: (keys, onCall, ...args) => (onCall(), transitTrip(...args)), parallel: 3 },
     tisseo:     { trip: (keys, onCall, ...args) => tisseoTrip(keys.tisseo, onCall, ...args), parallel: 6 },
-    // Demonstrator only (dev server and local MOTIS, motis.js): walk, bike and car times and paths
+    // Debug view only (dev server and local MOTIS, motis.js): walk, bike and car times and paths
     // come from it too, instead of openrouteservice
     motis:      { trip: (keys, onCall, ...args) => (onCall(), motis.trip(...args)), parallel: 8 },
 };
@@ -36,13 +36,12 @@ const RADIUS_STEP_M = 500;
 const RADIUS_MAX_M = 5000;
 // Candidates at least this far apart: close ones bring little information, and the 3 proposals
 // taken from them are then distinct places to choose from (docs/evaluation.md § Diversity)
-const CANDIDATE_SPACING_M = 700;
+export const CANDIDATE_SPACING_M = 700;
 const MAX_CANDIDATES = 8; // default and maximum: each candidate costs one transit journey per participant
 
 // Categories the user picks from, and the place categories of data/pois-toulouse.json they cover:
-// only these places can be candidates, the others are for the address search. "bar": anywhere to
-// have a drink and talk, alcohol or not; OSM's tags between them are a matter of taste
-export const CATEGORIES = { station: ['metro', 'bus'], bar: ['amenity=bar', 'amenity=pub', 'amenity=biergarten', 'amenity=cafe'], restaurant: ['amenity=restaurant'] };
+// only these places can be candidates, the others are for the address search
+export const CATEGORIES = { station: ['metro', 'bus'], bar: ['amenity=bar', 'amenity=pub', 'amenity=biergarten'], cafe: ['amenity=cafe'], restaurant: ['amenity=restaurant'] };
 const CANDIDATE_CATEGORIES = new Set(Object.values(CATEGORIES).flat());
 // Maximum candidates per category: the total split evenly in the order the categories come, the
 // first ones getting the rest (8 over stations, bars, restaurants: 3, 3, 2). Fewer if fewer nearby
@@ -76,7 +75,7 @@ function barycenter(points) {
 }
 
 // Great-circle distance in meters
-function haversine(a, b) {
+export function haversine(a, b) {
     const rad = deg => deg * Math.PI / 180;
     const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2
         + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lon - a.lon) / 2) ** 2;
@@ -174,7 +173,7 @@ export function rankCandidates(candidates, metric, people) {
 }
 
 // participants: [{ lat, lon, modes, people }], slot: the meeting time "HH:MM",
-// categories: keys of CATEGORIES (1 to 3), transitEngine: key of TRANSIT_ENGINES,
+// categories: keys of CATEGORIES (1 to 4), transitEngine: key of TRANSIT_ENGINES,
 // maxCandidates: places evaluated, at most MAX_CANDIDATES, metric: key of SCORES,
 // keys: { ors, tisseo }, data: from loadData(),
 // calls: external API call counters, updated as calls are made
@@ -200,7 +199,7 @@ export async function evaluate({ participants, slot, categories,
     // times[i][j][mode] = { seconds } or { error } for participant i and candidate j
     const times = participants.map(() => candidates.map(() => ({})));
 
-    // One openrouteservice matrix per mode (local MOTIS street times with the demonstrator's engine)
+    // One openrouteservice matrix per mode (local MOTIS street times with the debug view's engine)
     const durations = {};
     const localStreets = transitEngine === 'motis';
     await Promise.all(ORS_MODES.map(async mode => {
@@ -294,7 +293,7 @@ export async function evaluate({ participants, slot, categories,
 
 // Paths to a place with each participant's retained mode, emitted as route events: the legs of
 // the Transitous journey already fetched, or one openrouteservice directions call per participant
-// (made only for the places actually displayed; local MOTIS paths with the demonstrator's engine)
+// (made only for the places actually displayed; local MOTIS paths with the debug view's engine)
 export async function placeRoutes(participants, place, keys, calls, emit, transitEngine = 'transitous') {
     await Promise.all(participants.map(async (p, i) => {
         const choice = place.choices[i];

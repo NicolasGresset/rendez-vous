@@ -1,4 +1,4 @@
-// motis.js - The demonstrator's local MOTIS (the engine behind Transitous, run on the Tisséo GTFS
+// motis.js - The debug view's local MOTIS (the engine behind Transitous, run on the Tisséo GTFS
 // and an OpenStreetMap extract, docs/evaluation.md), reached through the dev server's /motis/
 // relay (scripts/dev-server.js). Only on the developer's machine: elsewhere available() is false
 // without any call, and the engine is not offered. Street times (walk, bike, car), their paths, transit journeys (as transitous.js asks

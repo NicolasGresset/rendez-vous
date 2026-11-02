@@ -1,5 +1,5 @@
 // results.js - HTML of the results: the best places (proposals), the chosen one (the best by
-// default, or picked among the proposals, on the map or, in the demonstrator view, in the list of
+// default, or picked among the proposals, on the map or, in the debug view, in the list of
 // every candidate), links to it on OpenStreetMap and Google Maps, and each participant's trip to it
 // (mode and time, the steps folded in the practical view)
 
@@ -89,8 +89,8 @@ export function shareText(place, slot) {
 }
 
 // A participant's trip: numbered disc (and ×3 for 3 people leaving from there), lines taken, mode and time, then the details (steps,
-// other modes), folded in the practical view, shown in the demonstrator view
-function tripCard(p, i, place, demo) {
+// other modes), folded
+function tripCard(p, i, place) {
     const choice = place.choices[i];
     const others = modeDetails(place.times[i], choice.mode);
     const trip = choice.mode === 'transit' ? place.times[i].transit.trip : null;
@@ -108,7 +108,7 @@ function tripCard(p, i, place, demo) {
                 <span class="trip-card-mode">${MODE_LABELS[choice.mode]} · ${formatDuration(choice.travel)}</span></h3>
             ${place.times[i].transit?.failed ? `<p class="location-warning">Transports en commun inconnus pour
                 ce trajet (${escapeHtml(place.times[i].transit.error)}) : le temps retenu peut être trop long.</p>` : ''}
-            ${demo ? details : `<details class="trip-details"><summary>Voir l'itinéraire</summary>${details}</details>`}
+            <details class="trip-details"><summary>Voir l'itinéraire</summary>${details}</details>
         </article>`;
 }
 
@@ -125,9 +125,9 @@ function proposalButton(c, j, rank, selected, participants) {
         </button></li>`;
 }
 
-// HTML of the results for the candidate `selected` of a result event; demo: the list of every
+// HTML of the results for the candidate `selected` of a result event; debug: the list of every
 // candidate with its score, to pick any of them
-export function resultsHtml(data, selected, categoryLabels, { demo = false } = {}) {
+export function resultsHtml(data, selected, categoryLabels, { debug = false } = {}) {
     const place = selected != null ? data.candidates[selected] : null;
 
     if (!place) {
@@ -153,7 +153,7 @@ export function resultsHtml(data, selected, categoryLabels, { demo = false } = {
     return `
         <div class="chart-header">
             <h2 class="chart-title">Propositions</h2>
-            ${demo ? `<label class="location-field location-place-select">
+            ${debug ? `<label class="location-field location-place-select">
                 <span>Tous les candidats (score : ${METRIC_LABELS[data.metric]})</span>
                 <select id="place-select">${options}</select>
             </label>` : ''}
@@ -172,10 +172,10 @@ export function resultsHtml(data, selected, categoryLabels, { demo = false } = {
         </p>
         ${place.incomplete ? `<p class="location-warning">Calcul incomplet pour ce lieu : des trajets en transports
             en commun ont échoué deux fois${selected === data.best ? ', et aucun lieu au calcul complet n\'est atteignable par tous' : ''}.</p>` : ''}
-        <div class="trip-cards">${data.participants.map((p, i) => tripCard(p, i, place, demo)).join('')}</div>`;
+        <div class="trip-cards">${data.participants.map((p, i) => tripCard(p, i, place)).join('')}</div>`;
 }
 
-// Demonstrator with the local MOTIS (demo-motis.js): the tool's first proposal against the best
+// Debug view with the local MOTIS (debug-motis.js): the tool's first proposal against the best
 // places of the whole file, for the same score and times
 const km = (a, b) => {
     const rad = d => d * Math.PI / 180;
@@ -210,6 +210,43 @@ export function enumerationHtml(data, enumeration, categoryLabels) {
             ${toolPlace && !ranking.slice(0, 3).includes(toolIndex) ? row(toolPlace, ranking.indexOf(toolIndex) + 1,
                 '<span class="rank-pin location-swatch--rank"><span>1</span></span>') : ''}</tbody>
         </table></div>
-        <p class="location-muted">Sur la carte : chaque lieu, du vert (le meilleur) au jaune (50 % de plus) et au rouge (le double ou au-delà) ; pointillés : le rayon de recherche de l'outil autour du barycentre.</p>
+        <p class="location-muted">Sur la carte, couche « Tous les lieux du fichier » : chaque lieu, du vert (le meilleur) au jaune (50 % de plus) et au rouge (le double ou au-delà). Pointillés : le rayon de recherche de l'outil autour du barycentre.</p>
+    </section>`;
+}
+
+// Debug view: the zones proposed (debug-motis.js scoreZones), each with its best place and the
+// others, unfolded on request; against the best place of the file once the enumeration is done
+export function zonesHtml(data, result, enumeration, categoryLabels) {
+    const people = data.participants.reduce((sum, p) => sum + p.people, 0);
+    const best = enumeration?.ranking.length ? enumeration.places[enumeration.ranking[0]] : null;
+    const zoneItem = (zone, rank) => {
+        const [first, ...others] = zone.places;
+        const trips = first.choices.map(choice => choice.travel);
+        const mean = trips.reduce((sum, t, i) => sum + data.participants[i].people * t, 0) / people;
+        const row = p => `<tr><td><strong>${escapeHtml(p.name)}</strong> <span class="location-muted">(${categoryLabels[p.category]})</span></td>
+            <td>${formatDuration(p.score)}</td><td>${p.choices.map(choiceText).join(' · ')}</td></tr>`;
+        return `<li class="zone-card">
+            <h3 class="zone-card-title"><span class="rank-pin rank-pin--zone location-swatch--rank"><span>${rank + 1}</span></span>
+                ${escapeHtml(zone.name)} <span class="location-muted">${zone.places.length} lieu${zone.places.length > 1 ? 'x' : ''}</span></h3>
+            <p><strong>${escapeHtml(first.name)}</strong> <span class="location-muted">(${categoryLabels[first.category]})</span> :
+                moyenne ${formatDuration(mean)} · le plus long ${formatDuration(Math.max(...trips))}</p>
+            <p class="location-muted">${first.choices.map(choiceText).join(' · ')}</p>
+            ${others.length ? `<details><summary>Les ${others.length} autre${others.length > 1 ? 's' : ''} lieu${others.length > 1 ? 'x' : ''} de la zone</summary>
+                <div class="location-enum-scroll"><table class="location-enum-table">
+                    <thead><tr><th>lieu</th><th>score</th><th>trajets (participants 1, 2…)</th></tr></thead>
+                    <tbody>${others.map(row).join('')}</tbody>
+                </table></div></details>` : ''}
+        </li>`;
+    };
+    const first = result.zones[0]?.places[0];
+    const gap = best && first ? first.score - best.score : null;
+    return `<section class="location-enum">
+        <div class="chart-header"><h2 class="chart-title">Par zones (MOTIS local)</h2></div>
+        ${result.zones.length ? `<p>${result.zonesScored} zones notées à moins de ${(result.radius / 1000).toLocaleString('fr-FR')} km du barycentre,
+            puis tous les lieux des ${result.zones.length} meilleures, en se limitant aux zones à au moins 700 m l'une de l'autre :
+            ${result.journeys} trajets bus/métro, ${result.seconds.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} s.
+            ${gap != null ? `Par rapport au meilleur lieu du fichier : <strong>${gap >= 30 ? `+${formatDuration(gap)}` : 'équivalent'}</strong>.` : ''}</p>
+        <ol class="zone-cards">${result.zones.map(zoneItem).join('')}</ol>`
+        : '<p>Aucune zone n\'est atteignable par tous.</p>'}
     </section>`;
 }

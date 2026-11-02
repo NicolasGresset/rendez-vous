@@ -9,7 +9,7 @@ place, a second round…) propose better places, in particular in degenerate cas
 
 - **starting point**: where a participant leaves from (a group of people may share one);
 - **candidate place** (lieu candidat): a place of a candidate category in
-  `data/pois-toulouse.json`: 573 bars (`amenity=bar`, `pub`, `biergarten`, `cafe`), 1,456 restaurants,
+  `data/pois-toulouse.json`: 316 bars (`amenity=bar`, `pub`, `biergarten`), 257 cafés, 1,456 restaurants,
   37 metro stations, 1,742 bus stops (3,808 in all, 2026-11-02);
 - **proposals**: the 3 candidate places the tool shows, its output;
 - **stop**: a stop of the Tisséo network (GTFS).
@@ -94,18 +94,18 @@ from 2026-10-29 to 2026-12-02. A new feed changes the times: the oracle must the
 - `validate.js`: the oracle against the services the tool uses: 30 transit trips also asked to
   the Tisséo API (60 calls), and 3 openrouteservice matrices (walk, bike, car; 10 x 10).
 
-## Demonstrator in the page (developer's machine only)
+## Debug view in the page (developer's machine only)
 
 With the dev server and a local MOTIS, the page offers a fourth transit engine, "MOTIS local
-(démo)", and the demonstrator view a test case picker (the cases of `cases.js`, x 3 mode
+(debug)", and the debug view a test case picker (the cases of `cases.js`, x 3 mode
 configurations, slot 19:00 today) and a "Lignes Tisséo" map layer.
 
 - `scripts/dev-server.js` relays `/motis/…` to `MOTIS_URL` (default `http://localhost:8080`): the
   page calls its own origin, no Content-Security-Policy or CORS change. Elsewhere than on
   `localhost`, `motis.available()` is false without any call and nothing is offered; the code is
-  deployed with the page but stays unused (`js/motis.js`, `js/demo-motis.js`).
+  deployed with the page but stays unused (`js/motis.js`, `js/debug-motis.js`).
 - With that engine, the tool runs as usual (barycenter, 8 candidates), its street times and
-  paths also from MOTIS (no openrouteservice key needed), then `demo-motis.js` scores every
+  paths also from MOTIS (no openrouteservice key needed), then `debug-motis.js` scores every
   candidate place of the picked categories: exact transit times for every place up to 600 places
   (bars: 573, not timed since the cafés; 240 took ~5 s), beyond that a cheap estimate for every place and exact times for the 100
   best of each score (all categories: ~40 s).
@@ -117,7 +117,10 @@ configurations, slot 19:00 today) and a "Lignes Tisséo" map layer.
   most 2,500 cells (200 m or more) over the participants and the 10 best places + 1.5 km, scored
   like the places; street times exact, transit the cheap estimate (0 to 15 min too long). One
   pixel per cell stretched over the box, same colors as the places. Another score only redraws it.
-- Test cases: those of `cases.js`, plus `DEMO_CASES` found with the demonstrator (picker only).
+- Test cases: those of `cases.js`, plus `DEBUG_CASES` found with the debug view (picker only).
+- The method by zones (`scoreZones`, § The method with the zones): 3 zones with their best place and
+  the others folded, against the best place of the file; a layer per kind of zone. Every place of the
+  file is a layer too, off by default.
 - A third score in the settings, "moyenne + ½ (max − moyenne)" (`half` in `engine.js`).
 
 ## Results (2026-10-30)
@@ -256,23 +259,20 @@ Jean Jaurès) rather than single bars; score one point of each, then pick inside
 - Names: closest metro or bus stop (bus stops name 66 of the 88 zones). Priority to the metro makes more shared names (fewer
   stations); street names resolve them: no shared name left. `docs/pipeline.md` § 6.
 
-### Bars, pubs, biergartens and cafés (2026-11-02)
+### Bars, pubs, biergartens; cafés apart (2026-11-02)
 
-"Bars" now means `amenity=bar`, `pub`, `biergarten` and `cafe` (573 places, 3,808 candidate places): the
-Black Lion, a pub, was missing. File regenerated (OSM of 2026-10-28), oracle rebuilt; the figures
-above were on 240 bars. `baseline.js`, gap median / mean / max, rows above 5 min of 30:
+"Bars" now means `amenity=bar`, `pub`, `biergarten` (316 places; the Black Lion, a pub, was missing), and
+"cafés" is a fourth type (257). 3,808 candidate places. File regenerated (OSM of 2026-10-28), oracle
+rebuilt; the figures above were on 240 bars. `baseline.js`, gap median / mean / max, rows above 5 min of 30:
 
 | score | places | gap median | gap mean | gap max | rows > 5 min |
 |---|---|---|---|---|---|
-| mean | bars | 1.0 | 1.6 | 5.5 | 1 |
-| mean | all | 0.9 | 1.2 | 5.7 | 1 |
-| mean + ½ (max − mean) | bars | 1.1 | 2.1 | 6.0 | 3 |
-| mean + ½ (max − mean) | all | 1.2 | 2.1 | 8.5 | 3 |
+| mean | bars | 0.5 | 0.9 | 2.9 | 0 |
+| mean | all four | 1.1 | 1.6 | 6.3 | 2 |
+| mean + ½ (max − mean) | bars | 0.8 | 1.6 | 7.1 | 3 |
+| mean + ½ (max − mean) | all four | 1.4 | 2.0 | 7.3 | 1 |
 
-By configuration (mean + ½ (max − mean), mean gap): transit 3.0, mixed 2.6, walk + bike 0.7. The best place
-of the file: within 1 km of the barycenter in 43 rows of 120, 1 to 3 km in 71, beyond 3 km in 6.
-
-### The method planned with the zones (`zones.js`, 2026-11-02, not in the engine yet)
+### The method with the zones (`zones.js`, 2026-11-02, in the debug view, not in the engine)
 
 Bars, 30 rows, mean + ½ (max − mean), against the best bar of the file. Each zone's representative scored
 within a radius of the barycenter (growing until 8 zones), the best 3 zones at least 700 m apart,
@@ -281,14 +281,43 @@ the configurations (walk + bike needs none) / most.
 
 | method | first, gap median / mean / max | rows > 5 min | last, gap mean | places scored | journeys |
 |---|---|---|---|---|---|
-| the tool: 8 bars 700 m apart | 1.1 / 2.1 / 6.0 | 3 | 4.9 | 8 | 13 / 32 |
-| every bar, best 3 apart | 0 / 0 / 0 | 0 | 2.4 | 573 | 955 / 2,292 |
-| every zone, then inside | 0.0 / 0.1 / 0.5 | 0 | 2.5 | 240 | 401 / 1,008 |
-| zones within 2 km, then inside | 0.0 / 0.9 / 8.1 | 2 | 3.6 | 58 | 96 / 348 |
-| **zones within 3 km, then inside** | **0.0 / 0.2 / 4.8** | **0** | **3.1** | **87** | **148 / 464** |
-| zones within 4 km, then inside | 0.0 / 0.2 / 4.8 | 0 | 2.8 | 109 | 186 / 532 |
+| the tool: 8 bars 700 m apart | 0.8 / 1.6 / 6.9 | 3 | 5.2 | 8 | 13 / 32 |
+| every bar, best 3 with no rule | 0 / 0 / 0 | 0 | 1.1 | 316 | 527 / 1,264 |
+| every bar, best 3 apart | 0 / 0 / 0 | 0 | 2.7 | 316 | 527 / 1,264 |
+| every zone, then inside | 0.0 / 0.0 / 0.3 | 0 | 2.9 | 170 | 287 / 720 |
+| zones within 2 km, then inside | 0.0 / 1.0 / 8.4 | 3 | 4.2 | 40 | 68 / 256 |
+| **zones within 3 km, then inside** | **0.0 / 0.3 / 6.6** | **1** | **3.5** | **63** | **108 / 344** |
+| zones within 4 km, then inside | 0.0 / 0.3 / 6.6 | 1 | 3.3 | 77 | 134 / 392 |
 
-- The second round adds little to the first proposal's gap (0.4 -> 0.2 min at 3 km), but it gives
+- The second round adds little to the first proposal's gap (0.4 -> 0.3 min at 3 km), but it gives
   each zone's actual best bar, which the times shown need.
+- Why the first proposal is not the best bar, at 3 km (30 rows): found in 22; 5 rows, at most 0.3 min, a
+  better zone within 700 m; 1 row, 0.1 min, a representative worse than its zone's best bar; 2 rows, up
+  to 6.6 min, the best bar beyond the radius. So the radius causes the large misses.
+- Variety: with no rule, the 3 best bars are a median 96 m apart, and 2 of them share a zone in 25 rows of
+  30. It is the 700 m between zones that spreads them (759 m), as it does for every bar scored (725 m).
 - Same 10 groups the rules were looked at with, one meeting time: to be confirmed on other groups and at off-peak hours.
 - Scores are the oracle's (Tisséo only). Local MOTIS served ~100 journeys a second on a 16-core PC.
+
+### Around which center, how far apart? (`centers.js`, 2026-11-02, nothing decided)
+
+Bars, 30 rows, mean + ½ (max − mean), first proposal against the best bar of the file; 700 m between
+zones unless said. Straight-line speeds measured on the oracle, km/h (median): walk 3.7, bike 12.6, car 26
+(12 under 3 km, 35 over 12 km), transit 10 (6 under 3 km, 12 over 12 km). A median's weight: people / speed of the fastest mode.
+
+| zones scored | gap mean / max | rows > 5 min | journeys mean / max | estimates |
+|---|---|---|---|---|
+| within 3 km of the barycenter | 0.3 / 6.6 | 1 | 108 / 344 | 0 |
+| within 3 km of the geometric median, people | 1.4 / 13.2 | 2 | 101 / 320 | 0 |
+| within 3 km of the geometric median, people / speed | 1.6 / 12.1 | 4 | 96 / 320 | 0 |
+| within 3 km of the point with the best score (distance / speed) | 0.2 / 3.1 | 0 | 93 / 336 | 0 |
+| every zone estimated (one-to-many), the 20 best exact | **0.0 / 0.3** | **0** | **52 / 156** | **161** |
+
+- The geometric median is worse than the barycenter on this score: it minimizes a sum, so it ignores the
+  one coming from far, whom the score protects. With the mean score it is about even (0.2 / 4.4
+  against 0.1 / 2.3).
+- The estimate is biased (0 to 10 min too long, `oracle.js`) but good enough to filter. 161 estimates took
+  1.7 s (8 in parallel, local MOTIS). No center nor radius is needed. Not measured on restaurants (581 zones).
+- Distance between the 3 zones kept (barycenter, 3 km; closest two, median; rows with two under 300 m; third
+  place's gap): none 264 m, 15 rows, 2.1 min; 300 m 549 m, 3 rows, 2.7 min; 500 m 659 m, 0, 3.0 min; 700 m 759 m, 0,
+  3.5 min. So zones alone do not spread the proposals: neighbouring zones are often the best 3.

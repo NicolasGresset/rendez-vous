@@ -15,6 +15,9 @@ This file is excluded from the deployment (`.vercelignore`) but versioned on Git
 - Commit often on `main`; **push only when the user asks** (each push triggers a Vercel deploy).
 - Keep `docs/pipeline.md` (Mermaid diagrams, API calls, data sources) up to date with every change.
 - Keep API usage conservative.
+- UI rules (stated by the user, 2026-11-02): a click anywhere on a card folds or unfolds it, on every
+  card of the project. Practical view: straight to the point, the default map and no display option.
+  Debug view: more is available, but not all shown at once.
 
 ## Layout
 
@@ -52,9 +55,9 @@ This file is excluded from the deployment (`.vercelignore`) but versioned on Git
   the whole file, on 10 fixed groups x 3 mode configurations, with exact times from a **local
   MOTIS** (`~/motis`, Tisséo GTFS + OSM extract, port 8080, setup in the doc; no quota). Oracle
   files in `~/motis/eval`. Scores there: mean per person, and mean + ½ (max − mean).
-  With the dev server on `localhost` and MOTIS running, the page's demonstrator view also offers a
+  With the dev server on `localhost` and MOTIS running, the page's debug view also offers a
   "MOTIS local" engine scoring every candidate place, a test case picker, Tisséo lines and a time
-  map (`js/motis.js`, `js/demo-motis.js`, doc § Demonstrator; deployed but unused elsewhere).
+  map (`js/motis.js`, `js/debug-motis.js`, doc § Debug view; deployed but unused elsewhere).
 - `docs/`, `scripts/`, `data/README.md` (sources, ODbL licence of the places file) and
   `data/tisseo-area.json` (input of the places build) are not deployed.
 
@@ -140,7 +143,7 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   Not yet measured on the user's phone (Galaxy A33). Since 2026-10-29, at equal rounded score the
   category (metro > others > bus) wins over distance ("jean jau": the metro station before a nearer
   hairdresser). Reference queries to compare rankings: `node scripts/search-queries.js [query…]`.
-- Later, once the page's purpose is settled (personal service, demonstrator…): cache of
+- Later, once the page's purpose is settled (personal service, debug view…): cache of
   openrouteservice times and paths (they do not depend on the time of day; changing the slot
   re-calls the matrix today), favourite addresses with custom names in the autocompletion.
 - Local street routing measured 2026-10-28 (not decided): the OSM extract's highways in the Tisséo box
@@ -170,13 +173,16 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   by the user: at most 5 min on foot between two bars (MOTIS times, trusted even when odd), arbitrary cuts
   accepted, lone bars are zones, no bonus for richer zones, names 100 % automatic (closest metro / bus stop,
   then street), each zone's representative scored within 3 km of the barycenter (growing), then every bar of the
-  best 3 zones scored. Restaurants get zones the same way (not done). Done: `zone` + `zones` table
-  in the data file (`scripts/build-zones.js`), "Zones de bars" layer of the demonstrator,
-  measured by `scripts/eval/zones.js`. To do: the method in the demonstrator (MOTIS only), results shown.
-- "Bar" (decided 2026-11-02): `amenity=bar`, `pub`, `biergarten` and `cafe` count the same: somewhere to
-  have a drink and talk, alcohol or not (Black Lion, a pub, was missing). No opening hours: incomplete
-  data, a misleading filter. No restaurants open late, even if bars hide there (Café Triplette). The
-  user does not want to list bars by hand to measure OSM's coverage for now.
+  best 3 zones scored. Cafés and restaurants get zones the same way. Done: `zone` + `zones` table
+  in the data file (`scripts/build-zones.js`), "Zones de bars" layer of the debug view,
+  measured by `scripts/eval/zones.js`, the method in the debug view (MOTIS only; `js/debug-motis.js`
+  `scoreZones`). The debug view shows more without showing everything at once (stated by the user
+  2026-11-02): the enumeration is a map layer, off by default, trips are folded.
+- Place types (decided 2026-11-02): 4 chips, stations, bars (`amenity=bar`, `pub`, `biergarten`: the Black
+  Lion, a pub, was missing), cafés (`amenity=cafe`, apart after seeing Starbucks proposed at 19:00),
+  restaurants. No opening hours: incomplete data, a misleading filter. No restaurants open late, even if
+  bars hide there (Café Triplette). The user does not want to list bars by hand to measure OSM's
+  coverage for now.
 - Scores (2026-10-30): "équitable" (default, Ogryczak's (1 − β)·mean + β·max with β = ½) and
   "égalitaire" (the mean per person); "moyenne + écart" dropped, it can prefer a place worse for
   everyone ((10, 30) min: 40; (20, 30): 35). The user wants few, trustworthy choices: a newcomer
@@ -219,7 +225,7 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
 - Decided 2026-10-29 after the togather study (the user values open source and open data, no Google
   API): score picked in the settings (now équitable or égalitaire, see above), 3 proposals,
   links to OpenStreetMap / Google Maps and a share button (no share link to the tool itself),
-  practical (default) and demonstrator views, no name field (the user may change their mind).
+  practical (default) and debug views, no name field (the user may change their mind).
   Settings kept in localStorage (`location.settings`, in `legal.html`).
 - Next for the Rendez-vous tool (stated by the user 2026-10-29, for a new session):
   - Diversity of the candidates: done 2026-11-02, 8 candidates at least 700 m apart (the user's

@@ -513,7 +513,7 @@
 .location-settings-row > fieldset { flex: 1 1 18rem; }
 .location-settings-row .location-muted { margin-top: 0.4rem; }
 
-/* Practical view: one progress bar; demonstrator view: the steps, the API calls and what the
+/* Practical view: one progress bar; debug view: the steps, the API calls and what the
    map shows of the algorithm (barycenter, other candidates) */
 .progress-simple {
     display: flex;
@@ -522,8 +522,8 @@
     gap: 0.5rem 1rem;
 }
 .progress-simple progress { flex: 1 1 12rem; height: 0.5rem; accent-color: var(--color-accent); }
-.location-layout:not(.location--demo) :is(.progress-steps, .location-calls-panel, .demo-only) { display: none; }
-.location--demo .progress-simple { display: none; }
+.location-layout:not(.location--debug) :is(.progress-steps, .location-calls-panel, .debug-only) { display: none; }
+.location--debug .progress-simple { display: none; }
 
 .location-calls-panel summary {
     cursor: pointer;
@@ -683,7 +683,7 @@
     font-size: 13px;
 }
 .rank-pin--selected { background: #EA580C; color: #FFFFFF; }
-/* Candidates that are not proposals (demonstrator view): small and grey, under the others */
+/* Candidates that are not proposals (debug view): small and grey, under the others */
 .rank-pin--small,
 .location-swatch--candidate { background: #7A90AA; }
 .rank-marker > .rank-pin--small { --pin-size: 14px; border-width: 1px; }
@@ -765,12 +765,13 @@ a.location-button { display: inline-flex; align-items: center; text-decoration: 
     font-weight: 500;
 }
 .trip-card-people { font-size: var(--text-md); font-weight: 600; color: var(--color-text-secondary); }
-/* Mode and time: what the practical view is read for */
-.trip-card-mode { margin-left: auto; font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-text-primary); }
+/* Mode and time: what the practical view is read for. On their own line, so that folded cards side
+   by side have the same height, whatever the lines taken */
+.trip-card-mode { flex-basis: 100%; font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-text-primary); }
 .trip-card-lines { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; font-size: var(--text-xs); color: var(--color-text-muted); }
 
-/* Practical view: the steps folded under the title */
-.trip-card:has(.trip-details) { cursor: pointer; }
+/* The details folded under the title; a click anywhere on the card toggles them */
+.trip-card:has(.trip-details), .zone-card:has(details) { cursor: pointer; }
 .trip-details[open] > :not(summary) { cursor: auto; }
 .trip-details summary {
     cursor: pointer;
@@ -827,15 +828,21 @@ a.location-button { display: inline-flex; align-items: center; text-decoration: 
     .location-place-select { width: 100%; }
 }
 
-/* Demonstrator with the local MOTIS: the best places of the whole file, green pins */
+/* Debug view with the local MOTIS: the best places of the whole file, green pins */
 .rank-pin--best { background: #15803D; color: #FFFFFF; }
 .location-swatch--best { background: #15803D; }
 .location-enum { margin-top: 1.5rem; }
+.rank-pin--zone { background: #92400E; color: #FFFFFF; }
+.zone-cards { display: grid; gap: 0.75rem; margin: 0.75rem 0 0; padding: 0; list-style: none; }
+.zone-card { padding: 0.75rem 1rem; border: 1px solid var(--color-border, #DDE3EA); border-radius: 0.5rem; }
+.zone-card p { margin: 0.35rem 0 0; }
+.zone-card details { margin-top: 0.5rem; }
+.zone-card-title { display: flex; align-items: center; gap: 0.5rem; margin: 0; font-size: 1rem; }
 .location-enum-scroll { overflow-x: auto; }
 .location-enum-table { border-collapse: collapse; font-size: 0.875rem; width: 100%; }
 .location-enum-table :is(th, td) { padding: 0.35rem 0.5rem; text-align: left; border-bottom: 1px solid var(--color-border, #DDE3EA); vertical-align: top; }
 
-/* Demonstrator: names of the zones of bars on the map */
+/* Debug view: names of the zones on the map */
 .leaflet-tooltip.zone-label {
     padding: 0 3px;
     border: none;

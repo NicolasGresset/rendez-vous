@@ -4,7 +4,7 @@
 
 // slot: the button showing the picked time, slotOptions: its list of times;
 // returns a function giving the picked time ("HH:MM"), whose select("HH:MM") picks a time when it
-// is in the list (the demonstrator's test cases), returning whether it is
+// is in the list (the debug view's test cases), returning whether it is
 export function slotPicker(slot, slotOptions) {
     const hhmm = minutes => `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
     const slots = []; // meeting times, in minutes since midnight

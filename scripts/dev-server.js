@@ -6,7 +6,7 @@
 // CSP_REPORT=1 (violations logged here, policy enforced) or CSP_REPORT=only (logged, not enforced).
 //
 // /motis/... is relayed to a local MOTIS server (MOTIS_URL, default http://localhost:8080; see
-// docs/evaluation.md): the page's demonstrator engine calls it on its own origin, so neither the
+// docs/evaluation.md): the page's debug view engine calls it on its own origin, so neither the
 // Content-Security-Policy nor CORS are involved. Not on Vercel: there the engine is not offered.
 
 const http = require('http');

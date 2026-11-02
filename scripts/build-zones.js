@@ -1,6 +1,7 @@
-// build-zones.js - Last step of scripts/regenerate-places.sh: groups the bars of
-// data/pois-toulouse.json into zones of bars within a short walk of each other, and rewrites the
-// file with each bar's `zone` (an index in the new top-level table `zones`). Rules: docs/pipeline.md § 6.
+// build-zones.js - Last step of scripts/regenerate-places.sh: groups the bars, cafés and
+// restaurants, each kind apart, of data/pois-toulouse.json into zones of places within a short walk of each other,
+// and rewrites the file with each place's `zone` (an index in the new top-level table `zones`).
+// Rules: docs/pipeline.md § 6.
 // Needs a local MOTIS server for the walking times (default http://localhost:8080, MOTIS_URL to
 // change; docs/evaluation.md). Can be run alone on the current file (it replaces any previous zones).
 // Usage: node scripts/build-zones.js
@@ -10,12 +11,17 @@ const path = require('path');
 
 const FILE = path.join(__dirname, '..', 'data', 'pois-toulouse.json');
 const MOTIS_URL = process.env.MOTIS_URL || 'http://localhost:8080';
-const ZONE_WALK_S = 5 * 60; // no two bars of a zone further apart than this on foot, either way
+const ZONE_WALK_S = 5 * 60; // no two places of a zone further apart than this on foot, either way
 // Only pairs this close are asked to MOTIS: walking at 1.2 m/s, ZONE_WALK_S covers 360 m at most
 const WALK_REACH_M = 400;
 const MATCHING_DISTANCE_M = 250; // as scripts/eval/motis.js
 const PARALLEL = 4;
-const ZONE_CATEGORIES = new Set(['amenity=bar', 'amenity=pub', 'amenity=biergarten', 'amenity=cafe']); // the engine's "bar"
+// Kinds of zones, as the keys and categories of the engine's CATEGORIES
+const ZONE_KINDS = {
+    bar: new Set(['amenity=bar', 'amenity=pub', 'amenity=biergarten']),
+    cafe: new Set(['amenity=cafe']),
+    restaurant: new Set(['amenity=restaurant']),
+};
 const STOP_CATEGORIES = new Set(['metro', 'bus']);
 
 // Great-circle distance in meters
@@ -60,7 +66,8 @@ async function walkingTimes(places) {
 // Reproducible: ties go to the first groups, in the file's order. Returns groups of indices
 function clusterPlaces(count, times, limit) {
     const walk = (a, b) => Math.max(times[a].get(b) ?? Infinity, times[b].get(a) ?? Infinity);
-    const groups = Array.from({ length: count }, (_, i) => [i]);
+    const groups = new Map(Array.from({ length: count }, (_, i) => [i, [i]])); // by the id of their first place
+    const groupOf = Array.from({ length: count }, (_, i) => i);
     const longest = (a, b) => {
         let worst = 0;
         for (const x of a) {
@@ -73,15 +80,20 @@ function clusterPlaces(count, times, limit) {
     };
     for (;;) {
         let best = null;
-        for (let i = 0; i < groups.length; i++) {
-            for (let j = i + 1; j < groups.length; j++) {
-                const d = longest(groups[i], groups[j]);
+        for (const [i, group] of groups) {
+            // Only groups holding a neighbour of its first place can merge with it
+            const others = [...new Set([...times[group[0]].keys()].map(k => groupOf[k]))]
+                .filter(j => j > i).sort((a, b) => a - b);
+            for (const j of others) {
+                const d = longest(group, groups.get(j));
                 if (d <= limit && (!best || d < best.d)) best = { i, j, d };
             }
         }
-        if (!best) return groups;
-        groups[best.i] = groups[best.i].concat(groups[best.j]);
-        groups.splice(best.j, 1);
+        if (!best) return [...groups.values()];
+        const merged = groups.get(best.j);
+        merged.forEach(k => { groupOf[k] = best.i; });
+        groups.set(best.i, groups.get(best.i).concat(merged));
+        groups.delete(best.j);
     }
 }
 
@@ -133,26 +145,31 @@ const round5 = x => Math.round(x * 1e5) / 1e5;
 (async () => {
     const data = JSON.parse(fs.readFileSync(FILE, 'utf8'));
     data.places.forEach(p => { delete p.zone; });
-    const bars = data.places.filter(p => ZONE_CATEGORIES.has(p.category));
-    const times = await walkingTimes(bars);
-    const zones = clusterPlaces(bars.length, times, ZONE_WALK_S).map(indices => {
-        const group = indices.map(i => bars[i]);
-        return { group, rep: representative(group) };
-    });
-    nameZones(zones, data.places.filter(p => STOP_CATEGORIES.has(p.category)));
-    // Sorted, so that the indices do not depend on the merge order
-    zones.sort((a, b) => a.name.localeCompare(b.name, 'fr') || a.rep.lat - b.rep.lat || a.rep.lon - b.rep.lon);
+    const stops = data.places.filter(p => STOP_CATEGORIES.has(p.category));
+    const zones = [];
+    for (const [kind, categories] of Object.entries(ZONE_KINDS)) {
+        const members = data.places.filter(p => categories.has(p.category));
+        const times = await walkingTimes(members);
+        const ofKind = clusterPlaces(members.length, times, ZONE_WALK_S).map(indices => {
+            const group = indices.map(i => members[i]);
+            return { kind, group, rep: representative(group) };
+        });
+        nameZones(ofKind, stops);
+        // Sorted, so that the indices do not depend on the merge order
+        ofKind.sort((a, b) => a.name.localeCompare(b.name, 'fr') || a.rep.lat - b.rep.lat || a.rep.lon - b.rep.lon);
+        zones.push(...ofKind);
+
+        const sizes = ofKind.map(z => z.group.length);
+        const shared = ofKind.filter(z => z.group.length > 1).map(z => z.name).filter((name, i, all) => all.indexOf(name) !== i);
+        console.log(`${kind}: ${ofKind.length} zones within ${ZONE_WALK_S / 60} min on foot: ${sizes.filter(n => n >= 3).length} of 3 places or more, `
+            + `${sizes.filter(n => n === 2).length} of 2, ${sizes.filter(n => n === 1).length} of 1; largest ${Math.max(...sizes)}; `
+            + `${shared.length} names shared by zones of 2 or more${shared.length ? ` (${shared.join(', ')})` : ''}`);
+    }
     zones.forEach((zone, index) => zone.group.forEach(p => { p.zone = index; }));
 
     const { sources, categories, places } = data;
-    const table = zones.map(({ name, rep }) => ({ name, lat: round5(rep.lat), lon: round5(rep.lon) }));
+    const table = zones.map(({ kind, name, rep }) => ({ kind, name, lat: round5(rep.lat), lon: round5(rep.lon) }));
     fs.writeFileSync(FILE, `${JSON.stringify({ sources, categories, zones: table, places })}\n`);
-
-    const sizes = zones.map(z => z.group.length);
-    const shared = zones.filter(z => z.group.length > 1).map(z => z.name).filter((name, i, all) => all.indexOf(name) !== i);
-    console.log(`${zones.length} zones within ${ZONE_WALK_S / 60} min on foot: ${sizes.filter(n => n >= 3).length} of 3 bars or more, `
-        + `${sizes.filter(n => n === 2).length} of 2, ${sizes.filter(n => n === 1).length} of 1; largest ${Math.max(...sizes)} bars; `
-        + `${shared.length} names shared by zones of 2 or more${shared.length ? ` (${shared.join(', ')})` : ''}`);
 })().catch(err => {
     console.error(err);
     process.exit(1);
