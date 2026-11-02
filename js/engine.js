@@ -36,7 +36,7 @@ const RADIUS_STEP_M = 500;
 const RADIUS_MAX_M = 5000;
 // Candidates at least this far apart: close ones bring little information, and the 3 proposals
 // taken from them are then distinct places to choose from (docs/evaluation.md § Diversity)
-export const CANDIDATE_SPACING_M = 700;
+const CANDIDATE_SPACING_M = 700;
 const MAX_CANDIDATES = 8; // default and maximum: each candidate costs one transit journey per participant
 
 // Categories the user picks from, and the place categories of data/pois-toulouse.json they cover:

@@ -242,9 +242,9 @@ export function zonesHtml(data, result, enumeration, categoryLabels) {
     const gap = best && first ? first.score - best.score : null;
     return `<section class="location-enum">
         <div class="chart-header"><h2 class="chart-title">Par zones (MOTIS local)</h2></div>
-        ${result.zones.length ? `<p>${result.zonesScored} zones notées à moins de ${(result.radius / 1000).toLocaleString('fr-FR')} km du barycentre,
-            puis tous les lieux des ${result.zones.length} meilleures, en se limitant aux zones à au moins 700 m l'une de l'autre :
-            ${result.journeys} trajets bus/métro, ${result.seconds.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} s.
+        ${result.zones.length ? `<p>${result.estimated} zones estimées, les ${result.exact} meilleures en temps exact,
+            puis tous les lieux des ${result.zones.length} retenues, à au moins ${result.spacing} m l'une de l'autre :
+            ${result.journeys} trajets bus/métro exacts, ${result.seconds.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} s.
             ${gap != null ? `Par rapport au meilleur lieu du fichier : <strong>${gap >= 30 ? `+${formatDuration(gap)}` : 'équivalent'}</strong>.` : ''}</p>
         <ol class="zone-cards">${result.zones.map(zoneItem).join('')}</ol>`
         : '<p>Aucune zone n\'est atteignable par tous.</p>'}

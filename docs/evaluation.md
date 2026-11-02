@@ -118,7 +118,7 @@ configurations, slot 19:00 today) and a "Lignes Tisséo" map layer.
   like the places; street times exact, transit the cheap estimate (0 to 15 min too long). One
   pixel per cell stretched over the box, same colors as the places. Another score only redraws it.
 - Test cases: those of `cases.js`, plus `DEBUG_CASES` found with the debug view (picker only).
-- The method by zones (`scoreZones`, § The method with the zones): 3 zones with their best place and
+- The method by zones (`scoreZones`, § Around which center): 3 zones with their best place and
   the others folded, against the best place of the file; a layer per kind of zone. Every place of the
   file is a layer too, off by default.
 - A third score in the settings, "moyenne + ½ (max − moyenne)" (`half` in `engine.js`).
@@ -299,7 +299,10 @@ the configurations (walk + bike needs none) / most.
 - Same 10 groups the rules were looked at with, one meeting time: to be confirmed on other groups and at off-peak hours.
 - Scores are the oracle's (Tisséo only). Local MOTIS served ~100 journeys a second on a 16-core PC.
 
-### Around which center, how far apart? (`centers.js`, 2026-11-02, nothing decided)
+### Around which center, how far apart? (`centers.js`, 2026-11-02)
+
+Decided by the user: every zone estimated, no center nor radius; 500 m between zones. These values were
+measured on Toulouse's bars: for another city, redo the reasoning and the measures, not the values.
 
 Bars, 30 rows, mean + ½ (max − mean), first proposal against the best bar of the file; 700 m between
 zones unless said. Straight-line speeds measured on the oracle, km/h (median): walk 3.7, bike 12.6, car 26
@@ -321,3 +324,11 @@ zones unless said. Straight-line speeds measured on the oracle, km/h (median): w
 - Distance between the 3 zones kept (barycenter, 3 km; closest two, median; rows with two under 300 m; third
   place's gap): none 264 m, 15 rows, 2.1 min; 300 m 549 m, 3 rows, 2.7 min; 500 m 659 m, 0, 3.0 min; 700 m 759 m, 0,
   3.5 min. So zones alone do not spread the proposals: neighbouring zones are often the best 3.
+- How the estimate works (`src/endpoints/one_to_many.cc`, MOTIS v2.11.4): one RAPTOR search backward from the
+  place at the fixed arrival time, over the whole network and round by round (one per transfer), then
+  for each starting point the walk to its nearby stops plus the time read at those stops. So one
+  search serves every participant, and no journey is rebuilt. It is not a rough routing: it is too long
+  because the time runs up to the end of the tolerance, even for a journey arriving earlier.
+- In the debug view (T4, transit, local MOTIS, 8 in parallel): bars, 161 zones estimated, 87 exact journeys,
+  2.7 s (2.3 s with the 3 km radius: not faster here, but no radius). Bars, cafés and restaurants (T2, transit):
+  851 zones, 120 journeys, 10 s: the estimate grows with the zones.

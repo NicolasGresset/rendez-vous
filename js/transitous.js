@@ -96,8 +96,9 @@ export function bestJourney(journeys, arriveFrom, arriveTo) {
 
 // Transit trip (walking included) to be there for the slot [arriveFrom, arriveTo]:
 // { seconds (wait included), wait, departure, arrival, legs } (times in ISO), or null when no
-// journey arrives by the end of the slot. planUrl: another MOTIS server (the debug view's local one)
-export async function transitTrip(from, to, arriveFrom, arriveTo, planUrl = PLAN_URL) {
+// journey arrives by the end of the slot. planUrl: another MOTIS server (the debug view's local
+// one), signal: to cancel the call
+export async function transitTrip(from, to, arriveFrom, arriveTo, planUrl = PLAN_URL, signal = null) {
     const params = new URLSearchParams({
         fromPlace: `${from.lat},${from.lon}`,
         toPlace:   `${to.lat},${to.lon}`,
@@ -105,7 +106,8 @@ export async function transitTrip(from, to, arriveFrom, arriveTo, planUrl = PLAN
         arriveBy:  'true',
         ...PLAN_OPTIONS,
     });
-    const res = await fetch(`${planUrl}?${params}`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+    const timeout = AbortSignal.timeout(TIMEOUT_MS);
+    const res = await fetch(`${planUrl}?${params}`, { signal: signal ? AbortSignal.any([timeout, signal]) : timeout });
     if (res.status === 429) throw new Error('Transitous rate limit reached');
     if (!res.ok) throw new Error(`Transitous plan failed: ${res.status}`);
     const data = await res.json();

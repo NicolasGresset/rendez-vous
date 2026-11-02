@@ -6,7 +6,7 @@
 // participants, 0 to 15 min too long) and exact times for the EXACT_SHORTLIST best of each score.
 
 import * as motis from './motis.js';
-import { CATEGORIES, CANDIDATE_SPACING_M, SCORES, haversine } from './engine.js';
+import { CATEGORIES, SCORES, haversine } from './engine.js';
 import { forEachLimited, parseParis } from './transitous.js';
 import { PROPOSALS } from './results.js';
 
@@ -15,10 +15,16 @@ const EXACT_SHORTLIST = 100;
 const PARALLEL = 8;
 const CAR_PARKING_S = 5 * 60; // as engine.js
 const STREET_MODES = ['walk', 'bike', 'car'];
-const ZONE_RADIUS_M = 3000;      // zones scored around the barycenter, the radius growing until
-const ZONE_RADIUS_STEP_M = 500;  // MIN_ZONES are found (docs/evaluation.md: 2 km loses, 4 km brings little)
-const ZONE_RADIUS_MAX_M = 30000;
-const MIN_ZONES = 8;
+const ZONE_SHORTLIST = 20;      // zones scored exactly after the estimate of every zone
+// Between the zones kept: neighbouring zones are often the best 3. Measured on Toulouse's bars: the
+// value is to be measured again on other data (docs/evaluation.md § Around which center)
+const ZONE_SPACING_M = 500;
+
+// The running batch of calls of this file, cancelled when its result is no longer wanted: a
+// computation still running must not keep the page waiting for it
+let batch = new AbortController();
+export const cancelBatch = () => batch.abort();
+export const beginBatch = () => { if (batch.signal.aborted) batch = new AbortController(); };
 
 // participants: [{ lat, lon, modes, people }], slot: { from, to } ("YYYY-MM-DD HH:MM", as in the
 // result event); onProgress(text). Returns { places: [{ ...place, times: [{ mode: seconds }],
@@ -36,7 +42,7 @@ export async function enumeratePlaces(participants, categories, slot, data, onPr
         let done = 0;
         const arriveBy = parseParis(slot.to);
         await forEachLimited(places.map((_, j) => j), PARALLEL, async j => {
-            const estimates = await motis.transitEstimates(places[j], transit.map(i => participants[i]), arriveBy);
+            const estimates = await motis.transitEstimates(places[j], transit.map(i => participants[i]), arriveBy, batch.signal);
             estimates.forEach((d, k) => { if (d != null) places[j].times[transit[k]].transit = d; });
             places[j].estimated = true;
             if (++done % 200 === 0) onProgress(`estimation bus/métro : ${done}/${places.length} lieux`);
@@ -58,7 +64,7 @@ const toScore = (p, participants) => ({ ...p, times: participants.map(() => ({})
 // Street times of every participant to every place
 async function streetTimes(participants, places) {
     await Promise.all(participants.flatMap((p, i) => STREET_MODES.filter(m => p.modes.includes(m)).map(async mode => {
-        const durations = await motis.streetDurations(mode, p, places);
+        const durations = await motis.streetDurations(mode, p, places, batch.signal);
         durations.forEach((d, j) => {
             if (d != null) places[j].times[i][mode] = Math.round(d + (mode === 'car' ? CAR_PARKING_S : 0));
         });
@@ -71,7 +77,7 @@ async function exactTransit(participants, places, indices, slot, onProgress) {
     const pairs = indices.flatMap(j => transit.map(i => [i, j]));
     let done = 0;
     await forEachLimited(pairs, PARALLEL, async ([i, j]) => {
-        const trip = await motis.trip(participants[i], places[j], slot.from, slot.to);
+        const trip = await motis.trip(participants[i], places[j], slot.from, slot.to, batch.signal);
         if (trip) {
             places[j].times[i].transit = trip.seconds;
             places[j].waits[i] = trip.wait;
@@ -84,54 +90,59 @@ async function exactTransit(participants, places, indices, slot, onProgress) {
     return pairs.length;
 }
 
-// The method planned with the zones of the data file (scripts/build-zones.js): each zone's
-// representative scored within ZONE_RADIUS_M of the barycenter, the PROPOSALS best zones at least
-// CANDIDATE_SPACING_M apart, then every place of these zones scored; a zone's best place makes its rank.
-// Stations have no zones. No richer zone is favoured. Returns null without bars nor restaurants, or
-// { zones: [{ kind, name, lat, lon, places: best first }], radius, zonesScored, journeys, seconds }
-export async function scoreZones(participants, categories, center, slot, data, metric, onProgress) {
+// The method with the zones of the data file (scripts/build-zones.js), coarse then finer: every
+// zone's representative estimated, the ZONE_SHORTLIST best exact, the PROPOSALS best zones at least
+// ZONE_SPACING_M apart, then every place of these zones exact; a zone's best place makes its rank.
+// Stations have no zones. No richer zone is favoured. Returns null without bars, cafés nor restaurants, or
+// { zones: [{ kind, name, lat, lon, places: best first }], spacing, estimated, exact, journeys, seconds }
+export async function scoreZones(participants, categories, slot, data, metric, onProgress) {
     const kinds = categories.filter(c => c !== 'station');
     if (!kinds.length) return null;
     const started = performance.now();
     const people = participants.map(p => p.people);
     const members = data.zones.map(() => []);
     data.places.forEach(p => { if (p.zone != null) members[p.zone].push(p); });
-    const zones = data.zones.map((zone, index) => ({ ...zone, members: members[index] }))
-        .filter(zone => kinds.includes(zone.kind));
+    // A zone's position is its representative's
+    const closestMember = (zone, index) => members[index].reduce((best, p) =>
+        (haversine(zone, p) < haversine(zone, best) ? p : best));
+    const reps = data.zones.flatMap((zone, index) => (kinds.includes(zone.kind)
+        ? [toScore(closestMember(zone, index), participants)] : []));
 
-    let radius = ZONE_RADIUS_M;
-    let pool = zones.filter(zone => haversine(center, zone) <= radius);
-    while (pool.length < MIN_ZONES && radius < ZONE_RADIUS_MAX_M) {
-        radius += ZONE_RADIUS_STEP_M;
-        pool = zones.filter(zone => haversine(center, zone) <= radius);
+    onProgress(`zones : estimation de ${reps.length} représentants…`);
+    await streetTimes(participants, reps);
+    const transit = participants.map((p, i) => i).filter(i => participants[i].modes.includes('transit'));
+    if (transit.length) {
+        const arriveBy = parseParis(slot.to);
+        await forEachLimited(reps.map((_, j) => j), PARALLEL, async j => {
+            const estimates = await motis.transitEstimates(reps[j], transit.map(i => participants[i]), arriveBy, batch.signal);
+            estimates.forEach((d, k) => { if (d != null) reps[j].times[transit[k]].transit = d; });
+        });
     }
 
-    // A zone's position is its representative's
-    const closestMember = zone => zone.members.reduce((best, p) =>
-        (haversine(zone, p) < haversine(zone, best) ? p : best));
-    const reps = pool.map(zone => toScore(closestMember(zone), participants));
-    onProgress(`zones : ${pool.length} représentants à moins de ${radius / 1000} km…`);
-    await streetTimes(participants, reps);
-    let journeys = await exactTransit(participants, reps, reps.map((_, j) => j), slot, onProgress);
+    const shortlist = scorePlaces(reps, metric, people).slice(0, ZONE_SHORTLIST).map(j => reps[j]);
+    onProgress(`zones : ${shortlist.length} représentants en temps exact…`);
+    let journeys = await exactTransit(participants, shortlist, shortlist.map((_, j) => j), slot, onProgress);
     const kept = [];
-    for (const j of scorePlaces(reps, metric, people)) {
-        if (kept.length < PROPOSALS && kept.every(k => haversine(pool[k], pool[j]) >= CANDIDATE_SPACING_M)) kept.push(j);
+    for (const j of scorePlaces(shortlist, metric, people)) {
+        const zone = shortlist[j];
+        if (kept.length < PROPOSALS && kept.every(k => haversine(k, zone) >= ZONE_SPACING_M)) kept.push(zone);
     }
 
     // Second round: the other places of the zones kept, the representatives' times being known
-    const others = kept.flatMap(k => pool[k].members.filter(p => p.id !== reps[k].id).map(p => toScore(p, participants)));
+    const others = kept.flatMap(rep => members[rep.zone].filter(p => p.id !== rep.id).map(p => toScore(p, participants)));
     onProgress(`zones : ${others.length} autres lieux des ${kept.length} meilleures…`);
     if (others.length) {
         await streetTimes(participants, others);
         journeys += await exactTransit(participants, others, others.map((_, j) => j), slot, onProgress);
     }
-    const scored = [...kept.map(k => reps[k]), ...others];
+    const scored = [...kept, ...others];
     const ranking = scorePlaces(scored, metric, people);
-    const shown = kept.map(k => ({
-        ...pool[k],
-        places: ranking.map(j => scored[j]).filter(p => p.zone === reps[k].zone),
+    const zones = kept.map(rep => ({
+        ...data.zones[rep.zone],
+        places: ranking.map(j => scored[j]).filter(p => p.zone === rep.zone),
     })).sort((a, b) => a.places[0].score - b.places[0].score);
-    return { zones: shown, radius, zonesScored: pool.length, journeys, seconds: (performance.now() - started) / 1000 };
+    return { zones, spacing: ZONE_SPACING_M, estimated: reps.length, exact: shortlist.length, journeys,
+        seconds: (performance.now() - started) / 1000 };
 }
 
 // Each place's fastest time per participant ({ mode, seconds } or null) and score for the metric
@@ -177,7 +188,7 @@ export async function timeGrid(participants, around, slot, onProgress) {
     }
     onProgress(`carte des temps : ${cells.length} cases de ${Math.round(step)} m, marche, vélo, voiture…`);
     await Promise.all(participants.flatMap((p, i) => STREET_MODES.filter(m => p.modes.includes(m)).map(async mode => {
-        (await motis.streetDurations(mode, p, cells)).forEach((d, k) => {
+        (await motis.streetDurations(mode, p, cells, batch.signal)).forEach((d, k) => {
             if (d != null) cells[k].times[i][mode] = Math.round(d + (mode === 'car' ? CAR_PARKING_S : 0));
         });
     })));
@@ -186,7 +197,7 @@ export async function timeGrid(participants, around, slot, onProgress) {
         const arriveBy = parseParis(slot.to);
         let done = 0;
         await forEachLimited(cells.map((_, k) => k), PARALLEL, async k => {
-            const estimates = await motis.transitEstimates(cells[k], transit.map(i => participants[i]), arriveBy);
+            const estimates = await motis.transitEstimates(cells[k], transit.map(i => participants[i]), arriveBy, batch.signal);
             estimates.forEach((d, n) => { if (d != null) cells[k].times[transit[n]].transit = d; });
             if (++done % 250 === 0) onProgress(`carte des temps : bus/métro ${done}/${cells.length} cases`);
         });

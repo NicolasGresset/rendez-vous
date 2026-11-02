@@ -158,6 +158,11 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   touched, then the next one to fill; none during and after a computation), a double click only
   zooms, points draggable on computers only (the user feared it would misbehave on phones). Doc § 2.
   Not yet tried on the user's phone.
+- Tuned on Toulouse's bars, to do again elsewhere (stated by the user, 2026-11-02): the 5 min on foot of
+  the zones, the 500 m between zones, the 20 exact zones and the 700 m between candidates are measures on this data. For
+  another city, export the reasoning and redo the measures (`scripts/eval/centers.js`, `zones.js`), not the values.
+- Later (idea of the user, 2026-11-02): with the home server, send the participants' positions as they
+  are filled in and validated, so that part of the computation is done before the button is pressed.
 - Later, once the home server runs (stated by the user 2026-10-30 and 2026-11-02): an "about / how it
   works" tab (not the main page) explaining how to optimize the search for a city, the place selection, the typing optimizations of the address search, how the site is
   tuned for Toulouse and what another city would need (the same preprocessing of OSM places, and
@@ -172,8 +177,11 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   (chaining runs away, ruled out), members often but not always interchangeable with transit. Decided
   by the user: at most 5 min on foot between two bars (MOTIS times, trusted even when odd), arbitrary cuts
   accepted, lone bars are zones, no bonus for richer zones, names 100 % automatic (closest metro / bus stop,
-  then street), each zone's representative scored within 3 km of the barycenter (growing), then every bar of the
-  best 3 zones scored. Cafés and restaurants get zones the same way. Done: `zone` + `zones` table
+  then street). The method, coarse then finer (the user likes this hierarchy: geographic and in
+  computing time, not brute force, so that the service scales): every zone's representative estimated (MOTIS one-to-many,
+  no center nor radius), the 20 best exact, the best 3 zones at least 500 m apart, then every place of these 3
+  exact. Cafés and restaurants get zones the same way. The geometric median was measured worse on the
+  équitable score, not adopted. Practical view: propose a bar with its zone as context (agreed, to try, not done). Done: `zone` + `zones` table
   in the data file (`scripts/build-zones.js`), "Zones de bars" layer of the debug view,
   measured by `scripts/eval/zones.js`, the method in the debug view (MOTIS only; `js/debug-motis.js`
   `scoreZones`). The debug view shows more without showing everything at once (stated by the user

@@ -12,7 +12,7 @@ import { TOULOUSE, createMap, drawCenter, drawCandidates, drawRoute as drawPath,
 import { resultsHtml, enumerationHtml, zonesHtml, choiceText, placeLinks, shareText, PROPOSALS, METRIC_LABELS, METRIC_DESCRIPTIONS } from './results.js';
 import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
 import * as motis from './motis.js';
-import { enumeratePlaces, scorePlaces, scoreZones, timeGrid } from './debug-motis.js';
+import { enumeratePlaces, scorePlaces, scoreZones, timeGrid, beginBatch, cancelBatch } from './debug-motis.js';
 
 (function () {
     const form = document.getElementById('location-form');
@@ -346,6 +346,7 @@ import { enumeratePlaces, scorePlaces, scoreZones, timeGrid } from './debug-moti
 
     // Any change to the participants makes the displayed result stale
     function clearResults() {
+        cancelBatch(); // what still runs for this result (debug view) is no longer wanted
         resultLayer.clearLayers();
         timeLayer?.clearLayers();
         enumLayer?.clearLayers();
@@ -1021,11 +1022,17 @@ import { enumeratePlaces, scorePlaces, scoreZones, timeGrid } from './debug-moti
                 renderCalls();
             });
             if (input.transitEngine === 'motis' && current) {
+                beginBatch();
                 current.zoneInput = { categories: input.categories, data };
                 await addZones(state);
                 await enumerate(input, data, state);
             }
         } catch (err) {
+            if (err.name === 'AbortError') {
+                failRunningStep('annulé : paramètres modifiés');
+                setProgress(1, 'Calcul annulé : paramètres modifiés.');
+                return;
+            }
             console.error(err);
             failRunningStep(err.message || 'calcul impossible');
             setStatus(err.message || 'Calcul impossible.');
@@ -1050,7 +1057,8 @@ import { enumeratePlaces, scorePlaces, scoreZones, timeGrid } from './debug-moti
     async function computeZones(onProgress = text => setProgress(0.99, text)) {
         const shown = current;
         const { data } = shown;
-        const result = await scoreZones(data.participants, shown.zoneInput.categories, data.center, data.slot,
+        beginBatch();
+        const result = await scoreZones(data.participants, shown.zoneInput.categories, data.slot,
             shown.zoneInput.data, data.metric, onProgress);
         if (current !== shown) return result; // the result was cleared meanwhile
         shown.zones = result;
@@ -1061,14 +1069,14 @@ import { enumeratePlaces, scorePlaces, scoreZones, timeGrid } from './debug-moti
 
     async function addZones(state) {
         steps.insertAdjacentHTML('beforeend', `<li class="progress-step" data-step="zones" data-state="running">
-            <span class="progress-label">Par zones : représentants à moins de 3 km, puis les meilleures (MOTIS local, debug)</span>
+            <span class="progress-label">Par zones : estimation de toutes, puis temps exacts des meilleures (MOTIS local, debug)</span>
             <span class="progress-detail location-muted"></span></li>`);
         const result = await computeZones(text => {
             setStep('zones', 'running', text);
             setProgress(0.96, text);
         });
         setStep('zones', 'done', result
-            ? `${result.zonesScored} zones, ${result.journeys} trajets bus/métro, ${result.seconds.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} s`
+            ? `${result.estimated} zones estimées, ${result.journeys} trajets exacts, ${result.seconds.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} s`
             : 'aucune zone pour ces types de lieux');
     }
 
@@ -1097,6 +1105,7 @@ import { enumeratePlaces, scorePlaces, scoreZones, timeGrid } from './debug-moti
         const shown = current;
         if (!shown?.enum || shown.grid || shown.gridPending) return;
         shown.gridPending = true;
+        beginBatch();
         const best = shown.enum.ranking.slice(0, 10).map(j => shown.enum.places[j]);
         const grid = await timeGrid(shown.data.participants, best, shown.data.slot, text => setProgress(0.99, text));
         if (current !== shown) return;

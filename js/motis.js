@@ -27,10 +27,11 @@ export async function available() {
     }
 }
 
-// Street durations in seconds from one point to many, null when unroutable
-export async function streetDurations(mode, one, many) {
+// Street durations in seconds from one point to many, null when unroutable. signal: to cancel the call
+export async function streetDurations(mode, one, many, signal = null) {
     const res = await fetch(`${BASE}/api/v1/one-to-many`, {
         method: 'POST',
+        signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ one: coords(one), many: many.map(coords), mode: STREET_MODES[mode],
             max: STREET_MAX_S, maxMatchingDistance: MATCHING_DISTANCE_M, arriveBy: false }),
@@ -54,15 +55,16 @@ export async function routePath(mode, from, to) {
 }
 
 // Transit trip as transitous.js computes it, on the local server
-export const trip = (from, to, arriveFrom, arriveTo) => transitTrip(from, to, arriveFrom, arriveTo, `${BASE}/api/v6/plan`);
+export const trip = (from, to, arriveFrom, arriveTo, signal = null) => transitTrip(from, to, arriveFrom, arriveTo, `${BASE}/api/v6/plan`, signal);
 
-// Cheap transit estimate from many points to one, arriving by `arriveBy` (a Date): MOTIS counts
-// the time up to arriveBy, so 0 to 15 min more than the trip above (checked 2026-10-30: median
+// Cheap transit estimate from many points to one, arriving by `arriveBy` (a Date): one RAPTOR search
+// backward from `one`, read for every point, no journey rebuilt (src/endpoints/one_to_many.cc). MOTIS
+// counts the time up to arriveBy, so 0 to 15 min more than the trip above (checked 2026-10-30: median
 // +8 min); null when none
-export async function transitEstimates(one, many, arriveBy) {
+export async function transitEstimates(one, many, arriveBy, signal = null) {
     const params = new URLSearchParams({ one: coords(one), many: many.map(coords).join(','),
         time: arriveBy.toISOString(), arriveBy: 'true' });
-    const body = await json(await fetch(`${BASE}/api/experimental/one-to-many-intermodal?${params}`));
+    const body = await json(await fetch(`${BASE}/api/experimental/one-to-many-intermodal?${params}`, { signal }));
     return body.transit_durations.map(set => (set.length ? Math.min(...set.map(e => e.duration)) : null));
 }
 
