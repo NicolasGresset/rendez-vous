@@ -3,7 +3,7 @@
 export const MODE_LABELS = { walk: 'marche', bike: 'vélo', car: 'voiture', transit: 'bus/métro' };
 export const COLORS = { center: '#0C1A2E', zone: '#92400E' };
 // One color per participant (marker and path), none reused for candidates or the chosen place
-export const PARTICIPANT_COLORS = ['#2563EB', '#9333EA', '#0D9488', '#DB2777', '#65A30D'];
+export const PARTICIPANT_COLORS = ['#2563EB', '#9333EA', '#0D9488', '#DB2777', '#65A30D', '#B91C1C', '#CA8A04', '#0369A1', '#6D28D9', '#475569'];
 
 // 7 min, 1 h 05
 export function formatDuration(seconds) {

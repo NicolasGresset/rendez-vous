@@ -70,15 +70,21 @@ function modeDetails(modeTimes, retained) {
 const placeAddress = place => [place.street, [place.postcode, place.city].filter(Boolean).join(' ')]
     .filter(Boolean).join(', ');
 
+// How Google Maps is asked for a Tisséo stop: by its name (the address kept here is only the nearest one)
+const STOP_SEARCH = { metro: 'Station de métro', bus: 'Arrêt de bus' };
+
 // The place on OpenStreetMap (its own page for an OSM feature, a marker for a Tisséo stop) and on
-// Google Maps (searched by name and address, which finds its page there; by position otherwise)
+// Google Maps (searched in text, which finds its page there: an OSM place by name and address, a
+// stop by kind, name and city; by position otherwise). No key links the two: Google picks the match
 export function placeLinks(place) {
     const { lat, lon } = place;
     const osm = /^(node|way|relation)\//.test(place.id)
         ? `https://www.openstreetmap.org/${place.id}`
         : `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=19/${lat}/${lon}`;
     const address = placeAddress(place);
-    const query = osm.includes('?') || !address ? `${lat},${lon}` : `${place.name}, ${address}`;
+    let query = `${lat},${lon}`;
+    if (STOP_SEARCH[place.category]) query = `${STOP_SEARCH[place.category]} ${place.name}, ${place.city || 'Toulouse'}`;
+    else if (address) query = `${place.name}, ${address}`;
     return { osm, google: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` };
 }
 
@@ -193,9 +199,9 @@ export function resultsHtml(data, selected, categoryLabels, { debug = false } = 
             ${METRIC_DESCRIPTIONS[data.metric]}.</p>` : ''}
         <p class="proposals-legend">Trajet moyen · trajet le plus long</p>
         <ol class="proposals">${proposals.map((j, rank) => proposalButton(data, j, rank, selected)).join('')}</ol>
-        <p class="location-best"><span class="rank-pin rank-pin--selected location-swatch--rank"></span>
+        ${debug || !proposals.includes(selected) ? `<p class="location-best"><span class="rank-pin rank-pin--selected location-swatch--rank"></span>
             <strong>${escapeHtml(place.name)}</strong>
-            <span>(${categoryLabels[place.category]})${placeAddress(place) ? ` · ${escapeHtml(placeAddress(place))}` : ''} — rendez-vous à ${data.slot.from.slice(11)}</span></p>
+            <span>(${categoryLabels[place.category]})${placeAddress(place) ? ` · ${escapeHtml(placeAddress(place))}` : ''} — rendez-vous à ${data.slot.from.slice(11)}</span></p>` : ''}
         <p class="location-share">
             <a class="location-button" href="${links.osm}" ${external}>OpenStreetMap ↗</a>
             <a class="location-button" href="${links.google}" ${external}>Google Maps ↗</a>

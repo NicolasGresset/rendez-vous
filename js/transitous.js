@@ -131,7 +131,7 @@ export async function transitTrip(from, to, arriveFrom, arriveTo, planUrl = PLAN
 export async function forEachLimited(items, parallel, fn) {
     const queue = [...items];
     const worker = async () => {
-        for (let item = queue.shift(); item; item = queue.shift()) await fn(item);
+        while (queue.length) await fn(queue.shift());
     };
     await Promise.all(Array.from({ length: parallel }, worker));
 }

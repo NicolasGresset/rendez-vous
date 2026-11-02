@@ -16,7 +16,10 @@ const EXACT_SHORTLIST = 100;
 const PARALLEL = 8;
 const CAR_PARKING_S = 5 * 60; // as engine.js
 const STREET_MODES = ['walk', 'bike', 'car'];
-const ZONE_SHORTLIST = 20;      // zones scored exactly after the estimate of every zone
+// Zones scored exactly after the estimate of every zone, and more by this step while the zones
+// kept, far enough apart, are too few (neighbouring zones often come together)
+const ZONE_SHORTLIST = 20;
+const ZONE_ESTIMATE_LEAD_MIN = 60; // the estimate leaves this long before the meeting time
 // Between the zones kept: neighbouring zones are often the best 3. Measured on Toulouse's bars: the
 // value is to be measured again on other data (docs/evaluation.md § Around which center)
 const ZONE_SPACING_M = 500;
@@ -95,7 +98,7 @@ async function exactTransit(participants, places, indices, slot, onProgress, kee
 }
 
 // The method with the zones of the data file (scripts/build-zones.js), coarse then finer: every
-// zone's representative estimated, the ZONE_SHORTLIST best exact, the PROPOSALS best zones at least
+// zone's representative estimated (one search per participant, not per zone), the ZONE_SHORTLIST best exact, the PROPOSALS best zones at least
 // ZONE_SPACING_M apart, then every place of these zones exact; a zone's best place makes its rank.
 // Stations have no zones. No richer zone is favoured. Returns null without bars, cafés nor restaurants, or
 // { zones: [{ kind, name, lat, lon, places: best first }], spacing, estimated, exact, journeys, seconds }
@@ -114,22 +117,26 @@ export async function scoreZones(participants, categories, slot, data, metric, o
 
     onProgress(`zones : estimation de ${reps.length} représentants…`);
     await streetTimes(participants, reps);
-    const transit = participants.map((p, i) => i).filter(i => participants[i].modes.includes('transit'));
-    if (transit.length) {
-        const arriveBy = parseParis(slot.to);
-        await forEachLimited(reps.map((_, j) => j), PARALLEL, async j => {
-            const estimates = await motis.transitEstimates(reps[j], transit.map(i => participants[i]), arriveBy, batch.signal);
-            estimates.forEach((d, k) => { if (d != null) reps[j].times[transit[k]].transit = d; });
-        });
-    }
+    const departure = new Date(parseParis(slot.from).getTime() - ZONE_ESTIMATE_LEAD_MIN * 60000);
+    await forEachLimited(participants.map((_, i) => i).filter(i => participants[i].modes.includes('transit')), PARALLEL, async i => {
+        const estimates = await motis.transitEstimatesFrom(participants[i], reps, departure, batch.signal);
+        estimates.forEach((d, j) => { if (d != null) reps[j].times[i].transit = d; });
+    });
 
-    const shortlist = scorePlaces(reps, metric, people).slice(0, ZONE_SHORTLIST).map(j => reps[j]);
-    onProgress(`zones : ${shortlist.length} représentants en temps exact…`);
-    let journeys = await exactTransit(participants, shortlist, shortlist.map((_, j) => j), slot, onProgress, true);
-    const kept = [];
-    for (const j of scorePlaces(shortlist, metric, people)) {
-        const zone = shortlist[j];
-        if (kept.length < PROPOSALS && kept.every(k => haversine(k, zone) >= ZONE_SPACING_M)) kept.push(zone);
+    const order = scorePlaces(reps, metric, people).map(j => reps[j]);
+    let shortlist = [];
+    let journeys = 0;
+    let kept = [];
+    while (kept.length < PROPOSALS && shortlist.length < order.length) {
+        const next = order.slice(shortlist.length, shortlist.length + ZONE_SHORTLIST);
+        onProgress(`zones : ${shortlist.length + next.length} représentants en temps exact…`);
+        journeys += await exactTransit(participants, next, next.map((_, j) => j), slot, onProgress, true);
+        shortlist = [...shortlist, ...next];
+        kept = [];
+        for (const j of scorePlaces(shortlist, metric, people)) {
+            const zone = shortlist[j];
+            if (kept.length < PROPOSALS && kept.every(k => haversine(k, zone) >= ZONE_SPACING_M)) kept.push(zone);
+        }
     }
 
     // Second round: the other places of the zones kept, the representatives' times being known

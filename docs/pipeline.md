@@ -72,7 +72,7 @@ flowchart TB
     subgraph BROWSER["In the browser (js/)"]
         direction TB
         KEY[("ORS key<br/>localStorage")]:::user
-        INPUT["Participants (2 to 5): position + modes<br/>people (1 by default)<br/>(walk and transit checked by default)<br/>Meeting time (quarter hours, today, Europe/Paris)<br/>Place types: stations / bars / restaurants"]:::user
+        INPUT["Participants (2 to 10): position + modes<br/>people (1 by default)<br/>(walk and transit checked by default)<br/>Meeting time (quarter hours, today, Europe/Paris)<br/>Place types: stations / bars / restaurants"]:::user
         SEARCH["2. Address search"]
         ENGINE["3. Computation (engine.js)"]
         RESULT["4. Result: chosen place,<br/>trip details, map paths"]
@@ -214,7 +214,7 @@ flowchart TB
 
 ## 4. API calls of one computation
 
-With `P` participants (at most 5), `C` candidates (at most 8), `M` street modes used by
+With `P` participants (at most 10), `C` candidates (at most 8), `M` street modes used by
 someone (at most 3) and `T` participants who may take transit:
 
 ```mermaid

@@ -18,7 +18,7 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZones, timeGrid, be
     const form = document.getElementById('location-form');
     if (!form || !window.L) return;
 
-    const MAX_PARTICIPANTS = 5;
+    const MAX_PARTICIPANTS = 10;
     const MIN_QUERY_LENGTH = 3;       // Géoplateforme suggestions
     const MIN_LOCAL_QUERY_LENGTH = 2; // local place suggestions
     const SUGGEST_DELAY_MS = 250;
@@ -72,6 +72,9 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZones, timeGrid, be
     const tisseoInput = document.getElementById('tisseo-key');
     // The transit engine is picked in the settings panel, outside the participants form
     const engineInput = value => document.querySelector(`[name="transit-engine"][value="${value}"]`);
+    // Reloading, Firefox restores the radios as they were: with the local MOTIS checked, whose radio
+    // is only added later, none is checked here
+    if (!document.querySelector('[name="transit-engine"]:checked')) engineInput('transitous').checked = true;
     const tisseoEngine = engineInput('tisseo');
     const engineHint = document.getElementById('transit-engine-hint');
     const candidateCount = document.getElementById('candidate-count');

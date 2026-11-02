@@ -332,3 +332,9 @@ zones unless said. Straight-line speeds measured on the oracle, km/h (median): w
 - In the debug view (T4, transit, local MOTIS, 8 in parallel): bars, 161 zones estimated, 87 exact journeys,
   2.7 s (2.3 s with the 3 km radius: not faster here, but no radius). Bars, cafés and restaurants (T2, transit):
   851 zones, 120 journeys, 10 s: the estimate grows with the zones.
+- One search per participant instead of one per zone (`estimates.js`, adopted 2026-11-02): forward, leaving 60 min before
+  the meeting time, read at every zone; T4, 161 zones: 3 searches, 0.5 s instead of 1.6 s; 851 zones 2 s. 20 zones
+  scored exactly, not 10: Tuesday 19:00 can do with 10, but off-peak the first proposal then loses more (mean score,
+  mean / max, 10 then 20 zones: Tuesday 14:30 0.4 / 2.0, 0.1 / 0.7; 22:00 0.7 / 4.7, 0.2 / 1.0; Sunday 10:30 0.3 / 2.3, 0.0 / 0.2). More
+  zones are scored while fewer than 3 are kept 500 m apart. Walk + transit, 10 groups. In the practical view (T4,
+  local MOTIS, 8 in parallel): bars 1.8 s, bars, cafés and restaurants (851 zones) 3.2 s, 10 participants and bars 4.0 s.

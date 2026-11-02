@@ -68,6 +68,20 @@ export async function transitEstimates(one, many, arriveBy, signal = null) {
     return body.transit_durations.map(set => (set.length ? Math.min(...set.map(e => e.duration)) : null));
 }
 
+// Cheaper transit estimate from one point to many, leaving at `departure` (a Date): one RAPTOR search
+// forward from `one`, read for every point; the wait for the first vehicle counts; null when none
+export async function transitEstimatesFrom(one, many, departure, signal = null) {
+    const place = p => `${p.lat},${p.lon}`;
+    const res = await fetch(`${BASE}/api/experimental/one-to-many-intermodal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal,
+        body: JSON.stringify({ one: place(one), many: many.map(place), time: departure.toISOString(), arriveBy: false }),
+    });
+    const body = await json(res);
+    return body.transit_durations.map(set => (set.length ? Math.min(...set.map(e => e.duration)) : null));
+}
+
 // The network's lines in a box: [{ mode, color, path: [[lat, lon]…], names }]
 export async function networkLines(south, west, north, east) {
     const params = new URLSearchParams({ zoom: '14', min: `${south},${east}`, max: `${north},${west}` });
