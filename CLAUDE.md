@@ -181,7 +181,9 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   computing time, not brute force, so that the service scales): every zone's representative estimated (MOTIS one-to-many,
   no center nor radius), the 20 best exact, the best 3 zones at least 500 m apart, then every place of these 3
   exact. Cafés and restaurants get zones the same way. The geometric median was measured worse on the
-  équitable score, not adopted. Practical view: propose a bar with its zone as context (agreed, to try, not done). Done: `zone` + `zones` table
+  équitable score, not adopted. Practical view (branch `practical-zones`, 2026-11-02, MOTIS engine only, not merged): proposes each zone's best
+  place, its zone as context, the zone's other places folded and selectable (`evaluateByZones`); with stations (no
+  zones) the former method. Done: `zone` + `zones` table
   in the data file (`scripts/build-zones.js`), "Zones de bars" layer of the debug view,
   measured by `scripts/eval/zones.js`, the method in the debug view (MOTIS only; `js/debug-motis.js`
   `scoreZones`). The debug view shows more without showing everything at once (stated by the user

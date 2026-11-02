@@ -112,8 +112,18 @@ function tripCard(p, i, place) {
         </article>`;
 }
 
-// A proposal: the mean per person and the longest door-to-door trip
-function proposalButton(c, j, rank, selected, participants) {
+// The proposals among the candidates: the first in the ranking, or those the computation picked
+export const proposalsOf = data => data.proposals ?? data.ranking.slice(0, PROPOSALS);
+
+const ZONE_KINDS = { bar: ['bar', 'bars'], cafe: ['café', 'cafés'], restaurant: ['restaurant', 'restaurants'] };
+const inSameZone = (data, place) => data.candidates.map((_, j) => j).filter(j => data.candidates[j].zoneInfo?.index === place.zoneInfo.index);
+const placesOfKind = (kind, n) => `${n} ${ZONE_KINDS[kind][n > 1 ? 1 : 0]}`;
+
+// A proposal: its zone as context, the mean per person and the longest door-to-door trip
+function proposalButton(data, j, rank, selected) {
+    const { participants } = data;
+    const c = data.candidates[j];
+    const zoneSize = c.zoneInfo ? inSameZone(data, c).length : 0;
     const trips = c.choices.map(choice => choice.travel);
     const people = participants.reduce((sum, p) => sum + p.people, 0);
     const mean = trips.reduce((sum, t, i) => sum + participants[i].people * t, 0) / people;
@@ -121,8 +131,27 @@ function proposalButton(c, j, rank, selected, participants) {
         <li><button type="button" class="proposal" data-place="${j}" aria-pressed="${j === selected}">
             <span class="rank-pin proposal-rank"><span>${rank + 1}</span></span>
             <span class="proposal-name">${escapeHtml(c.name)}</span>
+            ${zoneSize > 1 ? `<span class="proposal-zone">${escapeHtml(c.zoneInfo.name)} · ${placesOfKind(c.zoneInfo.kind, zoneSize)}</span>` : ''}
             <span class="proposal-times">moyenne ${formatDuration(mean)} · le plus long ${formatDuration(Math.max(...trips))}</span>
         </button></li>`;
+}
+
+// The other places of the chosen one's zone, folded: any of them can be chosen instead
+function zoneOthers(data, place, selected) {
+    if (!place.zoneInfo) return '';
+    const others = inSameZone(data, place).filter(j => j !== selected);
+    if (!others.length) return '';
+    const n = others.length;
+    const difference = c => {
+        const seconds = c.score - place.score;
+        return Math.abs(seconds) < 30 ? 'pareil' : `${seconds > 0 ? '+' : '−'}${formatDuration(Math.abs(seconds))}`;
+    };
+    return `<details class="zone-others">
+        <summary>${n > 1 ? `Les ${n} autres ${ZONE_KINDS[place.zoneInfo.kind][1]}` : `L'autre ${ZONE_KINDS[place.zoneInfo.kind][0]}`} de la zone ${escapeHtml(place.zoneInfo.name)}, à moins de 5 min à pied</summary>
+        <ul class="zone-others-list">${others.map(j => `<li><button type="button" class="zone-other" data-place="${j}">
+            <span class="zone-other-name">${escapeHtml(data.candidates[j].name)}</span>
+            <span class="zone-other-time">${difference(data.candidates[j])}</span></button></li>`).join('')}</ul>
+    </details>`;
 }
 
 // HTML of the results for the candidate `selected` of a result event; debug: the list of every
@@ -135,7 +164,8 @@ export function resultsHtml(data, selected, categoryLabels, { debug = false } = 
             <div class="chart-header"><h2 class="chart-title">Propositions</h2></div>
             <p class="location-best">${data.candidates.length
                 ? 'Aucun candidat n\'est atteignable par tous les participants.'
-                : 'Aucun candidat trouvé à moins de 5 km du barycentre : essayez d\'autres types de lieux.'}</p>`;
+                : data.proposals ? 'Aucun lieu n\'est atteignable par tous les participants.'
+                    : 'Aucun candidat trouvé à moins de 5 km du barycentre : essayez d\'autres types de lieux.'}</p>`;
     }
 
     const ranked = [...data.ranking, ...data.candidates.map((_, j) => j).filter(j => !data.ranking.includes(j))];
@@ -146,7 +176,7 @@ export function resultsHtml(data, selected, categoryLabels, { debug = false } = 
             ${escapeHtml(c.name)} (${categoryLabels[c.category]}) — ${c.score != null ? `score ${formatDuration(c.score)}` : 'injoignable'}${c.incomplete ? ' · incomplet' : ''}
         </option>`;
     }).join('');
-    const proposals = data.ranking.slice(0, PROPOSALS);
+    const proposals = proposalsOf(data);
     const links = placeLinks(place);
     const external = 'target="_blank" rel="noopener noreferrer"';
 
@@ -160,7 +190,7 @@ export function resultsHtml(data, selected, categoryLabels, { debug = false } = 
         </div>
         <p class="location-muted location-ranking">Classées selon le critère ${METRIC_LABELS[data.metric]} (réglages) :
             ${METRIC_DESCRIPTIONS[data.metric]}.</p>
-        <ol class="proposals">${proposals.map((j, rank) => proposalButton(data.candidates[j], j, rank, selected, data.participants)).join('')}</ol>
+        <ol class="proposals">${proposals.map((j, rank) => proposalButton(data, j, rank, selected)).join('')}</ol>
         <p class="location-best"><span class="rank-pin rank-pin--selected location-swatch--rank"></span>
             <strong>${escapeHtml(place.name)}</strong>
             <span>(${categoryLabels[place.category]})${placeAddress(place) ? ` · ${escapeHtml(placeAddress(place))}` : ''} — rendez-vous à ${data.slot.from.slice(11)}</span></p>
@@ -170,6 +200,7 @@ export function resultsHtml(data, selected, categoryLabels, { debug = false } = 
             <button type="button" class="location-button" id="place-share">Partager le lieu</button>
             <span class="location-muted" id="place-share-status" role="status"></span>
         </p>
+        ${zoneOthers(data, place, selected)}
         ${place.incomplete ? `<p class="location-warning">Calcul incomplet pour ce lieu : des trajets en transports
             en commun ont échoué deux fois${selected === data.best ? ', et aucun lieu au calcul complet n\'est atteignable par tous' : ''}.</p>` : ''}
         <div class="trip-cards">${data.participants.map((p, i) => tripCard(p, i, place)).join('')}</div>`;

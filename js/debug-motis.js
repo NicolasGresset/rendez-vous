@@ -1,12 +1,13 @@
-// debug-motis.js - Debug view with the local MOTIS (motis.js): every candidate place of the picked
-// categories, not only those around the barycenter, with each participant's times, to compare the
+// debug-motis.js - With the local MOTIS (motis.js): the method by zones (evaluateByZones, shown in the
+// practical view, until the home server runs it), and for the debug view every candidate place of
+// the picked categories, not only those around the barycenter, with each participant's times, to compare the
 // tool's proposals with the best places of the whole file (as scripts/eval does offline).
 // Street times are exact (one call per participant and mode). Transit: exact for every place up
 // to EXACT_ALL_MAX places; beyond, a cheap estimate for every place (one call per place for all
 // participants, 0 to 15 min too long) and exact times for the EXACT_SHORTLIST best of each score.
 
 import * as motis from './motis.js';
-import { CATEGORIES, SCORES, haversine } from './engine.js';
+import { CATEGORIES, SCORES, computationBase, haversine, placeRoutes } from './engine.js';
 import { forEachLimited, parseParis } from './transitous.js';
 import { PROPOSALS } from './results.js';
 
@@ -59,7 +60,8 @@ export async function enumeratePlaces(participants, categories, slot, data, onPr
 }
 
 // A place of the file with room for its times
-const toScore = (p, participants) => ({ ...p, times: participants.map(() => ({})), waits: participants.map(() => 0), estimated: false });
+const toScore = (p, participants) => ({ ...p, times: participants.map(() => ({})), waits: participants.map(() => 0),
+    trips: participants.map(() => null), estimated: false });
 
 // Street times of every participant to every place
 async function streetTimes(participants, places) {
@@ -71,8 +73,9 @@ async function streetTimes(participants, places) {
     })));
 }
 
-// Exact transit journeys to the places of these indices; returns how many were asked
-async function exactTransit(participants, places, indices, slot, onProgress) {
+// Exact transit journeys to the places of these indices; returns how many were asked. keepTrips:
+// each place also keeps its journeys, to show them
+async function exactTransit(participants, places, indices, slot, onProgress, keepTrips = false) {
     const transit = participants.map((p, i) => i).filter(i => participants[i].modes.includes('transit'));
     const pairs = indices.flatMap(j => transit.map(i => [i, j]));
     let done = 0;
@@ -81,6 +84,7 @@ async function exactTransit(participants, places, indices, slot, onProgress) {
         if (trip) {
             places[j].times[i].transit = trip.seconds;
             places[j].waits[i] = trip.wait;
+            if (keepTrips) places[j].trips[i] = trip;
         } else {
             delete places[j].times[i].transit;
         }
@@ -121,7 +125,7 @@ export async function scoreZones(participants, categories, slot, data, metric, o
 
     const shortlist = scorePlaces(reps, metric, people).slice(0, ZONE_SHORTLIST).map(j => reps[j]);
     onProgress(`zones : ${shortlist.length} représentants en temps exact…`);
-    let journeys = await exactTransit(participants, shortlist, shortlist.map((_, j) => j), slot, onProgress);
+    let journeys = await exactTransit(participants, shortlist, shortlist.map((_, j) => j), slot, onProgress, true);
     const kept = [];
     for (const j of scorePlaces(shortlist, metric, people)) {
         const zone = shortlist[j];
@@ -133,7 +137,7 @@ export async function scoreZones(participants, categories, slot, data, metric, o
     onProgress(`zones : ${others.length} autres lieux des ${kept.length} meilleures…`);
     if (others.length) {
         await streetTimes(participants, others);
-        journeys += await exactTransit(participants, others, others.map((_, j) => j), slot, onProgress);
+        journeys += await exactTransit(participants, others, others.map((_, j) => j), slot, onProgress, true);
     }
     const scored = [...kept, ...others];
     const ranking = scorePlaces(scored, metric, people);
@@ -143,6 +147,34 @@ export async function scoreZones(participants, categories, slot, data, metric, o
     })).sort((a, b) => a.places[0].score - b.places[0].score);
     return { zones, spacing: ZONE_SPACING_M, estimated: reps.length, exact: shortlist.length, journeys,
         seconds: (performance.now() - started) / 1000 };
+}
+
+// The method by zones as a computation of the engine (engine.js evaluate: same events, same
+// candidates): the candidates are the places of the zones kept, each zone's best first (the
+// proposals), each with its `zoneInfo`. Stops at the first failed journey; cancelled by cancelBatch
+export async function evaluateByZones({ participants, slot, categories, metric }, data, calls, emit) {
+    beginBatch();
+    const base = computationBase(participants, slot);
+    emit({ type: 'start', ...base });
+    const found = await scoreZones(participants, categories, base.slot, data, metric,
+        text => emit({ type: 'zones', text }));
+    const places = found.zones.map(zone => zone.places).sort((a, b) => a[0].score - b[0].score);
+    const inOrder = [...places.map(list => list[0]), ...places.flatMap(list => list.slice(1))];
+    const candidates = inOrder.map(p => toCandidate(p, participants, data));
+    const ranking = candidates.map((_, j) => j);
+    const best = candidates.length ? 0 : null;
+    emit({ type: 'result', ...base, candidates, ranking, proposals: ranking.slice(0, places.length), best, metric });
+    if (best != null) await placeRoutes(participants, candidates[best], {}, calls, emit, 'motis');
+    emit({ type: 'done' });
+}
+
+// A place scored here in the shape of the engine's candidates
+function toCandidate(p, participants, data) {
+    const times = p.times.map((modeTimes, i) => Object.fromEntries(Object.entries(modeTimes).map(([mode, seconds]) =>
+        [mode, mode === 'transit' ? { seconds, trip: p.trips[i] } : { seconds }])));
+    const { name, kind } = data.zones[p.zone];
+    return { ...p, times, incomplete: false, zoneInfo: { index: p.zone, name, kind },
+        total: p.choices.reduce((sum, c, i) => sum + participants[i].people * c.seconds, 0) };
 }
 
 // Each place's fastest time per participant ({ mode, seconds } or null) and score for the metric

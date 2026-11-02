@@ -360,4 +360,7 @@ to the representative; several zones on one stop: the closest to it keeps the na
 take their most represented street not taken yet (ties in alphabetical order), else the stop and a number.
 161 zones of bars (36 of 3 places or more, 21 of 2, 104 of 1; largest 12), 109 of cafés (31, 17, 61; 15),
 581 of restaurants (153, 124, 304; 31). Used by the debug view only (dev server + local MOTIS): its
-map layers, and the method by zones (`js/debug-motis.js` `scoreZones`, doc `docs/evaluation.md`); not by the engine.
+map layers, and the method by zones (`js/debug-motis.js` `scoreZones`, doc `docs/evaluation.md`); not by the
+engine. With the local MOTIS engine, the practical view uses that method too (`evaluateByZones`: same events and
+candidates as the engine's `evaluate`), when no station is picked: each zone's best place is a proposal, with its zone as
+context, and the zone's other places can be chosen in a folded list. A map without options, and another score computes again.

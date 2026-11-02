@@ -9,10 +9,10 @@ import { createPlaceSearch } from './search.js';
 import { slotPicker } from './slots.js';
 import { TOULOUSE, createMap, drawCenter, drawCandidates, drawRoute as drawPath, drawEnumeration, drawRadius,
     drawNetworkLines, drawTimeGrid, drawZones, drawZoneResults } from './map.js';
-import { resultsHtml, enumerationHtml, zonesHtml, choiceText, placeLinks, shareText, PROPOSALS, METRIC_LABELS, METRIC_DESCRIPTIONS } from './results.js';
+import { resultsHtml, enumerationHtml, zonesHtml, choiceText, placeLinks, shareText, proposalsOf, METRIC_LABELS, METRIC_DESCRIPTIONS } from './results.js';
 import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
 import * as motis from './motis.js';
-import { enumeratePlaces, scorePlaces, scoreZones, timeGrid, beginBatch, cancelBatch } from './debug-motis.js';
+import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZones, timeGrid, beginBatch, cancelBatch } from './debug-motis.js';
 
 (function () {
     const form = document.getElementById('location-form');
@@ -765,7 +765,7 @@ import { enumeratePlaces, scorePlaces, scoreZones, timeGrid, beginBatch, cancelB
         if (debug && current.zones) drawZoneResults(resultLayer, current.zones.zones, METRIC_LABELS[data.metric]);
         if (debug) drawCenter(resultLayer, data.center);
         drawCandidates(resultLayer, data.candidates, categoryLabels,
-            { selected, proposals: data.ranking.slice(0, PROPOSALS), all: debug, onSelect: selectPlace });
+            { selected, proposals: proposalsOf(data), all: debug, onSelect: selectPlace });
         routeLayers = data.participants.map((p, i) => {
             participantMarkers.get(rows[i])
                 ?.bindPopup(`<strong>${escapeHtml(p.label)}</strong><br>${choiceText(place?.choices[i])}`);
@@ -773,7 +773,7 @@ import { enumeratePlaces, scorePlaces, scoreZones, timeGrid, beginBatch, cancelB
         });
         if (place) data.participants.forEach((_, i) => drawRoute(i));
         if (fit) {
-            const shown = debug ? data.candidates : data.ranking.slice(0, PROPOSALS).map(j => data.candidates[j]);
+            const shown = debug ? data.candidates : proposalsOf(data).map(j => data.candidates[j]);
             if (debug && current.enum && map.hasLayer(enumLayer)) shown.push(...current.enum.ranking.slice(0, 3).map(j => current.enum.places[j]));
             if (debug && current.zones) shown.push(...current.zones.zones.flatMap(zone => zone.places));
             const points = [...shown.map(c => [c.lat, c.lon]), ...data.participants.map(p => [p.lat, p.lon])];
@@ -809,12 +809,14 @@ import { enumeratePlaces, scorePlaces, scoreZones, timeGrid, beginBatch, cancelB
     }
 
     function renderResults() {
+        const othersOpen = results.querySelector('.zone-others')?.open;
         results.innerHTML = resultsHtml(current.data, current.selected, categoryLabels, { debug: isDebug() })
             + (isDebug() && current.zones ? zonesHtml(current.data, current.zones, current.enum, categoryLabels) : '')
             + (isDebug() && current.enum ? enumerationHtml(current.data, current.enum, categoryLabels) : '');
         results.querySelector('#place-select')?.addEventListener('change', e => selectPlace(Number(e.target.value)));
-        results.querySelectorAll('.proposal').forEach(button =>
+        results.querySelectorAll('.proposal, .zone-other').forEach(button =>
             button.addEventListener('click', () => selectPlace(Number(button.dataset.place))));
+        if (othersOpen && results.querySelector('.zone-others')) results.querySelector('.zone-others').open = true;
         results.querySelector('#place-share')?.addEventListener('click', sharePlace);
         // A click anywhere on a card folds or unfolds its details; the summary toggles natively,
         // the unfolded details and a text selection are left alone
@@ -851,6 +853,8 @@ import { enumeratePlaces, scorePlaces, scoreZones, timeGrid, beginBatch, cancelB
     function rerank() {
         if (!current) return;
         const { data } = current;
+        // The method by zones keeps other zones for another score: computed again (local, no quota)
+        if (data.proposals) return running ? undefined : form.requestSubmit();
         data.metric = checkedValue('score-metric');
         data.ranking = rankCandidates(data.candidates, data.metric, data.participants.map(p => p.people));
         if (current.enum) current.enum.ranking = scorePlaces(current.enum.places, data.metric, data.participants.map(p => p.people));
@@ -951,6 +955,10 @@ import { enumeratePlaces, scorePlaces, scoreZones, timeGrid, beginBatch, cancelB
             scrollToSection(results);
             break;
         }
+        case 'zones':
+            state.zonesProgress = Math.min(0.9, (state.zonesProgress ?? 0) + 0.25);
+            setProgress(state.zonesProgress, event.text);
+            break;
         case 'route':
             storeRoute(event);
             setStep('routes', 'running', `${++state.routesDone}/${state.routesTotal}`);
@@ -979,6 +987,8 @@ import { enumeratePlaces, scorePlaces, scoreZones, timeGrid, beginBatch, cancelB
     });
     document.getElementById('view-mode').addEventListener('change', () => {
         storeSettings();
+        // With the local MOTIS, the two views do not compute the same result
+        if (checkedValue('transit-engine') === 'motis') clearResults();
         applyView();
     });
 
@@ -1017,11 +1027,16 @@ import { enumeratePlaces, scorePlaces, scoreZones, timeGrid, beginBatch, cancelB
                 maxCandidates: Number(candidateCount.value), metric: checkedValue('score-metric'),
                 participants: participants.map(({ row, ...p }) => p) };
             // lastRun is updated by the engine as calls are made
-            await evaluate(input, keys, data, lastRun, event => {
+            const onEvent = event => {
                 handleEvent(event, participants, rows, state);
                 renderCalls();
-            });
-            if (input.transitEngine === 'motis' && current) {
+            };
+            // The method by zones: the practical view with the local MOTIS, for the types of places
+            // that have zones; the debug view compares it with the tool's below
+            const byZones = input.transitEngine === 'motis' && !isDebug() && !categories.includes('station');
+            if (byZones) await evaluateByZones(input, data, lastRun, onEvent);
+            else await evaluate(input, keys, data, lastRun, onEvent);
+            if (input.transitEngine === 'motis' && isDebug() && current) {
                 beginBatch();
                 current.zoneInput = { categories: input.categories, data };
                 await addZones(state);

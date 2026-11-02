@@ -172,6 +172,13 @@ export function rankCandidates(candidates, metric, people) {
         .sort((a, b) => candidates[a].score - candidates[b].score || candidates[a].total - candidates[b].total);
 }
 
+// What every result carries: today's date, the arrival window, the barycenter, the participants
+export function computationBase(participants, slot) {
+    const date = todayInToulouse();
+    const arriveFrom = `${date} ${slot}`;
+    return { date, slot: { from: arriveFrom, to: addMinutes(arriveFrom, LATE_TOLERANCE_MIN) }, center: barycenter(participants), participants };
+}
+
 // participants: [{ lat, lon, modes, people }], slot: the meeting time "HH:MM",
 // categories: keys of CATEGORIES (1 to 4), transitEngine: key of TRANSIT_ENGINES,
 // maxCandidates: places evaluated, at most MAX_CANDIDATES, metric: key of SCORES,
@@ -181,11 +188,8 @@ export async function evaluate({ participants, slot, categories,
     transitEngine = 'transitous', maxCandidates = MAX_CANDIDATES,
     metric = DEFAULT_METRIC },
     keys, data, calls, emit) {
-    const date = todayInToulouse();
-    const arriveFrom = `${date} ${slot}`;
-    const arriveTo = addMinutes(arriveFrom, LATE_TOLERANCE_MIN);
-    const center = barycenter(participants);
-    const base = { date, slot: { from: arriveFrom, to: arriveTo }, center, participants };
+    const base = computationBase(participants, slot);
+    const { center, slot: { from: arriveFrom, to: arriveTo } } = base;
     emit({ type: 'start', ...base });
 
     const total = Math.max(1, Math.min(MAX_CANDIDATES, maxCandidates));
