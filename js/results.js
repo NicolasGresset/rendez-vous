@@ -119,7 +119,8 @@ const ZONE_KINDS = { bar: ['bar', 'bars'], cafe: ['café', 'cafés'], restaurant
 const inSameZone = (data, place) => data.candidates.map((_, j) => j).filter(j => data.candidates[j].zoneInfo?.index === place.zoneInfo.index);
 const placesOfKind = (kind, n) => `${n} ${ZONE_KINDS[kind][n > 1 ? 1 : 0]}`;
 
-// A proposal: its zone as context, the mean per person and the longest door-to-door trip
+// A proposal: its zone as context, the mean per person and the longest door-to-door trip, named
+// once above the proposals
 function proposalButton(data, j, rank, selected) {
     const { participants } = data;
     const c = data.candidates[j];
@@ -132,7 +133,7 @@ function proposalButton(data, j, rank, selected) {
             <span class="rank-pin proposal-rank"><span>${rank + 1}</span></span>
             <span class="proposal-name">${escapeHtml(c.name)}</span>
             ${zoneSize > 1 ? `<span class="proposal-zone">${escapeHtml(c.zoneInfo.name)} · ${placesOfKind(c.zoneInfo.kind, zoneSize)}</span>` : ''}
-            <span class="proposal-times">moyenne ${formatDuration(mean)} · le plus long ${formatDuration(Math.max(...trips))}</span>
+            <span class="proposal-times" aria-label="moyenne ${formatDuration(mean)}, le plus long ${formatDuration(Math.max(...trips))}">${formatDuration(mean)} · ${formatDuration(Math.max(...trips))}</span>
         </button></li>`;
 }
 
@@ -188,8 +189,9 @@ export function resultsHtml(data, selected, categoryLabels, { debug = false } = 
                 <select id="place-select">${options}</select>
             </label>` : ''}
         </div>
-        <p class="location-muted location-ranking">Classées selon le critère ${METRIC_LABELS[data.metric]} (réglages) :
-            ${METRIC_DESCRIPTIONS[data.metric]}.</p>
+        ${debug ? `<p class="location-muted location-ranking">Classées selon le critère ${METRIC_LABELS[data.metric]} (réglages) :
+            ${METRIC_DESCRIPTIONS[data.metric]}.</p>` : ''}
+        <p class="proposals-legend">Trajet moyen · trajet le plus long</p>
         <ol class="proposals">${proposals.map((j, rank) => proposalButton(data, j, rank, selected)).join('')}</ol>
         <p class="location-best"><span class="rank-pin rank-pin--selected location-swatch--rank"></span>
             <strong>${escapeHtml(place.name)}</strong>

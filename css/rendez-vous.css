@@ -734,6 +734,9 @@
 .proposal-zone { font-size: var(--text-xs); color: var(--color-text-secondary); overflow-wrap: anywhere; }
 .proposal-times { font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--color-text-secondary); }
 
+/* What the two times of every proposal are, said once */
+.proposals-legend { margin-bottom: 0.5rem; font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--color-text-secondary); }
+
 /* The other places of the chosen one's zone, folded */
 .zone-others { margin-bottom: 1rem; font-size: var(--text-sm); }
 .zone-others summary { cursor: pointer; color: var(--color-text-secondary); }
