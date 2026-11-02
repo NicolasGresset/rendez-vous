@@ -72,7 +72,7 @@ flowchart TB
     subgraph BROWSER["In the browser (js/)"]
         direction TB
         KEY[("ORS key<br/>localStorage")]:::user
-        INPUT["Participants (2 to 5): position + modes<br/>people (1 by default)<br/>(walk and transit checked by default)<br/>Meeting time (quarter hours, today, Europe/Paris)<br/>+ late tolerance (settings: 0 / 5 / 10 / 15 min, 10 by default)<br/>Place types: stations / bars / restaurants"]:::user
+        INPUT["Participants (2 to 5): position + modes<br/>people (1 by default)<br/>(walk and transit checked by default)<br/>Meeting time (quarter hours, today, Europe/Paris)<br/>Place types: stations / bars / restaurants"]:::user
         SEARCH["2. Address search"]
         ENGINE["3. Computation (engine.js)"]
         RESULT["4. Result: chosen place,<br/>trip details, map paths"]
@@ -187,9 +187,9 @@ flowchart TB
     end
 
     subgraph TRANSIT["Transit (engine picked in the page)"]
-        PLAN[("Transitous /api/v6/plan (default)<br/>1 call per transit participant x candidate,<br/>3 at a time; arriveBy = meeting time + tolerance;<br/>maxItineraries=5, detailedTransfers=false")]:::api
-        TISSEO[("Tisséo /v2/journeys.xml (user's key)<br/>2 calls per participant x candidate, 6 at a time:<br/>4 journeys leaving 1 h before meeting time + tolerance,<br/>then 4 leaving (shortest travel time + 10 min) before it")]:::api
-        WINDOW["keep journeys arriving by meeting time + tolerance;<br/>time = journey + wait until the meeting time<br/>when arriving early (walking included);<br/>shortest time wins, then latest departure"]:::algo
+        PLAN[("Transitous /api/v6/plan (default)<br/>1 call per transit participant x candidate,<br/>3 at a time; arriveBy = meeting time + 10 min;<br/>maxItineraries=5, detailedTransfers=false")]:::api
+        TISSEO[("Tisséo /v2/journeys.xml (user's key)<br/>2 calls per participant x candidate, 6 at a time:<br/>4 journeys leaving 1 h before meeting time + 10 min,<br/>then 4 leaving (shortest travel time + 10 min) before it")]:::api
+        WINDOW["keep journeys arriving by meeting time + 10 min;<br/>time = journey + wait until the meeting time<br/>when arriving early (walking included);<br/>shortest time wins, then latest departure"]:::algo
         RETRY["technical failure: 1 retry after 2 s;<br/>failing twice = journey failed,<br/>its candidate is 'incomplete'"]:::algo
         WINDOW --- RETRY
         PLAN --> WINDOW

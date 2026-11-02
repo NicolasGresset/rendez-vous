@@ -29,6 +29,8 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3001';
 const FIXTURE_FILE = path.join(__dirname, 'fixtures/rendez-vous.json');
 const TIMEOUT_MS = 120000;
 
+// Recorded asking for arrivals by 12:45; the URLs were moved to 12:40 when the late tolerance became
+// 10 min, instead of 24 new Transitous calls (the journeys arriving later are simply not kept).
 // The scenario recorded: places typed in the address search (first local suggestion), modes,
 // people, and the arrival slot
 const SCENARIO = {
@@ -45,8 +47,6 @@ const SCENARIO = {
 function preload(fixture) {
     if (location.origin !== new URL(fixture.baseUrl).origin) return;
     localStorage.setItem('location.apiKeys', JSON.stringify({ ors: 'fixture' }));
-    // Recorded with the former 15 min slot: a 15 min late tolerance asks Transitous the same times
-    localStorage.setItem('location.settings', JSON.stringify({ tolerance: '15' }));
 
     if (fixture.now != null) {
         const RealDate = Date;

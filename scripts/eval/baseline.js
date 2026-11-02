@@ -7,7 +7,7 @@
 
 import fs from 'fs';
 import { evaluate, rankCandidates, SCORES, CATEGORIES } from '../../js/engine.js';
-import { CASES, CONFIGS, CATEGORY_SETS, DATE, SLOT, TOLERANCE_MIN } from './cases.js';
+import { CASES, CONFIGS, CATEGORY_SETS, DATE, SLOT } from './cases.js';
 import { MOTIS_URL, streetDurations } from './motis.js';
 import { candidatePlaces, loadOracle } from './oracle.js';
 import { METRICS, oracleScores, topPlaces } from './scoring.js';
@@ -53,7 +53,7 @@ async function runTool(testCase, configName, categories, data) {
     const participants = testCase.points.map((point, i) => ({ ...point, modes: CONFIGS[configName].modes(i) }));
     const calls = { orsMatrix: 0, orsDirections: 0, transitous: 0, tisseo: 0 };
     let result = null;
-    await evaluate({ participants, slot: SLOT, tolerance: TOLERANCE_MIN, categories, transitEngine: 'transitous', metric: 'mean' },
+    await evaluate({ participants, slot: SLOT, categories, transitEngine: 'transitous', metric: 'mean' },
         { ors: 'evaluation' }, data, calls, event => { if (event.type === 'result') result = event; });
     return { participants, result, calls };
 }

@@ -74,7 +74,6 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
     const tisseoEngine = engineInput('tisseo');
     const engineHint = document.getElementById('transit-engine-hint');
     const candidateCount = document.getElementById('candidate-count');
-    const lateTolerance = document.getElementById('late-tolerance');
     const scoreDescription = document.getElementById('score-description');
     const ENGINE_NAMES = { transitous: 'Transitous', tisseo: 'Tisséo', motis: 'MOTIS local' };
     let motisReady = false; // a local MOTIS answers through the dev server (demonstrator, motis.js)
@@ -102,8 +101,7 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
         scoreDescription.textContent = `${text[0].toUpperCase()}${text.slice(1)}.`;
     }
 
-    // ---- Settings, kept in this browser: view, score, number of candidates, transit engine,
-    //      late tolerance ----
+    // ---- Settings, kept in this browser: view, score, number of candidates, transit engine ----
     const checkedValue = name => document.querySelector(`[name="${name}"]:checked`).value;
     const isDemo = () => checkedValue('view-mode') === 'demo';
     const SETTING_RADIOS = { view: 'view-mode', metric: 'score-metric', engine: 'transit-engine' };
@@ -115,12 +113,11 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
             if (input) input.checked = true;
         });
         if ([...candidateCount.options].some(o => o.value === saved.candidates)) candidateCount.value = saved.candidates;
-        if ([...lateTolerance.options].some(o => o.value === saved.tolerance)) lateTolerance.value = saved.tolerance;
     }
 
     function storeSettings() {
         saveSettings({ ...Object.fromEntries(Object.entries(SETTING_RADIOS).map(([key, name]) => [key, checkedValue(name)])),
-            candidates: candidateCount.value, tolerance: lateTolerance.value });
+            candidates: candidateCount.value });
     }
 
     // openrouteservice computes walking, cycling and driving only: without its key, a computation
@@ -950,7 +947,7 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
     // Other place types, candidates or transit engine make the displayed result stale; another
     // score or view only changes how it is ranked or shown
     document.getElementById('categories').addEventListener('change', clearResults);
-    [candidateCount, lateTolerance, document.getElementById('transit-engine')].forEach(input => input.addEventListener('change', () => {
+    [candidateCount, document.getElementById('transit-engine')].forEach(input => input.addEventListener('change', () => {
         storeSettings();
         clearResults();
         updateSubmit();
@@ -996,8 +993,7 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
         const state = { startedAt: performance.now() };
         try {
             const data = await getData();
-            const input = { slot: slotValue(), tolerance: Number(lateTolerance.value), categories,
-                transitEngine: checkedValue('transit-engine'),
+            const input = { slot: slotValue(), categories, transitEngine: checkedValue('transit-engine'),
                 maxCandidates: Number(candidateCount.value), metric: checkedValue('score-metric'),
                 participants: participants.map(({ row, ...p }) => p) };
             // lastRun is updated by the engine as calls are made

@@ -188,8 +188,9 @@ place under the rule, in minutes per person.
   to the meeting time).
 - The tolerance reorders the places (many are within a minute of each other), but the rule
   picked costs little: from 5 min on, the median loss is 0 and the worst 2.8 to 6.7 min; the mean
-  best score shifts with it (27.3 -> 24.6 min), most of the effect being the same for every place.
-  0 min reorders much more (same first place in 21 % of the rows).
+  best score shifts with it (27.3 -> 24.6 min). Whether that shift is the same for every place was
+  not measured directly. One meeting time only (Tuesday 19:00, frequent service): at off-peak hours,
+  where the tolerance matters most, the effect may be larger. 0 min reorders much more (same first place in 21 % of the rows).
 - Computing cost: the same for any tolerance (one arrive-by search).
 - Check: the stored journeys give back the oracle's time at 10 min for 98.2 % of the pairs
   (119,493 / 121,730); otherwise −6 to +8 min (median +1): two lists of 5 journeys do not always
