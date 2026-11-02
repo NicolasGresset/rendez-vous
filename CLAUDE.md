@@ -96,7 +96,9 @@ are out of scope.
 
 ## Next big steps (stated by the user, 2026-10-28)
 
-1. **Home server**: a second-hand machine with Debian, hosted at home behind the ISP box with a port
+1. **Home server** (bought, stated 2026-11-02, due around 2026-11-06/08: refurbished Lenovo ThinkCentre M720q
+   Tiny, i5-8400T 6 cores, 16 GB, 512 GB SSD; other services will share it, so MOTIS does not get
+   all of it): a second-hand machine with Debian, hosted at home behind the ISP box with a port
    opened, exposing routing services callable from anywhere. Goal: replace openrouteservice and
    Transitous (street times, transit journeys, paths), with home-made algorithms (pedagogical
    interest), and deal with deployment, caching, latency (ping to the box from outside unknown).
@@ -123,9 +125,8 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
 ## Open topics (update when they move)
 
 - Extracted from the portfolio on 2026-10-30 (`git filter-repo`, 52 commits kept; early commits
-  lack their styles, which lived in the portfolio's shared `css/style.css`). Not pushed yet; the user
-  creates the Vercel project and the DNS record for `rendez-vous.gresset-bourgeois.fr` (domain to
-  confirm). Then the portfolio drops the tool (files, CSP entries, `legal.html` section), redirects
+  lack their styles, which lived in the portfolio's shared `css/style.css`). Pushed; Vercel project
+  and DNS done, live at `rendez-vous.gresset-bourgeois.fr` (stated 2026-11-02). Then the portfolio drops the tool (files, CSP entries, `legal.html` section), redirects
   `/rendez-vous` and `/location` here, and presents it on a projects page. A new origin: keys and
   settings in localStorage must be entered again once.
 - Transitous audit leftovers (2026-10-28): `maxItineraries=5&detailedTransfers=false` (measured: half
