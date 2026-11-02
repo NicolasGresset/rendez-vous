@@ -5,7 +5,8 @@
 #   2. osmium: keep the Tisséo area (data/tisseo-area.json), then the amenity / office / shop /
 #      craft features, exported as GeoJSON with their OSM ids;
 #   3. scripts/build-places.js: categories, duplicate merging, Tisséo GTFS stops, addresses
-#      (IGN Géoplateforme bulk reverse geocoder) and their normalization, then writes the file.
+#      (IGN Géoplateforme bulk reverse geocoder) and their normalization, then writes the file;
+#   4. scripts/build-zones.js: groups the bars into zones, added to the file.
 # Rules and fields: docs/pipeline.md § 6.
 #
 # Needs: curl, osmium (osmium-tool), node >= 18, unzip. Network: Geofabrik, Tisséo open data,
@@ -27,7 +28,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --pbf)      pbf="$(realpath "$2")"; shift 2 ;;
         --work-dir) work_dir="$2"; shift 2 ;;
-        -h|--help)  sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)  sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *)          echo "Unknown option: $1 (see --help)" >&2; exit 1 ;;
     esac
 done
@@ -65,3 +66,4 @@ osmium tags-filter --overwrite area.osm.pbf nwr/amenity nwr/office nwr/shop nwr/
 osmium export --overwrite tagged.osm.pbf -f geojsonseq -u type_id --geometry-types=point,polygon -o tagged.geojsonseq
 
 node "$REPO_DIR/scripts/build-places.js" tagged.geojsonseq "$osm_date"
+node "$REPO_DIR/scripts/build-zones.js"

@@ -162,9 +162,12 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
 - Results card (2026-11-02): times shown are door-to-door, without the wait until the meeting
   time (still in the score). Proposals show the mean and the longest trip; per-participant bars
   were tried and removed, the user will decide later what to show.
-- Clusters of bars (idea of the user, 2026-11-02, for the home server, not decided): propose areas of
-  bars within a short walk rather than one bar. Measured, `docs/evaluation.md` § Clusters: maximum
-  diameter needed (chaining runs away), members often but not always interchangeable with transit.
+- Clusters of bars (idea of the user, 2026-11-02, for the home server): propose areas of bars within
+  a short walk rather than one bar. Measured, `docs/evaluation.md` § Clusters: maximum diameter needed
+  (chaining runs away, ruled out), members often but not always interchangeable with transit. Done so
+  far: `zone` + `zones` table in the data file (`scripts/build-zones.js`, lone bars included, named
+  after the closest metro / bus stop), "Zones de bars" layer of the demonstrator. To settle: the
+  diameter (300 m for now), the names, then the engine and the results (not started; MOTIS only).
 - Possibly more candidate categories (pub, biergarten, café): one line in `CATEGORIES`, user's call.
 - Scores (2026-10-30): "équitable" (default, Ogryczak's (1 − β)·mean + β·max with β = ½) and
   "égalitaire" (the mean per person); "moyenne + écart" dropped, it can prefer a place worse for

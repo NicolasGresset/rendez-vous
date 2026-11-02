@@ -8,7 +8,7 @@ import { loadKeys, saveKeys, clearKeys, loadSettings, saveSettings } from './key
 import { createPlaceSearch } from './search.js';
 import { slotPicker } from './slots.js';
 import { TOULOUSE, createMap, drawCenter, drawCandidates, drawRoute as drawPath, drawEnumeration, drawRadius,
-    drawNetworkLines, drawTimeGrid } from './map.js';
+    drawNetworkLines, drawTimeGrid, drawZones } from './map.js';
 import { resultsHtml, enumerationHtml, choiceText, placeLinks, shareText, PROPOSALS, METRIC_LABELS, METRIC_DESCRIPTIONS } from './results.js';
 import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
 import * as motis from './motis.js';
@@ -1092,10 +1092,15 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
         map.createPane('network').style.zIndex = 350; // under the other drawings (overlay pane: 400)
         const linesLayer = L.layerGroup();
         timeLayer = L.layerGroup();
-        L.control.layers(null, { 'Lignes Tisséo (MOTIS local)': linesLayer, 'Carte des temps (estimée)': timeLayer },
-            { collapsed: false }).addTo(map);
+        const zonesLayer = L.layerGroup();
+        L.control.layers(null, { 'Lignes Tisséo (MOTIS local)': linesLayer, 'Carte des temps (estimée)': timeLayer,
+            'Zones de bars': zonesLayer }, { collapsed: false }).addTo(map);
         map.on('overlayadd', async e => {
             if (e.layer === timeLayer) return computeTimeGrid();
+            if (e.layer === zonesLayer && !zonesLayer.getLayers().length) {
+                const { zones, places } = await getData();
+                return drawZones(zonesLayer, zones, places);
+            }
             if (e.layer !== linesLayer || linesLayer.getLayers().length) return;
             drawNetworkLines(linesLayer, await motis.networkLines(43.42, 1.20, 43.75, 1.62), 'network');
         });

@@ -349,3 +349,12 @@ Fields (generation normalizes them, the browser only reads them):
 | `near` | some `ban` | the BAN address is more than 30 m away ("près de") |
 | `aliases` | ~700 | OSM `short_name`, `alt_name`, `official_name` (split on `;`) |
 | `oldNames` | ~140 | OSM `old_name`, kept apart: it sometimes names the previous business at the address |
+| `zone` | bars | index in the top-level `zones` table |
+
+Zones of bars (`scripts/build-zones.js`, last step of the regeneration, can run alone without
+network): complete linkage, so that no two bars of a zone are more than 300 m apart, in a straight
+line (no chaining: it runs away, `docs/evaluation.md` § Clusters); lone bars are zones of one. Top-level
+`zones`: `[{ name, lat, lon }]`, the centroid and the name of the metro station or bus stop closest
+to it. 117 zones: 27 of 3 bars or more, 14 of 2, 76 of 1; names may repeat (10 are shared). ~2 KB
+brotli. Only drawn so far, by the demonstrator's "Zones de bars" map layer (dev server + local MOTIS):
+the engine does not use them.

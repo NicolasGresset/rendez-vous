@@ -246,4 +246,7 @@ Jean Jaurès) rather than single bars; score one point of each, then pick inside
   - groups of 3 or more, their point: 1.6 / 5.5, 1, 4.0, 8;
   - then every member of the 3 best groups: 0.9 / 3.9, 0, 3.5, 18.6;
   - groups and lone bars, every member of the 3 best: 1.2 / 5.5, 1, 4.6, 14.1.
-- Not measured: restaurants and all categories, naming the groups.
+- Not measured: restaurants and all categories.
+- Now in the data file (`scripts/build-zones.js`, 300 m, lone bars included), drawn in the
+  demonstrator, not used by the engine. Names: closest metro or bus stop; 10 names shared by 22
+  zones at 300 m, 17 at 200 m.

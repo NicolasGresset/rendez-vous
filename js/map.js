@@ -122,6 +122,46 @@ export function drawNetworkLines(layer, lines, pane) {
     });
 }
 
+// Convex hull of points (Andrew's monotone chain), in order around it
+function convexHull(points) {
+    const sorted = [...points].sort((a, b) => a.lon - b.lon || a.lat - b.lat);
+    const cross = (o, a, b) => (a.lon - o.lon) * (b.lat - o.lat) - (a.lat - o.lat) * (b.lon - o.lon);
+    const half = list => list.reduce((hull, p) => {
+        while (hull.length >= 2 && cross(hull[hull.length - 2], hull[hull.length - 1], p) <= 0) hull.pop();
+        hull.push(p);
+        return hull;
+    }, []).slice(0, -1);
+    return sorted.length < 3 ? sorted : [...half(sorted), ...half([...sorted].reverse())];
+}
+
+// Zones of bars (data file, scripts/build-zones.js): each zone's hull in its own color (neighbours
+// differ thanks to the golden angle), its name from MIN_LABELLED_BARS bars on, lone bars as grey dots
+const MIN_LABELLED_BARS = 3;
+export function drawZones(layer, zones, places) {
+    const members = zones.map(() => []);
+    places.forEach(p => { if (p.zone != null) members[p.zone].push(p); });
+    zones.forEach((zone, index) => {
+        const bars = members[index];
+        const color = bars.length > 1 ? `hsl(${Math.round(index * 137.5) % 360} 80% 40%)` : COLORS.center;
+        const label = `${escapeHtml(zone.name)} · ${bars.length} bar${bars.length > 1 ? 's' : ''}`;
+        const list = bars.map(p => escapeHtml(p.name)).join('<br>');
+        if (bars.length > 1) {
+            const hull = L.polygon(convexHull(bars).map(p => [p.lat, p.lon]), { color, weight: 9, lineJoin: 'round',
+                opacity: 0.4, fillOpacity: 0.3, bubblingMouseEvents: false })
+                .bindTooltip(`<strong>${label}</strong><br>${list}`, { sticky: true })
+                .addTo(layer);
+            if (bars.length >= MIN_LABELLED_BARS) {
+                L.tooltip({ permanent: true, direction: 'center', className: 'zone-label', interactive: false })
+                    .setLatLng([zone.lat, zone.lon]).setContent(`${escapeHtml(zone.name)} (${bars.length})`).addTo(layer);
+            }
+            hull.bringToBack();
+        }
+        bars.forEach(p => L.circleMarker([p.lat, p.lon], { radius: 3, color, weight: 1, fillColor: color, fillOpacity: 1,
+            bubblingMouseEvents: false })
+            .bindTooltip(`${escapeHtml(p.name)}<br>${label}`).addTo(layer));
+    });
+}
+
 // Time map (demo-motis.js timeGrid, scored with scorePlaces): one pixel per cell, stretched (and
 // smoothed by the browser) over the grid's box, same colors as the places relative to the grid's
 // best cell; cells nobody can reach all stay clear
