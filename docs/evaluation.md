@@ -355,3 +355,24 @@ Always 3 proposals. First proposal against the best of the file, per-participant
 mean), mean / max: bars 0.0 / 0.3 min (the former candidates 1.6 / 7.1), bars, cafés and restaurants 0.2 / 1.3; bars off-peak:
 Tuesday 14:30 0.2 / 2.0, 22:00 0.2 / 1.0, Sunday 10:30 0.0 / 0.3 (walk + transit).
 
+### What the zones bring, once estimates exist (`zones-gain.js`, 2026-11-02)
+
+One forward search does not cost the same whatever the destinations: 66 ms for 10, 363 ms for 100, 587 ms for 161, 1.16 s
+for 316, 2.9 s for 851, 6.9 s for 2,029 (one participant, sequential): ~3.4 ms per destination, most likely the
+street routing from each destination to its nearby stops (`get_offsets` in `one_to_many.cc`), on top of the transit search.
+
+The same method without zones (every place estimated, the K best exact, the best 3 places 500 m apart), mean + ½ (max − mean),
+30 rows, first proposal mean / max against the best place, exact journeys mean / max:
+
+| places | method | destinations | first | journeys |
+|---|---|---|---|---|
+| bars | zones | 161 | 0.0 / 0.3 | 51 / 156 |
+| bars | no zones, K = 40 | 316 | 0.0 / 0.0 | 71 / 240 |
+| bars, cafés, restaurants | zones | 851 | 0.2 / 1.3 | 61 / 240 |
+| bars, cafés, restaurants | no zones, K = 60 | 2,029 | 0.1 / 0.7 | 126 / 800 |
+| bars, cafés, restaurants | no zones, K = 100 | 2,029 | 0.0 / 0.0 | 182 / 800 |
+
+So the zones do not improve the best place. They halve the estimate's time (2 to 2.4 times fewer destinations) and lower
+the exact journeys, mostly in the worst case. With an engine of one's own, reading precomputed street times to stops, the first gain would mostly go.
+What stays is the shape of the answer: areas with several places to choose from.
+
