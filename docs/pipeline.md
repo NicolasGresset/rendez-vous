@@ -171,10 +171,11 @@ flowchart TB
         direction TB
         R0["Only the candidate categories:<br/>amenity=bar, amenity=restaurant, metro, bus"]:::algo
         R1["Haversine distance to the barycenter,<br/>dedupe same category + name"]:::algo
-        R2["Radius 1 km, + 500 m while fewer than 3 candidates<br/>(or than the number set, if lower), up to 5 km"]:::algo
+        R2["Radius 1 km, + 500 m while fewer candidates than<br/>the number set (default 8), up to 5 km"]:::algo
         R3["Quota per type (maximums): the number of<br/>candidates set in the page (1 to 8, default 8)<br/>split evenly, first types first:<br/>8 over 3 types: 3 stations, 3 bars, 2 restaurants"]:::algo
         R4["Stations: half the quota (rounded up)<br/>to the metro first, closest stops fill the rest"]:::algo
-        R0 --> R1 --> R2 --> R3 --> R4
+        R5["Closest first, a place within 700 m of one<br/>already kept is skipped, across types too"]:::algo
+        R0 --> R1 --> R2 --> R3 --> R4 --> R5
     end
     CAND --> CANDIDATES
 

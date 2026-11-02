@@ -34,7 +34,9 @@ const CAR_PARKING_S = 5 * 60;      // fixed time to park, added to every car tri
 const RADIUS_START_M = 1000;
 const RADIUS_STEP_M = 500;
 const RADIUS_MAX_M = 5000;
-const MIN_CANDIDATES = 3;
+// Candidates at least this far apart: close ones bring little information, and the 3 proposals
+// taken from them are then distinct places to choose from (docs/evaluation.md § Diversity)
+const CANDIDATE_SPACING_M = 700;
 const MAX_CANDIDATES = 8; // default and maximum: each candidate costs one transit journey per participant
 
 // Categories the user picks from, and the place categories of data/pois-toulouse.json they cover:
@@ -80,7 +82,8 @@ function haversine(a, b) {
     return 2 * 6371000 * Math.asin(Math.sqrt(h));
 }
 
-// Closest places of the picked categories within radius meters, within each category's quota
+// Closest places of the picked categories within radius meters, within each category's quota and
+// CANDIDATE_SPACING_M apart, across categories too
 function candidatesWithin(places, center, categories, total, radius) {
     const seen = new Set();
     const nearby = places
@@ -89,27 +92,38 @@ function candidatesWithin(places, center, categories, total, radius) {
         .sort((a, b) => a.distance - b.distance)
         // A place mapped twice under the same name counts once
         .filter(c => !seen.has(`${c.category}:${c.name}`) && seen.add(`${c.category}:${c.name}`));
+    const chosen = [];
+    // Adds up to count places of pool, closest first, and returns how many
+    const pick = (pool, count) => {
+        let added = 0;
+        for (const p of pool) {
+            if (added === count) break;
+            if (chosen.every(c => c !== p && haversine(c, p) >= CANDIDATE_SPACING_M)) {
+                chosen.push(p);
+                added++;
+            }
+        }
+        return added;
+    };
     const quotas = quotasFor(categories, total);
-    return categories.flatMap(category => {
+    categories.forEach(category => {
         const pool = nearby.filter(p => CATEGORIES[category].includes(p.category));
-        const quota = quotas[category];
-        if (category !== 'station') return pool.slice(0, quota);
+        let quota = quotas[category];
         // Half of the stations (rounded up) go to the metro first, so that the numerous
         // bus stops do not crowd it out; the closest remaining stops fill the rest
-        const metro = pool.filter(p => p.category === 'metro').slice(0, Math.ceil(quota / 2));
-        return [...metro, ...pool.filter(p => !metro.includes(p)).slice(0, quota - metro.length)];
-    }).sort((a, b) => a.distance - b.distance);
+        if (category === 'station') quota -= pick(pool.filter(p => p.category === 'metro'), Math.ceil(quota / 2));
+        pick(pool, quota);
+    });
+    return chosen.sort((a, b) => a.distance - b.distance);
 }
 
-// The search radius grows by RADIUS_STEP_M until MIN_CANDIDATES are found, up to
+// The search radius grows by RADIUS_STEP_M until all the candidates are found, up to
 // RADIUS_MAX_M (local data only: no API call, whatever the radius)
 function findCandidates(places, center, categories, total) {
     const pool = places.filter(p => CANDIDATE_CATEGORIES.has(p.category));
-    // Fewer than MIN_CANDIDATES asked for: no need to widen the search to find more
-    const wanted = Math.min(MIN_CANDIDATES, total);
     let radius = RADIUS_START_M;
     let candidates = candidatesWithin(pool, center, categories, total, radius);
-    while (candidates.length < wanted && radius < RADIUS_MAX_M) {
+    while (candidates.length < total && radius < RADIUS_MAX_M) {
         radius += RADIUS_STEP_M;
         candidates = candidatesWithin(pool, center, categories, total, radius);
     }

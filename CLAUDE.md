@@ -42,10 +42,10 @@ This file is excluded from the deployment (`.vercelignore`) but versioned on Git
   port: "exit 69" on the next start, and recreates its profile after `rm`); a Bash background task
   killed by hand reports "failed, exit 143/144", which is not a Firefox failure. Startup ~9 s.
 - UI tests without API calls: `scripts/location-fixture.js` replays a stored computation
-  (`scripts/fixtures/rendez-vous.json`: 3 participants, Transitous answers recorded 2026-10-30, slimmed;
+  (`scripts/fixtures/rendez-vous.json`: 3 participants, Transitous answers recorded 2026-11-02, slimmed;
   page clock set back to the recording, openrouteservice made up in the page). `openWithFixture(page)`
   then `runComputation(page, scenario)` inside `withFirefox`; `node scripts/location-fixture.js shot`
-  screenshots the results, `record` re-records (~24 Transitous calls, only when the format changes).
+  screenshots the results, `record` re-records (~24 Transitous calls, when the format or the candidates change).
   Use it for every graphical / UX change of the results.
 - Evaluation of the proposals (since 2026-10-30, `docs/evaluation.md`): `scripts/eval/` compares
   the tool's 3 proposals (its own `evaluate()`, calls redirected) with the best candidate places of
@@ -162,6 +162,9 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
 - Results card (2026-11-02): times shown are door-to-door, without the wait until the meeting
   time (still in the score). Proposals show the mean and the longest trip; per-participant bars
   were tried and removed, the user will decide later what to show.
+- Clusters of bars (idea of the user, 2026-11-02, for the home server, not decided): propose areas of
+  bars within a short walk rather than one bar. Measured, `docs/evaluation.md` § Clusters: maximum
+  diameter needed (chaining runs away), members often but not always interchangeable with transit.
 - Possibly more candidate categories (pub, biergarten, café): one line in `CATEGORIES`, user's call.
 - Scores (2026-10-30): "équitable" (default, Ogryczak's (1 − β)·mean + β·max with β = ½) and
   "égalitaire" (the mean per person); "moyenne + écart" dropped, it can prefer a place worse for
@@ -208,8 +211,8 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   practical (default) and demonstrator views, no name field (the user may change their mind).
   Settings kept in localStorage (`location.settings`, in `legal.html`).
 - Next for the Rendez-vous tool (stated by the user 2026-10-29, for a new session):
-  - **Diversity of the candidates** (high on the list): the 8 candidates must be spread out (two
-    bars 50 m apart were proposed); choose the method with the user first.
+  - Diversity of the candidates: done 2026-11-02, 8 candidates at least 700 m apart (the user's
+    pick, 800 m felt too much), still at most 3 proposals; `docs/evaluation.md` § Diversity.
   - People per participant: done 2026-10-29 (doc § 1): a chip (person icon, 1) after the modes opens
     a stepper − [n] + (the user preferred it folded to always visible), no upper bound, every person
     counts (weighted barycenter, total and mean over people, gap unchanged), at least 2 participants

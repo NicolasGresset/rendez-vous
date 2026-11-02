@@ -196,3 +196,54 @@ place under the rule, in minutes per person.
 - Check: the stored journeys give back the oracle's time at 10 min for 98.2 % of the pairs
   (119,493 / 121,730); otherwise −6 to +8 min (median +1): two lists of 5 journeys do not always
   hold the best one. Also a sign that the tool's own 5 journeys are not always optimal.
+
+### Diversity of the candidates (`diversity.js`, 2026-11-02)
+
+The former rule took the closest places: in 20 to 26 rows of 30, two of the 3 proposals were
+within 300 m of each other (median of the smallest distance: 95 to 143 m). Each rule below replayed
+on the oracle, score mean + ½ (max − mean), bars then all categories; "last": the third proposal
+against the best place of the file.
+
+| 8 candidates | first, gap mean | gap max | rows > 5 min | last, gap mean | closest 2 proposals, median |
+|---|---|---|---|---|---|
+| closest (former) | 2.4 / 3.2 | 8.4 / 16.6 | 8 / 7 | 4.7 / 4.8 | 119 / 104 m |
+| 500 m apart | 1.7 / 2.5 | 6.8 / 9.2 | 3 / 5 | 4.6 / 4.6 | 647 / 554 m |
+| **700 m apart (tool)** | **1.3 / 2.3** | **6.7 / 10.7** | **1 / 3** | **4.8 / 4.9** | **787 / 740 m** |
+| 800 m apart | 1.3 / 2.2 | 5.7 / 9.2 | 1 / 5 | 4.8 / 5.2 | 830 / 886 m |
+| 1,200 m apart | 2.1 / 2.4 | 6.3 / 10.7 | 4 / 2 | 6.3 / 5.6 | 1,257 / 1,242 m |
+| farthest-point, 1.5 km disk | 2.2 / 3.1 | 14.4 / 10.7 | 4 / 8 | 4.2 / 5.9 | 716 / 940 m |
+
+- 700 m picked by the user, 800 m felt too much; the two measure alike. The results are not
+  monotonic in the spacing (mean score, bars: 500 m 1.3, 700 m 0.7, 800 m 1.1): small differences
+  between neighbouring spacings are noise on 10 groups and one meeting time.
+- `baseline.js` with the tool's own `evaluate()` confirms it. Gap median / mean / max: mean score 0.4 /
+  0.7 / 2.9 (bars) and 0.9 / 1.3 / 4.7 (all); mean + ½ (max − mean) 0.7 / 1.3 / 6.8 (bars) and 1.2 / 2.3 / 10.7 (all);
+  rows above 5 min: 0, 0, 1, 3. By configuration (mean + ½ (max − mean)), mean gap: transit 3.9 -> 2.6,
+  mixed 3.8 -> 2.2, walk + bike 0.7 -> 0.7.
+- A minimum distance between the 3 proposals only, the candidates staying close, leaves fewer than
+  3 proposals in 7 to 28 rows of 30 and does not improve the first one.
+- Cost: 8 candidates in every row instead of 7.3 to 7.4 on average, so ~8 % more calls; the farthest
+  one at 1.4 to 1.5 km from the barycenter instead of 0.6 to 0.8 km (median). Groups within about
+  1 km of each other were not measured (out of the tool's use, as the user said).
+- Whole file (the home server): the same rule on the ranking leaves the first place unchanged; 700 m
+  costs 3.0 min on the third place (bars) and 1.5 min (all), mean + ½ (max − mean), instead of 1.3 and 0.4 min.
+
+### Clusters of bars (`clusters.js`, 2026-11-02, not implemented)
+
+Idea of the user: propose areas where bars are within a short walk of each other (Carmes, allées
+Jean Jaurès) rather than single bars; score one point of each, then pick inside.
+
+- Grouping 240 bars. Chaining bars within a distance runs away: 250 m gives 115 bars over 2.3 km.
+  With a maximum diameter (complete linkage, greedy): 200 m, 138 groups, 24 of 3 bars or more (102 bars);
+  300 m, 117 groups, 27 (136 bars), 76 bars alone; 400 m, 103 groups, 26 (152 bars). 3 min of walking
+  is ~216 m at MOTIS's speed. Cuts are arbitrary: at 300 m the Carmes make two groups (10 and 8 bars).
+- Interchangeable members? Range of the score inside a group of 3 bars or more (mean + ½ (max −
+  mean), 30 rows), median / 90 % / max: 0.8 / 2.9 / 7.2 min at 200 m, 1.0 / 3.8 / 7.3 at 300 m. Walk +
+  bike 0.3 / 0.8 at 200 m, transit 1.3 / 3.6: often equivalent, not always with transit.
+- Pipeline, bars, same score; a group's point is its member closest to its centroid, 8 spaced
+  by 700 m, 300 m groups. First gap mean / max, rows > 5 min, last gap, places evaluated:
+  - 8 spaced bars (tool): 1.3 / 6.7, 1, 4.8, 8;
+  - groups of 3 or more, their point: 1.6 / 5.5, 1, 4.0, 8;
+  - then every member of the 3 best groups: 0.9 / 3.9, 0, 3.5, 18.6;
+  - groups and lone bars, every member of the 3 best: 1.2 / 5.5, 1, 4.6, 14.1.
+- Not measured: restaurants and all categories, naming the groups.
