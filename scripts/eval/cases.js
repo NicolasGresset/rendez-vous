@@ -4,10 +4,12 @@
 // would favour transit. Côte Pavée is 50 m off its post office (43.60086, 1.47638), where MOTIS
 // finds no bike route at all. See docs/evaluation.md.
 
+import { LATE_TOLERANCE_MIN } from '../../js/engine.js';
+
 // A Tuesday evening within the Tisséo GTFS validity (2026-10-29 to 2026-12-02)
 export const DATE = '2026-11-03';
 export const SLOT = '19:00';      // meeting time
-export const TOLERANCE_MIN = 10; // late tolerance, the tool's default
+export const TOLERANCE_MIN = LATE_TOLERANCE_MIN;
 
 const p = (name, lat, lon, people = 1) => ({ name, lat, lon, people });
 

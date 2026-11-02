@@ -82,12 +82,6 @@ export function placeLinks(place) {
     return { osm, google: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` };
 }
 
-// Meeting time and late tolerance of a result's slot { from, to } ("YYYY-MM-DD HH:MM")
-function meetingText(slot) {
-    const late = Math.round((Date.parse(slot.to.replace(' ', 'T')) - Date.parse(slot.from.replace(' ', 'T'))) / 60000);
-    return `rendez-vous à ${slot.from.slice(11)}${late ? ` (retard toléré ${late} min)` : ''}`;
-}
-
 // Text sent by the share button: the place, its address, the meeting time and its OpenStreetMap link
 export function shareText(place, slot) {
     const address = placeAddress(place);
@@ -165,7 +159,7 @@ export function resultsHtml(data, selected, categoryLabels, { demo = false } = {
         <ol class="proposals">${proposals.map((j, rank) => proposalButton(data.candidates[j], j, rank, selected)).join('')}</ol>
         <p class="location-best"><span class="rank-pin rank-pin--selected location-swatch--rank"></span>
             <strong>${escapeHtml(place.name)}</strong>
-            <span>(${categoryLabels[place.category]})${placeAddress(place) ? ` · ${escapeHtml(placeAddress(place))}` : ''} — ${meetingText(data.slot)}</span></p>
+            <span>(${categoryLabels[place.category]})${placeAddress(place) ? ` · ${escapeHtml(placeAddress(place))}` : ''} — rendez-vous à ${data.slot.from.slice(11)}</span></p>
         <p class="location-share">
             <a class="location-button" href="${links.osm}" ${external}>OpenStreetMap ↗</a>
             <a class="location-button" href="${links.google}" ${external}>Google Maps ↗</a>

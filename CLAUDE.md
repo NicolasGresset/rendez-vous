@@ -57,7 +57,7 @@ This file is excluded from the deployment (`.vercelignore`) but versioned on Git
 
 ## The tool (`index.html`, `js/`)
 
-Proposes the 3 meeting places with the best score (équitable or égalitaire) for a meeting time with a late tolerance (10 min by default),
+Proposes the 3 meeting places with the best score (équitable or égalitaire) for a meeting time with a fixed late tolerance (10 min),
 Toulouse area. Fully client-side; the user's own openrouteservice key is stored in localStorage only.
 Full pipeline: `docs/pipeline.md`.
 
@@ -160,10 +160,11 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   "égalitaire" (the mean per person); "moyenne + écart" dropped, it can prefer a place worse for
   everyone ((10, 30) min: 40; (20, 30): 35). The user wants few, trustworthy choices: a newcomer
   should not have to think about metrics (as on togather).
-- Arrival time (done 2026-10-30): a round meeting time T (quarter hours) and a late
-  tolerance set by the user (10 min by default), instead of the 15 min slot; each participant
-  is counted alone (waiting with the others is not lost time), arriving before T counts as
-  waiting, arriving after T + tolerance is not allowed. The slot only exists for low-frequency
+- Arrival time (done 2026-11-02): a round meeting time T (quarter hours) and a fixed late
+  tolerance of 10 min, instead of the 15 min slot (no setting: measured, 5 to 15 min change little
+  at Tuesday 19:00; off-peak not measured). Each participant is counted alone: the first one's wait
+  until the second one arrives is not counted (measured: at most 0.3 min lost), arriving before T
+  counts as waiting, arriving after T + 10 min is not allowed. The slot only exists for low-frequency
   transit (a bus arriving at 19:01 would otherwise force the one at 18:46).
 - Routing engines (2026-10-30): no Valhalla (MOTIS also gives walk, bike and car times); a
   home-made CSA later, possibly **run in the browser** (a day of Tisséo connections is a few MB),
