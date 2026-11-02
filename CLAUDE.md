@@ -158,10 +158,9 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   touched, then the next one to fill; none during and after a computation), a double click only
   zooms, points draggable on computers only (the user feared it would misbehave on phones). Doc § 2.
   Not yet tried on the user's phone.
-- 10 participants at most since 2026-11-02 (for the home server): before pushing without it, a visitor could ask
-  Transitous for 80 journeys per computation (it counts against the shared 720 / 24 h): decide then.
-- Stops have no OpenStreetMap page in the links, only a marker (their ids come from the GTFS); 36 of the 37 metro stations
-  match an OSM node by name within 300 m (measured 2026-11-02), not used yet.
+- Participants (decided 2026-11-02): 5 at most with the public services, whose quota is shared; 10 with the local MOTIS.
+- Links to stops (decided 2026-11-02): no link to their OSM page, a marker there and a Google Maps text search (kind,
+  name, city), checked on Carmes. OSM has several points per bus stop; 36 of the 37 metro stations would match.
 - Tuned on Toulouse's bars, to do again elsewhere (stated by the user, 2026-11-02): the 5 min on foot of
   the zones, the 500 m between zones, the 20 exact zones and the 700 m between candidates are measures on this data. For
   another city, export the reasoning and redo the measures (`scripts/eval/centers.js`, `zones.js`), not the values.

@@ -18,7 +18,8 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZones, timeGrid, be
     const form = document.getElementById('location-form');
     if (!form || !window.L) return;
 
-    const MAX_PARTICIPANTS = 10;
+    // Public services (Transitous' quota is shared, a journey per participant and place): 5; local MOTIS: 10
+    const MAX_PARTICIPANTS = { motis: 10, other: 5 };
     const MIN_QUERY_LENGTH = 3;       // Géoplateforme suggestions
     const MIN_LOCAL_QUERY_LENGTH = 2; // local place suggestions
     const SUGGEST_DELAY_MS = 250;
@@ -139,6 +140,8 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZones, timeGrid, be
 
     // A blocked button stays clickable (a disabled one gets no hover, and phones have none):
     // its title and the banner say why, and a click opens the keys panel
+    const maxParticipants = () => MAX_PARTICIPANTS[checkedValue('transit-engine') === 'motis' ? 'motis' : 'other'];
+
     function updateSubmit() {
         const reason = submitBlocker();
         const submit = form.querySelector('[type="submit"]');
@@ -620,7 +623,7 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZones, timeGrid, be
             row.querySelector('[data-action="remove"]').hidden = list.children.length <= 1;
             updateMarker(row);
         });
-        addBtn.hidden = list.children.length >= MAX_PARTICIPANTS;
+        addBtn.hidden = list.children.length >= maxParticipants();
         updateSubmit();
     }
 
@@ -694,6 +697,7 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZones, timeGrid, be
         const untouched = row => !row.dataset.lat && !row.querySelector('[name="address"]').value.trim();
         const rows = [...list.children].filter(row => !untouched(row));
         if (rows.length < 2) throw new Error('Choisissez une adresse pour au moins deux participants.');
+        if (rows.length > maxParticipants()) throw new Error(`Ce moteur de transports en commun accepte ${maxParticipants()} participants au plus : retirez-en ${rows.length - maxParticipants()}.`);
         return rows.map(row => {
             const label = participantLabel(row);
             const modes = [...row.querySelectorAll('[name="modes"]:checked')].map(c => c.value);
@@ -983,6 +987,7 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZones, timeGrid, be
         storeSettings();
         clearResults();
         updateSubmit();
+        refreshRows();
     }));
     document.getElementById('score-metric').addEventListener('change', () => {
         storeSettings();
@@ -1164,6 +1169,7 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZones, timeGrid, be
             '<label class="chip"><input type="radio" name="transit-engine" value="motis"><span>MOTIS local (debug)</span></label>');
         if (loadSettings().engine === 'motis') engineInput('motis').checked = true;
         updateSubmit();
+        refreshRows();
         renderCalls();
 
         map.createPane('network').style.zIndex = 350; // under the other drawings (overlay pane: 400)
