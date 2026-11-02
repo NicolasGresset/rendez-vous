@@ -1,5 +1,5 @@
 // build-places.js - Build data/pois-toulouse.json, every place of the location page in one list:
-//   - named OpenStreetMap places: bars and restaurants (meeting point candidates), offices
+//   - named OpenStreetMap places: bars, pubs, cafés and restaurants (meeting point candidates), offices
 //     (companies, administrations…), shops, crafts and well-known amenities (schools,
 //     pharmacies, cafés…), found by the address search only;
 //   - metro stations and bus stops from the Tisséo GTFS feed (candidates): stop areas, metro if
@@ -17,8 +17,8 @@
 //   osmium tags-filter area.osm.pbf nwr/office nwr/shop nwr/craft nwr/amenity -o tagged.osm.pbf
 //   osmium export tagged.osm.pbf -f geojsonseq -u type_id --geometry-types=point,polygon -o tagged.geojsonseq
 //
-// Duplicates: the same name within 300 m is one place, whatever its categories (bar first, then
-// restaurant). Names are kept as written (many capitals are real acronyms: ADEME, LAAS, CLS).
+// Duplicates: the same name within 300 m is one place, whatever its categories (bar, pub, biergarten,
+// café, then restaurant). Names are kept as written (many capitals are real acronyms: ADEME, LAAS, CLS).
 //
 // Addresses, split into street (may be missing), postcode and city, with addrSrc: the OSM address
 // when it has a street (city without CEDEX, casing fixed), completed by the IGN Géoplateforme
@@ -49,7 +49,7 @@ const MERGE_DISTANCE_M = 300; // same name closer than this: one place (a node a
 const ALIAS_KEYS = ['short_name', 'alt_name', 'official_name'];
 // Meeting point candidates: the only places that keep their OSM or GTFS id (used by the engine);
 // the ids of the ~15,000 other places would weigh a quarter of the file
-const CANDIDATE_CATEGORIES = new Set(['amenity=bar', 'amenity=restaurant', 'metro', 'bus']);
+const CANDIDATE_CATEGORIES = new Set(['amenity=bar', 'amenity=pub', 'amenity=biergarten', 'amenity=cafe', 'amenity=restaurant', 'metro', 'bus']);
 
 // ---- CATEGORY RULES ----
 // OSM: the category code is the first kept tag, in this key order, as "key=value"
@@ -286,7 +286,7 @@ function readOsmPlaces(file) {
 
 // Merge order of categories: a place tagged twice keeps the first one in this order
 function categoryPriority(category) {
-    const order = ['amenity=bar', 'amenity=restaurant', 'metro', 'bus', 'amenity=', 'office=', 'shop=', 'craft='];
+    const order = ['amenity=bar', 'amenity=pub', 'amenity=biergarten', 'amenity=cafe', 'amenity=restaurant', 'metro', 'bus', 'amenity=', 'office=', 'shop=', 'craft='];
     return order.findIndex(prefix => category === prefix || (prefix.endsWith('=') && category.startsWith(prefix)));
 }
 

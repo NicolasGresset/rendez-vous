@@ -9,8 +9,8 @@ place, a second round…) propose better places, in particular in degenerate cas
 
 - **starting point**: where a participant leaves from (a group of people may share one);
 - **candidate place** (lieu candidat): a place of a candidate category in
-  `data/pois-toulouse.json`: 240 bars, 1,459 restaurants, 37 metro stations, 1,742 bus stops
-  (3,478 in all, 2026-10-30);
+  `data/pois-toulouse.json`: 573 bars (`amenity=bar`, `pub`, `biergarten`, `cafe`), 1,456 restaurants,
+  37 metro stations, 1,742 bus stops (3,808 in all, 2026-11-02);
 - **proposals**: the 3 candidate places the tool shows, its output;
 - **stop**: a stop of the Tisséo network (GTFS).
 
@@ -106,8 +106,8 @@ configurations, slot 19:00 today) and a "Lignes Tisséo" map layer.
   deployed with the page but stays unused (`js/motis.js`, `js/demo-motis.js`).
 - With that engine, the tool runs as usual (barycenter, 8 candidates), its street times and
   paths also from MOTIS (no openrouteservice key needed), then `demo-motis.js` scores every
-  candidate place of the picked categories: exact transit times for every place up to 400 places
-  (bars: 240, ~5 s), beyond that a cheap estimate for every place and exact times for the 100
+  candidate place of the picked categories: exact transit times for every place up to 600 places
+  (bars: 573, not timed since the cafés; 240 took ~5 s), beyond that a cheap estimate for every place and exact times for the 100
   best of each score (all categories: ~40 s).
 - Map: every place as a dot from green (the best) through yellow (+50 %) to red (twice the best),
   the best 3 as green pins, the tool's search radius dashed. Results: the tool's first proposal
@@ -233,7 +233,7 @@ against the best place of the file.
 Idea of the user: propose areas where bars are within a short walk of each other (Carmes, allées
 Jean Jaurès) rather than single bars; score one point of each, then pick inside.
 
-- Grouping 240 bars. Chaining bars within a distance runs away: 250 m gives 115 bars over 2.3 km.
+- Grouping the 240 `amenity=bar` of the time (pubs and cafés came after, same day). Chaining bars within a distance runs away: 250 m gives 115 bars over 2.3 km.
   With a maximum diameter (complete linkage, greedy): 200 m, 138 groups, 24 of 3 bars or more (102 bars);
   300 m, 117 groups, 27 (136 bars), 76 bars alone; 400 m, 103 groups, 26 (152 bars). 3 min of walking
   is ~216 m at MOTIS's speed. Cuts are arbitrary: at 300 m the Carmes make two groups (10 and 8 bars).
@@ -247,6 +247,48 @@ Jean Jaurès) rather than single bars; score one point of each, then pick inside
   - then every member of the 3 best groups: 0.9 / 3.9, 0, 3.5, 18.6;
   - groups and lone bars, every member of the 3 best: 1.2 / 5.5, 1, 4.6, 14.1.
 - Not measured: restaurants and all categories.
-- Now in the data file (`scripts/build-zones.js`, 300 m, lone bars included), drawn in the
-  demonstrator, not used by the engine. Names: closest metro or bus stop; 10 names shared by 22
-  zones at 300 m, 17 at 200 m.
+- With pubs, biergartens and cafés (573 bars), 88 zones of 2 or more, measured by MOTIS: the walk is 1.4
+  times the straight line (median; 90 %: 1.9), so 20 of the 300 m zones had a walk over 5 min. Max 5
+  min on foot directly gives 225 zones (60 of 3 or more, 137 alone, largest 18), as a split of the
+  300 m zones does (227, 61, 138, 21), with one rule instead of two: picked, and the walk limit in
+  the data file since. Some detours look odd but are kept: Le Cri de la Mouette, a barge, is 73 m
+  from Friend's Café across the water, 9.1 min on foot (Google Maps: 4 min).
+- Names: closest metro or bus stop (bus stops name 66 of the 88 zones). Priority to the metro makes more shared names (fewer
+  stations); street names resolve them: no shared name left. `docs/pipeline.md` § 6.
+
+### Bars, pubs, biergartens and cafés (2026-11-02)
+
+"Bars" now means `amenity=bar`, `pub`, `biergarten` and `cafe` (573 places, 3,808 candidate places): the
+Black Lion, a pub, was missing. File regenerated (OSM of 2026-10-28), oracle rebuilt; the figures
+above were on 240 bars. `baseline.js`, gap median / mean / max, rows above 5 min of 30:
+
+| score | places | gap median | gap mean | gap max | rows > 5 min |
+|---|---|---|---|---|---|
+| mean | bars | 1.0 | 1.6 | 5.5 | 1 |
+| mean | all | 0.9 | 1.2 | 5.7 | 1 |
+| mean + ½ (max − mean) | bars | 1.1 | 2.1 | 6.0 | 3 |
+| mean + ½ (max − mean) | all | 1.2 | 2.1 | 8.5 | 3 |
+
+By configuration (mean + ½ (max − mean), mean gap): transit 3.0, mixed 2.6, walk + bike 0.7. The best place
+of the file: within 1 km of the barycenter in 43 rows of 120, 1 to 3 km in 71, beyond 3 km in 6.
+
+### The method planned with the zones (`zones.js`, 2026-11-02, not in the engine yet)
+
+Bars, 30 rows, mean + ½ (max − mean), against the best bar of the file. Each zone's representative scored
+within a radius of the barycenter (growing until 8 zones), the best 3 zones at least 700 m apart,
+then every bar of these 3 scored and the best of each shown. Journeys: transit journeys, mean over
+the configurations (walk + bike needs none) / most.
+
+| method | first, gap median / mean / max | rows > 5 min | last, gap mean | places scored | journeys |
+|---|---|---|---|---|---|
+| the tool: 8 bars 700 m apart | 1.1 / 2.1 / 6.0 | 3 | 4.9 | 8 | 13 / 32 |
+| every bar, best 3 apart | 0 / 0 / 0 | 0 | 2.4 | 573 | 955 / 2,292 |
+| every zone, then inside | 0.0 / 0.1 / 0.5 | 0 | 2.5 | 240 | 401 / 1,008 |
+| zones within 2 km, then inside | 0.0 / 0.9 / 8.1 | 2 | 3.6 | 58 | 96 / 348 |
+| **zones within 3 km, then inside** | **0.0 / 0.2 / 4.8** | **0** | **3.1** | **87** | **148 / 464** |
+| zones within 4 km, then inside | 0.0 / 0.2 / 4.8 | 0 | 2.8 | 109 | 186 / 532 |
+
+- The second round adds little to the first proposal's gap (0.4 -> 0.2 min at 3 km), but it gives
+  each zone's actual best bar, which the times shown need.
+- Same 10 groups the rules were looked at with, one meeting time: to be confirmed on other groups and at off-peak hours.
+- Scores are the oracle's (Tisséo only). Local MOTIS served ~100 journeys a second on a 16-core PC.

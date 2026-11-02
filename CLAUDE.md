@@ -73,7 +73,7 @@ Full pipeline: `docs/pipeline.md`.
   completion (≥ 3 chars, Haute-Garonne, addresses and IGN points of interest, no companies).
 - `data/pois-toulouse.json`: one list `places` (~17,400) with one `category` code each (OSM `key=value`
   such as `amenity=bar`, `office=company`, or GTFS `metro` / `bus`) and a `categories` label table.
-  Candidates: `amenity=bar`, `amenity=restaurant`, `metro`, `bus` (only they keep an `id`); the rest is
+  Candidates: `amenity=bar`, `pub`, `biergarten`, `cafe`, `restaurant`, `metro`, `bus` (only they keep an `id`); the rest is
   for the address search. Address split into street / postcode / city (normalized at generation),
   `addrSrc`, `near`; `aliases` and `oldNames` apart. Same name within 300 m = one place (bar > restaurant
   > …). Rules and fields: `docs/pipeline.md` § 6. Rebuilt from scratch by
@@ -112,6 +112,8 @@ are out of scope.
    cheap estimate over many places, then exact times for a geographically diverse short list;
    a second round around the best area; with one's own one-to-many engine (Dijkstra, CSA / RAPTOR),
    every place could be scored exactly.
+3. **Once the home server runs** (stated by the user, 2026-11-02): decide which results can be cached;
+   try the tool as it is on Paris, to see how it behaves on a more complex city it was not built for.
 
 Tisséo API (key obtained 2026-10-28, `TISSEO_API_KEY` in `.env` for tests only): now an optional
 transit engine picked in the page (`js/tisseo.js`), called from the browser with the visitor's
@@ -153,8 +155,8 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   touched, then the next one to fill; none during and after a computation), a double click only
   zooms, points draggable on computers only (the user feared it would misbehave on phones). Doc § 2.
   Not yet tried on the user's phone.
-- Later (stated by the user 2026-10-30): an "about / how it works" page (not the main page)
-  explaining the place selection, the typing optimizations of the address search, how the site is
+- Later, once the home server runs (stated by the user 2026-10-30 and 2026-11-02): an "about / how it
+  works" tab (not the main page) explaining how to optimize the search for a city, the place selection, the typing optimizations of the address search, how the site is
   tuned for Toulouse and what another city would need (the same preprocessing of OSM places, and
   a transit source: an API key now, a GTFS feed once the home server computes).
 - No keys for visitors (stated by the user 2026-10-30): as a private person they would not enter
@@ -164,11 +166,17 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   were tried and removed, the user will decide later what to show.
 - Clusters of bars (idea of the user, 2026-11-02, for the home server): propose areas of bars within
   a short walk rather than one bar. Measured, `docs/evaluation.md` § Clusters: maximum diameter needed
-  (chaining runs away, ruled out), members often but not always interchangeable with transit. Done so
-  far: `zone` + `zones` table in the data file (`scripts/build-zones.js`, lone bars included, named
-  after the closest metro / bus stop), "Zones de bars" layer of the demonstrator. To settle: the
-  diameter (300 m for now), the names, then the engine and the results (not started; MOTIS only).
-- Possibly more candidate categories (pub, biergarten, café): one line in `CATEGORIES`, user's call.
+  (chaining runs away, ruled out), members often but not always interchangeable with transit. Decided
+  by the user: at most 5 min on foot between two bars (MOTIS times, trusted even when odd), arbitrary cuts
+  accepted, lone bars are zones, no bonus for richer zones, names 100 % automatic (closest metro / bus stop,
+  then street), each zone's representative scored within 3 km of the barycenter (growing), then every bar of the
+  best 3 zones scored. Restaurants get zones the same way (not done). Done: `zone` + `zones` table
+  in the data file (`scripts/build-zones.js`), "Zones de bars" layer of the demonstrator,
+  measured by `scripts/eval/zones.js`. To do: the method in the demonstrator (MOTIS only), results shown.
+- "Bar" (decided 2026-11-02): `amenity=bar`, `pub`, `biergarten` and `cafe` count the same: somewhere to
+  have a drink and talk, alcohol or not (Black Lion, a pub, was missing). No opening hours: incomplete
+  data, a misleading filter. No restaurants open late, even if bars hide there (Café Triplette). The
+  user does not want to list bars by hand to measure OSM's coverage for now.
 - Scores (2026-10-30): "équitable" (default, Ogryczak's (1 − β)·mean + β·max with β = ½) and
   "égalitaire" (the mean per person); "moyenne + écart" dropped, it can prefer a place worse for
   everyone ((10, 30) min: 40; (20, 30): 35). The user wants few, trustworthy choices: a newcomer

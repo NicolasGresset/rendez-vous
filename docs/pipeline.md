@@ -169,7 +169,7 @@ flowchart TB
 
     subgraph CANDIDATES["Candidate selection (no API call)"]
         direction TB
-        R0["Only the candidate categories:<br/>amenity=bar, amenity=restaurant, metro, bus"]:::algo
+        R0["Only the candidate categories:<br/>amenity=bar, pub, biergarten, cafe,<br/>amenity=restaurant, metro, bus"]:::algo
         R1["Haversine distance to the barycenter,<br/>dedupe same category + name"]:::algo
         R2["Radius 1 km, + 500 m while fewer candidates than<br/>the number set (default 8), up to 5 km"]:::algo
         R3["Quota per type (maximums): the number of<br/>candidates set in the page (1 to 8, default 8)<br/>split evenly, first types first:<br/>8 over 3 types: 3 stations, 3 bars, 2 restaurants"]:::algo
@@ -323,7 +323,7 @@ Labels: a listed code gets its own label (`office=company` → "entreprise"); an
 The code always keeps the precise OSM tag, so a label can be refined later without
 regenerating the file's codes.
 
-Candidates: the engine only picks `amenity=bar`, `amenity=restaurant`, `metro` and `bus`
+Candidates: the engine only picks `amenity=bar`, `pub`, `biergarten`, `cafe` (the page's "bars et cafés": somewhere to have a drink and talk, whichever OSM tag), `amenity=restaurant`, `metro` and `bus`
 places (`CATEGORIES` in `engine.js`); every other place is for the address search only. Only
 candidates keep their OSM or GTFS `id` (the engine keys its route cache with it); the ids of
 the other places would weigh a quarter of the file.
@@ -351,10 +351,12 @@ Fields (generation normalizes them, the browser only reads them):
 | `oldNames` | ~140 | OSM `old_name`, kept apart: it sometimes names the previous business at the address |
 | `zone` | bars | index in the top-level `zones` table |
 
-Zones of bars (`scripts/build-zones.js`, last step of the regeneration, can run alone without
-network): complete linkage, so that no two bars of a zone are more than 300 m apart, in a straight
-line (no chaining: it runs away, `docs/evaluation.md` § Clusters); lone bars are zones of one. Top-level
-`zones`: `[{ name, lat, lon }]`, the centroid and the name of the metro station or bus stop closest
-to it. 117 zones: 27 of 3 bars or more, 14 of 2, 76 of 1; names may repeat (10 are shared). ~2 KB
-brotli. Only drawn so far, by the demonstrator's "Zones de bars" map layer (dev server + local MOTIS):
-the engine does not use them.
+Zones of bars (`scripts/build-zones.js`, last step of the regeneration, needs a local MOTIS; alone:
+11 s): complete linkage, so that no two bars of a zone are more than 5 min apart on foot, either
+way, with MOTIS's walking times (no chaining: it runs away, `docs/evaluation.md` § Clusters); lone
+bars are zones of one. Top-level `zones`: `[{ name, lat, lon }]`, the position of the representative,
+the bar closest to the zone's centroid. Names, automatic: a lone bar's own name; otherwise the metro station or bus stop closest
+to the representative; several zones on one stop: the closest to it keeps the name, the others
+take their most represented street not taken yet (ties in alphabetical order), else the stop and a number.
+227 zones: 59 of 3 bars or more, 29 of 2, 139 of 1; largest 18. Only drawn so far, by the
+demonstrator's "Zones de bars" map layer (dev server + local MOTIS): the engine does not use them.

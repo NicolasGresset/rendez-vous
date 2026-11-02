@@ -4,6 +4,7 @@
 // kept) against the 8 spaced candidates. Usage: node scripts/eval/clusters.js
 
 import fs from 'fs';
+import { CATEGORIES } from '../../js/engine.js';
 import { CASES, CONFIGS } from './cases.js';
 import { candidatePlaces, loadOracle } from './oracle.js';
 import { oracleScores } from './scoring.js';
@@ -19,7 +20,7 @@ const avg = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
 
 const data = JSON.parse(fs.readFileSync(new URL('../../data/pois-toulouse.json', import.meta.url)));
 const places = candidatePlaces(data);
-const bars = places.filter(p => p.category === 'amenity=bar');
+const bars = places.filter(p => CATEGORIES.bar.includes(p.category));
 
 // Single linkage: chains (a street of bars 150 m apart can grow long)
 function singleLink(ps, eps) {

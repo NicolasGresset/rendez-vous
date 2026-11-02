@@ -32,7 +32,8 @@ const TIMEOUT_MS = 120000;
 // Recorded asking for arrivals by 12:45; the URLs were moved to 12:40 when the late tolerance became
 // 10 min, instead of 24 new Transitous calls (the journeys arriving later are simply not kept).
 // The scenario recorded: places typed in the address search (first local suggestion), modes,
-// people, and the arrival slot
+// people, and the arrival slot (when recording: the first quarter hour from an hour on, today's
+// slots being only those to come)
 const SCENARIO = {
     slot: '12:30',
     participants: [
@@ -166,6 +167,8 @@ async function main(command) {
     const { withFirefox, SHOT_DIR } = require('./firefox-bidi.js');
     if (command === 'record') {
         const now = Date.now();
+        SCENARIO.slot = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' })
+            .format(Math.ceil((now + 3600000) / 900000) * 900000);
         await withFirefox(async page => {
             await openWithFixture(page, { record: true });
             await runComputation(page);

@@ -9,7 +9,7 @@ import * as motis from './motis.js';
 import { CATEGORIES, SCORES } from './engine.js';
 import { forEachLimited, parseParis } from './transitous.js';
 
-const EXACT_ALL_MAX = 400;
+const EXACT_ALL_MAX = 600;
 const EXACT_SHORTLIST = 100;
 const PARALLEL = 8;
 const CAR_PARKING_S = 5 * 60; // as engine.js

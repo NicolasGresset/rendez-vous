@@ -6,7 +6,8 @@
 #      craft features, exported as GeoJSON with their OSM ids;
 #   3. scripts/build-places.js: categories, duplicate merging, Tisséo GTFS stops, addresses
 #      (IGN Géoplateforme bulk reverse geocoder) and their normalization, then writes the file;
-#   4. scripts/build-zones.js: groups the bars into zones, added to the file.
+#   4. scripts/build-zones.js: groups the bars into zones, added to the file (needs a local MOTIS
+#      server for the walking times, see docs/evaluation.md).
 # Rules and fields: docs/pipeline.md § 6.
 #
 # Needs: curl, osmium (osmium-tool), node >= 18, unzip. Network: Geofabrik, Tisséo open data,
@@ -28,7 +29,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --pbf)      pbf="$(realpath "$2")"; shift 2 ;;
         --work-dir) work_dir="$2"; shift 2 ;;
-        -h|--help)  sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)  sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *)          echo "Unknown option: $1 (see --help)" >&2; exit 1 ;;
     esac
 done

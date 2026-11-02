@@ -28,7 +28,8 @@ import { enumeratePlaces, scorePlaces, timeGrid } from './demo-motis.js';
     const defaultModes = () => (keys.ors ? ['walk', 'transit'] : ['transit']);
     // Plurals of the candidate categories; every category's label comes with the data
     const CATEGORY_PLURALS = {
-        'amenity=bar': 'bars', 'amenity=restaurant': 'restaurants', metro: 'stations de métro', bus: 'arrêts de bus',
+        'amenity=bar': 'bars', 'amenity=pub': 'pubs', 'amenity=biergarten': 'biergartens', 'amenity=cafe': 'cafés',
+        'amenity=restaurant': 'restaurants', metro: 'stations de métro', bus: 'arrêts de bus',
     };
     const PLACE_KINDS = { housenumber: 'adresse', street: 'voie', municipality: 'commune', locality: 'lieu-dit' };
     const STEPS = [

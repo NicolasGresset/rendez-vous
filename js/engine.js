@@ -40,8 +40,9 @@ const CANDIDATE_SPACING_M = 700;
 const MAX_CANDIDATES = 8; // default and maximum: each candidate costs one transit journey per participant
 
 // Categories the user picks from, and the place categories of data/pois-toulouse.json they cover:
-// only these places can be candidates, the others are for the address search
-export const CATEGORIES = { station: ['metro', 'bus'], bar: ['amenity=bar'], restaurant: ['amenity=restaurant'] };
+// only these places can be candidates, the others are for the address search. "bar": anywhere to
+// have a drink and talk, alcohol or not; OSM's tags between them are a matter of taste
+export const CATEGORIES = { station: ['metro', 'bus'], bar: ['amenity=bar', 'amenity=pub', 'amenity=biergarten', 'amenity=cafe'], restaurant: ['amenity=restaurant'] };
 const CANDIDATE_CATEGORIES = new Set(Object.values(CATEGORIES).flat());
 // Maximum candidates per category: the total split evenly in the order the categories come, the
 // first ones getting the rest (8 over stations, bars, restaurants: 3, 3, 2). Fewer if fewer nearby
