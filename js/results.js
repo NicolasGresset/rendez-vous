@@ -122,11 +122,11 @@ function tripCard(p, i, place) {
 export const proposalsOf = data => data.proposals ?? data.ranking.slice(0, PROPOSALS);
 
 const ZONE_KINDS = { bar: ['bar', 'bars'], cafe: ['café', 'cafés'], restaurant: ['restaurant', 'restaurants'] };
-const inSameZone = (data, place) => data.candidates.map((_, j) => j).filter(j => data.candidates[j].zoneInfo?.index === place.zoneInfo.index);
+export const inSameZone = (data, place) => data.candidates.map((_, j) => j).filter(j => data.candidates[j].zoneInfo?.index === place.zoneInfo.index);
 const placesOfKind = (kind, n) => `${n} ${ZONE_KINDS[kind][n > 1 ? 1 : 0]}`;
 
 // A proposal: its zone as context, the mean per person and the longest door-to-door trip, named
-// once above the proposals
+// once above the proposals. Pressed when it or another place of its zone is the chosen one
 function proposalButton(data, j, rank, selected) {
     const { participants } = data;
     const c = data.candidates[j];
@@ -135,7 +135,7 @@ function proposalButton(data, j, rank, selected) {
     const people = participants.reduce((sum, p) => sum + p.people, 0);
     const mean = trips.reduce((sum, t, i) => sum + participants[i].people * t, 0) / people;
     return `
-        <li><button type="button" class="proposal" data-place="${j}" aria-pressed="${j === selected}">
+        <li><button type="button" class="proposal" data-place="${j}" aria-pressed="${j === selected || (c.zoneInfo != null && c.zoneInfo.index === data.candidates[selected].zoneInfo?.index)}">
             <span class="rank-pin proposal-rank"><span>${rank + 1}</span></span>
             <span class="proposal-name">${escapeHtml(c.name)}</span>
             ${zoneSize > 1 ? `<span class="proposal-zone">${escapeHtml(c.zoneInfo.name)} · ${placesOfKind(c.zoneInfo.kind, zoneSize)}</span>` : ''}

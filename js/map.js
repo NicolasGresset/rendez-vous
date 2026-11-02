@@ -22,13 +22,13 @@ export function drawCenter(layer, center) {
 
 // Candidates. proposals: indices of the best ones, numbered pins from 1; selected: the one shown,
 // an orange pin (numbered if a proposal); the others are small grey pins, drawn only when all is
-// true (debug view). A click on a marker is not a click on the map (which places the active
+// true (debug view), or for those in `also`. A click on a marker is not a click on the map (which places the active
 // participant)
-export function drawCandidates(layer, candidates, categoryLabels, { selected = null, proposals = [], all = true, onSelect = null } = {}) {
+export function drawCandidates(layer, candidates, categoryLabels, { selected = null, proposals = [], all = true, also = [], onSelect = null } = {}) {
     candidates.forEach((c, j) => {
         const isSelected = j === selected;
         const rank = proposals.indexOf(j);
-        if (rank < 0 && !isSelected && !all) return;
+        if (rank < 0 && !isSelected && !all && !also.includes(j)) return;
         const tooltip = `${rank >= 0 ? `${rank + 1}. ` : ''}${escapeHtml(c.name)} · ${categoryLabels[c.category]}`
             + (c.choices ? ` · ${c.score != null ? `trajets ${c.choices.map(choice => formatDuration(choice.travel)).join(', ')}` : 'injoignable'}` : '');
         // Every place is a pin: numbered for the proposals, orange for the chosen one, small and

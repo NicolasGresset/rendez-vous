@@ -9,7 +9,7 @@ import { createPlaceSearch } from './search.js';
 import { slotPicker } from './slots.js';
 import { TOULOUSE, createMap, drawCenter, drawCandidates, drawRoute as drawPath, drawEnumeration, drawRadius,
     drawNetworkLines, drawTimeGrid, drawZones, drawZoneResults } from './map.js';
-import { resultsHtml, enumerationHtml, zonesHtml, choiceText, placeLinks, shareText, proposalsOf, METRIC_LABELS, METRIC_DESCRIPTIONS } from './results.js';
+import { resultsHtml, enumerationHtml, zonesHtml, choiceText, placeLinks, shareText, proposalsOf, inSameZone, METRIC_LABELS, METRIC_DESCRIPTIONS } from './results.js';
 import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
 import * as motis from './motis.js';
 import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZones, timeGrid, beginBatch, cancelBatch } from './debug-motis.js';
@@ -768,7 +768,8 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZones, timeGrid, be
         if (debug && current.zones) drawZoneResults(resultLayer, current.zones.zones, METRIC_LABELS[data.metric]);
         if (debug) drawCenter(resultLayer, data.center);
         drawCandidates(resultLayer, data.candidates, categoryLabels,
-            { selected, proposals: proposalsOf(data), all: debug, onSelect: selectPlace });
+            { selected, proposals: proposalsOf(data), all: debug, onSelect: selectPlace,
+                also: place?.zoneInfo ? inSameZone(data, place) : [] });
         routeLayers = data.participants.map((p, i) => {
             participantMarkers.get(rows[i])
                 ?.bindPopup(`<strong>${escapeHtml(p.label)}</strong><br>${choiceText(place?.choices[i])}`);

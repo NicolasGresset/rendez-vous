@@ -338,3 +338,20 @@ zones unless said. Straight-line speeds measured on the oracle, km/h (median): w
   mean / max, 10 then 20 zones: Tuesday 14:30 0.4 / 2.0, 0.1 / 0.7; 22:00 0.7 / 4.7, 0.2 / 1.0; Sunday 10:30 0.3 / 2.3, 0.0 / 0.2). More
   zones are scored while fewer than 3 are kept 500 m apart. Walk + transit, 10 groups. In the practical view (T4,
   local MOTIS, 8 in parallel): bars 1.8 s, bars, cafés and restaurants (851 zones) 3.2 s, 10 participants and bars 4.0 s.
+
+### The method retained, in the page (2026-11-02, branch `practical-zones`)
+
+Every case of `cases.js`, practical view, local MOTIS (16-core PC, 8 in parallel), today at 19:00; calls counted in the
+page, times from the button to the end. Median / most:
+
+| | runs | time | `/plan` journeys | all calls |
+|---|---|---|---|---|
+| bars, walk + transit | 10 | 1.8 / 2.3 s | 104 / 156 | 115 / 168 |
+| bars, car, bike, walk + transit | 10 | 1.2 / 1.7 s | 40 / 78 | 49 / 90 |
+| bars, walk + bike | 10 | 0.3 / 0.4 s | 0 | 15 / 20 |
+| bars, cafés, restaurants, walk + transit | 10 | 3.4 / 4.8 s | 102 / 240 | 112 / 252 |
+
+Always 3 proposals. First proposal against the best of the file, per-participant estimate, 20 exact zones, mean + ½ (max −
+mean), mean / max: bars 0.0 / 0.3 min (the former candidates 1.6 / 7.1), bars, cafés and restaurants 0.2 / 1.3; bars off-peak:
+Tuesday 14:30 0.2 / 2.0, 22:00 0.2 / 1.0, Sunday 10:30 0.0 / 0.3 (walk + transit).
+

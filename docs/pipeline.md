@@ -363,4 +363,4 @@ take their most represented street not taken yet (ties in alphabetical order), e
 map layers, and the method by zones (`js/debug-motis.js` `scoreZones`, doc `docs/evaluation.md`); not by the
 engine. With the local MOTIS engine, the practical view uses that method too (`evaluateByZones`: same events and
 candidates as the engine's `evaluate`), when no station is picked: each zone's best place is a proposal, with its zone as
-context, and the zone's other places can be chosen in a folded list. A map without options, and another score computes again.
+context, and the zone's other places can be chosen in a folded list or, for the chosen place's zone, as small grey pins. A map without options, and another score computes again.
