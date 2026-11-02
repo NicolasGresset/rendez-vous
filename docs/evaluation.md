@@ -94,15 +94,16 @@ from 2026-10-29 to 2026-12-02. A new feed changes the times: the oracle must the
 - `validate.js`: the oracle against the services the tool uses: 30 transit trips also asked to
   the Tisséo API (60 calls), and 3 openrouteservice matrices (walk, bike, car; 10 x 10).
 
-## Demonstrator in the page (branch `demo-motis`, not deployed)
+## Demonstrator in the page (developer's machine only)
 
 With the dev server and a local MOTIS, the page offers a fourth transit engine, "MOTIS local
 (démo)", and the demonstrator view a test case picker (the cases of `cases.js`, x 3 mode
 configurations, slot 19:00 today) and a "Lignes Tisséo" map layer.
 
 - `scripts/dev-server.js` relays `/motis/…` to `MOTIS_URL` (default `http://localhost:8080`): the
-  page calls its own origin, no Content-Security-Policy or CORS change. On Vercel `/motis/` does
-  not exist, so `motis.available()` is false and nothing is offered.
+  page calls its own origin, no Content-Security-Policy or CORS change. Elsewhere than on
+  `localhost`, `motis.available()` is false without any call and nothing is offered; the code is
+  deployed with the page but stays unused (`js/motis.js`, `js/demo-motis.js`).
 - With that engine, the tool runs as usual (barycenter, 8 candidates), its street times and
   paths also from MOTIS (no openrouteservice key needed), then `demo-motis.js` scores every
   candidate place of the picked categories: exact transit times for every place up to 400 places

@@ -237,7 +237,7 @@ sequenceDiagram
             TR-->>B: itineraries
         end
     end
-    Note over B: score of each participant's fastest times (sum, or mean + gap)<br/>3 proposals = lowest scores
+    Note over B: score of each participant's fastest times (équitable or égalitaire)<br/>3 proposals = lowest scores
     B-->>U: proposals + trip details of the first one
     loop each walk / bike / car participant
         B->>ORS: directions (path to the chosen place)

@@ -1,7 +1,7 @@
 // motis.js - The demonstrator's local MOTIS (the engine behind Transitous, run on the Tisséo GTFS
 // and an OpenStreetMap extract, docs/evaluation.md), reached through the dev server's /motis/
-// relay (scripts/dev-server.js). Not on Vercel: available() is false there, and the engine is not
-// offered. Street times (walk, bike, car), their paths, transit journeys (as transitous.js asks
+// relay (scripts/dev-server.js). Only on the developer's machine: elsewhere available() is false
+// without any call, and the engine is not offered. Street times (walk, bike, car), their paths, transit journeys (as transitous.js asks
 // Transitous), a cheap transit estimate, and the network's lines for the map.
 
 import { itineraryLegs, transitTrip } from './transitous.js';
@@ -19,6 +19,7 @@ async function json(res) {
 }
 
 export async function available() {
+    if (!['localhost', '127.0.0.1'].includes(location.hostname)) return false;
     try {
         return (await fetch(`${BASE}/api/v1/health`, { signal: AbortSignal.timeout(2000) })).ok;
     } catch {
