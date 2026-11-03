@@ -857,7 +857,6 @@ a.location-button { display: inline-flex; align-items: center; text-decoration: 
 
 /* Debug view with the local MOTIS: the best places of the whole file, green pins */
 .rank-pin--best { background: #15803D; color: #FFFFFF; }
-.location-swatch--best { background: #15803D; }
 .location-enum { margin-top: 1.5rem; }
 .rank-pin--zone { background: #92400E; color: #FFFFFF; }
 .zone-cards { display: grid; gap: 0.75rem; margin: 0.75rem 0 0; padding: 0; list-style: none; }

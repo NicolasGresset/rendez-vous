@@ -154,7 +154,7 @@ export const SCORES = {
     mean: meanTime,
     half: (seconds, people) => (meanTime(seconds, people) + Math.max(...seconds)) / 2,
 };
-export const DEFAULT_METRIC = 'half';
+const DEFAULT_METRIC = 'half';
 
 // Sets each evaluated candidate's score for the metric (null when someone cannot reach it) and
 // returns the indices of the reachable ones, best first. A candidate is incomplete when a transit

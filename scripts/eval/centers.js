@@ -11,7 +11,6 @@ import { candidatePlaces, loadOracle } from './oracle.js';
 import { METRICS, oracleScores } from './scoring.js';
 
 const CAR_PARKING_S = 5 * 60; // as engine.js
-const SPACING_M = 700;        // as engine.js
 const MIN_ZONES = 8;
 const RADIUS_STEP_M = 500;
 const RADIUS_MAX_M = 30000;

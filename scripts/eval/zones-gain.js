@@ -5,7 +5,6 @@
 // exact, the best 3 places 500 m apart. Usage: node scripts/eval/zones-gain.js
 
 import fs from 'fs';
-import { CATEGORIES } from '../../js/engine.js';
 import { CASES, CONFIGS, DATE } from './cases.js';
 import { MOTIS_URL } from './motis.js';
 import { loadOracle } from './oracle.js';

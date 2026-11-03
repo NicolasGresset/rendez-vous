@@ -1048,7 +1048,7 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZones, timeGrid, be
             if (input.transitEngine === 'motis' && isDebug() && current) {
                 beginBatch();
                 current.zoneInput = { categories: input.categories, data };
-                await addZones(state);
+                await addZones();
                 await enumerate(input, data, state);
             }
         } catch (err) {
@@ -1091,7 +1091,7 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZones, timeGrid, be
         return result;
     }
 
-    async function addZones(state) {
+    async function addZones() {
         steps.insertAdjacentHTML('beforeend', `<li class="progress-step" data-step="zones" data-state="running">
             <span class="progress-label">Par zones : estimation de toutes, puis temps exacts des meilleures (MOTIS local, debug)</span>
             <span class="progress-detail location-muted"></span></li>`);
