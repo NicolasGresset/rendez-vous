@@ -20,9 +20,10 @@
 // Duplicates: the same name within 300 m is one place, whatever its categories (bar, pub, biergarten,
 // café, then restaurant). Names are kept as written (many capitals are real acronyms: ADEME, LAAS, CLS).
 //
-// Addresses, split into street (may be missing), postcode and city, with addrSrc: the OSM address
-// when it has a street (city without CEDEX, casing fixed), completed by the IGN Géoplateforme
-// bulk reverse geocoder; otherwise the nearest BAN address, "près de" beyond 30 m.
+// Addresses, split into street (may be missing), postcode and city, with addrSrc (index in the
+// file's addressSources): the OSM address when it has a street (city without CEDEX, casing fixed),
+// completed by the IGN Géoplateforme bulk reverse geocoder; otherwise the nearest BAN address,
+// "près de" beyond 30 m.
 //
 // Usage (needs the unzip command): node scripts/build-places.js <tagged.geojsonseq> <osm extract date>
 
@@ -43,6 +44,10 @@ const REVERSE_URL = 'https://data.geopf.fr/geocodage/reverse';
 const LOCALITY_RADIUS_M = 500; // the geocoder's maximum search circle
 const REVERSE_BATCH = 5000;
 const NEAR_THRESHOLD_M = 30;
+// Where an address comes from: the table of the output, its places' addrSrc being an index in it
+const ADDRESS_SOURCES = ['osm', 'ban'];
+const ADDRESS_FROM_OSM = ADDRESS_SOURCES.indexOf('osm');
+const ADDRESS_FROM_BAN = ADDRESS_SOURCES.indexOf('ban');
 const MERGE_DISTANCE_M = 300; // same name closer than this: one place (a node and its buildings)
 // Other names of a place; old_name is kept apart (oldNames): it sometimes names the previous
 // business at the same address
@@ -398,9 +403,9 @@ const capitalizeStreet = street => street
 const cleanStreet = (number, street) => capitalizeStreet(number ? `${number} ${titleCase(street)}` : titleCase(street));
 
 // { street?, postcode?, city?, addrSrc, near? } of a place, null when nothing is known:
-// - addrSrc "osm": the place's own street, its postcode and city completed or corrected by the BAN
+// - from OSM: the place's own street, its postcode and city completed or corrected by the BAN
 //   (CEDEX postcodes are not the commune's);
-// - addrSrc "ban": the nearest BAN address, "near" beyond NEAR_THRESHOLD_M; or, when none was
+// - from the BAN: the nearest BAN address, "near" beyond NEAR_THRESHOLD_M; or, when none was
 //   found, only the postcode and city of the nearest one within LOCALITY_RADIUS_M (no street:
 //   one that far would mislead).
 function address(place, ban, locality, communes) {
@@ -413,7 +418,7 @@ function address(place, ban, locality, communes) {
             street: cleanStreet(place.number, place.street),
             ...postcode && { postcode },
             ...city && { city },
-            addrSrc: 'osm',
+            addrSrc: ADDRESS_FROM_OSM,
         };
     }
     if (ban) {
@@ -421,11 +426,11 @@ function address(place, ban, locality, communes) {
             street:   capitalizeStreet(ban.street),
             postcode: ban.postcode,
             city:     ban.city,
-            addrSrc:  'ban',
+            addrSrc:  ADDRESS_FROM_BAN,
             ...ban.distance > NEAR_THRESHOLD_M && { near: true },
         };
     }
-    return locality ? { postcode: locality.postcode, city: locality.city, addrSrc: 'ban' } : null;
+    return locality ? { postcode: locality.postcode, city: locality.city, addrSrc: ADDRESS_FROM_BAN } : null;
 }
 
 (async () => {
@@ -474,7 +479,7 @@ function address(place, ban, locality, communes) {
         })
         .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name, 'fr'));
     const sortedCategories = Object.fromEntries(Object.entries(categories).sort(([a], [b]) => a.localeCompare(b)));
-    const data = { sources: { osm: osmDate, gtfs: today, addresses: today }, categories: sortedCategories, places };
+    const data = { sources: { osm: osmDate, gtfs: today, addresses: today }, categories: sortedCategories, addressSources: ADDRESS_SOURCES, places };
     fs.writeFileSync(OUTPUT, `${JSON.stringify(data)}\n`);
 
     const counts = {};

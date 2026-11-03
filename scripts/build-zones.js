@@ -167,9 +167,9 @@ const round5 = x => Math.round(x * 1e5) / 1e5;
     }
     zones.forEach((zone, index) => zone.group.forEach(p => { p.zone = index; }));
 
-    const { sources, categories, places } = data;
+    const { sources, categories, addressSources, places } = data;
     const table = zones.map(({ kind, name, rep }) => ({ kind, name, lat: round5(rep.lat), lon: round5(rep.lon) }));
-    fs.writeFileSync(FILE, `${JSON.stringify({ sources, categories, zones: table, places })}\n`);
+    fs.writeFileSync(FILE, `${JSON.stringify({ sources, categories, addressSources, zones: table, places })}\n`);
 })().catch(err => {
     console.error(err);
     process.exit(1);

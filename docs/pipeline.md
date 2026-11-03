@@ -348,7 +348,7 @@ Fields (generation normalizes them, the browser only reads them):
 | `lat`, `lon` | always | node, mean of a building's outer ring, or stop area position; 5 decimals |
 | `street` | ~17,200 | house number and street, street type capitalized |
 | `postcode`, `city` | all but 2 | commune in its BAN spelling, without CEDEX; CEDEX or missing OSM postcodes replaced by the BAN one |
-| `addrSrc` | with an address | `osm`: the place's own OSM street; `ban`: the nearest BAN address (bulk reverse geocoder), or, when none is found, only the postcode and city of the nearest one within 500 m (no street) |
+| `addrSrc` | with an address | index in the top-level `addressSources` table (`["osm", "ban"]`), not read by the page. `osm`: the place's own OSM street; `ban`: the nearest BAN address (bulk reverse geocoder), or, when none is found, only the postcode and city of the nearest one within 500 m (no street) |
 | `near` | some `ban` | the BAN address is more than 30 m away ("près de") |
 | `aliases` | ~700 | OSM `short_name`, `alt_name`, `official_name` (split on `;`) |
 | `oldNames` | ~140 | OSM `old_name`, kept apart: it sometimes names the previous business at the address |
