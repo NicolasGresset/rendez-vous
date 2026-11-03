@@ -32,6 +32,11 @@ Two views, picked in "Réglages" (`location--debug` class on the layout, CSS onl
   barycenter and every other candidate; the results add a list of every candidate with its score,
   and the trips' steps are shown unfolded.
 
+A change to a participant, to the place types, to the number of candidates or to the transit engine makes the
+result stale, also during a computation: the computation stops at once, its calls in progress are
+cancelled (`js/cancel.js`, one `AbortSignal` down to every `fetch`), no call follows and nothing of it is
+shown; the progress says "Calcul annulé : paramètres modifiés". Another score or view changes nothing.
+
 The diagrams are [Mermaid](https://mermaid.js.org/) code: GitHub renders them, and any
 Mermaid editor (e.g. https://mermaid.live) can display or export them.
 

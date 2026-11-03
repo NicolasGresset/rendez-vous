@@ -69,7 +69,7 @@ Full pipeline: `docs/pipeline.md`.
 
 - `main.js` UI glue (keys, form, progress), `search.js` local address search (no DOM), `slots.js`
   arrival slot picker, `map.js` Leaflet drawing, `results.js` results HTML, `labels.js` shared labels, duration format and `escapeHtml`;
-  `engine.js` candidates and scoring, `ors.js` openrouteservice (matrix 50/day,
+  `cancel.js` the signal cancelling the work of a stale result; `engine.js` candidates and scoring, `ors.js` openrouteservice (matrix 50/day,
   directions 200/day), `transitous.js` public transport (Transitous `/plan`, max 3 parallel calls,
   > 720 calls / 24 h needs coordination) or `tisseo.js` (optional, visitor's key), `keys.js` localStorage.
 - Address search: local instant lookup in `data/pois-toulouse.json` (≥ 2 chars), then IGN Géoplateforme

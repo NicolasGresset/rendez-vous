@@ -1,19 +1,21 @@
 // ors.js - openrouteservice access from the browser: matrix (durations) and directions (paths)
 // with the user's own API key. The services ignore the time of day.
 
+import { timeoutSignal } from './transitous.js';
+
 const TIMEOUT_MS = 15000;
 const PROFILES = { walk: 'foot-walking', bike: 'cycling-regular', car: 'driving-car' };
 
 const round = x => Math.round(x * 1e5) / 1e5;
 
-async function orsPost(key, path, body) {
+async function orsPost(key, path, body, signal) {
     let res;
     try {
         res = await fetch(`https://api.openrouteservice.org/v2/${path}`, {
             method:  'POST',
             headers: { Authorization: key, 'Content-Type': 'application/json' },
             body:    JSON.stringify(body),
-            signal:  AbortSignal.timeout(TIMEOUT_MS),
+            signal:  timeoutSignal(TIMEOUT_MS, signal),
         });
     } catch (err) {
         // A refused key gets a 403 without CORS headers (checked 2026-10-28), so the browser only
@@ -37,21 +39,21 @@ async function orsPost(key, path, body) {
 }
 
 // Durations in seconds, rows = sources, columns = destinations, null when unroutable
-export async function durationMatrix(key, mode, sources, destinations) {
+export async function durationMatrix(key, mode, sources, destinations, signal = null) {
     const { data, quota } = await orsPost(key, `matrix/${PROFILES[mode]}`, {
         locations:    [...sources, ...destinations].map(p => [p.lon, p.lat]),
         sources:      sources.map((_, i) => i),
         destinations: destinations.map((_, j) => sources.length + j),
         metrics:      ['duration'],
-    });
+    }, signal);
     return { durations: data.durations, quota };
 }
 
 // Path from one point to another, as [lat, lon] pairs
-export async function routePath(key, mode, from, to) {
+export async function routePath(key, mode, from, to, signal = null) {
     const { data, quota } = await orsPost(key, `directions/${PROFILES[mode]}/geojson`, {
         coordinates: [[from.lon, from.lat], [to.lon, to.lat]],
-    });
+    }, signal);
     const path = data.features[0].geometry.coordinates.map(([lon, lat]) => [round(lat), round(lon)]);
     return { path, quota };
 }

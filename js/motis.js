@@ -40,15 +40,15 @@ export async function streetDurations(mode, one, many, signal = null) {
 }
 
 // Same contract as ors.js durationMatrix: rows = sources, columns = destinations
-export async function durationMatrix(mode, sources, destinations) {
-    return { durations: await Promise.all(sources.map(s => streetDurations(mode, s, destinations))) };
+export async function durationMatrix(mode, sources, destinations, signal = null) {
+    return { durations: await Promise.all(sources.map(s => streetDurations(mode, s, destinations, signal))) };
 }
 
 // Path by walk, bike or car, as [lat, lon] pairs (ors.js routePath contract)
-export async function routePath(mode, from, to) {
+export async function routePath(mode, from, to, signal = null) {
     const params = new URLSearchParams({ fromPlace: `${from.lat},${from.lon}`, toPlace: `${to.lat},${to.lon}`,
         directModes: STREET_MODES[mode], transitModes: '', maxDirectTime: String(STREET_MAX_S) });
-    const body = await json(await fetch(`${BASE}/api/v6/plan?${params}`));
+    const body = await json(await fetch(`${BASE}/api/v6/plan?${params}`, { signal }));
     const direct = body.direct?.[0];
     if (!direct) throw new Error('no street path');
     return { path: itineraryLegs(direct).flatMap(leg => leg.path) };

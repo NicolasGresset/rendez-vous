@@ -12,7 +12,8 @@ import { TOULOUSE, createMap, drawCenter, drawCandidates, drawRoute as drawPath,
 import { resultsHtml, enumerationHtml, zonesHtml, choiceText, placeLinks, shareText, proposalsOf, inSameZone, METRIC_LABELS, METRIC_DESCRIPTIONS } from './results.js';
 import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
 import * as motis from './motis.js';
-import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZonePlace, scoreZones, timeGrid, beginBatch, cancelBatch } from './debug-motis.js';
+import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZonePlace, scoreZones, timeGrid } from './debug-motis.js';
+import { beginBatch, cancelBatch } from './cancel.js';
 
 (function () {
     const form = document.getElementById('location-form');
@@ -352,7 +353,7 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZonePlace, scoreZon
 
     // Any change to the participants makes the displayed result stale
     function clearResults() {
-        cancelBatch(); // what still runs for this result (debug view) is no longer wanted
+        cancelBatch(); // what still runs for this result is no longer wanted
         resultLayer.clearLayers();
         timeLayer?.clearLayers();
         enumLayer?.clearLayers();
@@ -831,13 +832,20 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZonePlace, scoreZon
         drawSelection(false);
         const place = current.data.candidates[j];
         if (current.routes.has(place.id)) return;
-        current.routes.set(place.id, new Map());
+        const shown = current;
+        shown.routes.set(place.id, new Map());
         const before = lastRun.orsDirections;
-        await placeRoutes(current.data.participants, place, keys, lastRun, event => {
-            if (event.orsQuota) orsQuota.directions = event.orsQuota;
-            storeRoute(event);
-            renderCalls();
-        }, checkedValue('transit-engine'));
+        try {
+            await placeRoutes(shown.data.participants, place, keys, lastRun, event => {
+                if (current !== shown) return;
+                if (event.orsQuota) orsQuota.directions = event.orsQuota;
+                storeRoute(event);
+                renderCalls();
+            }, checkedValue('transit-engine'), beginBatch());
+        } catch (err) {
+            if (err.name === 'AbortError') return; // the result was cleared meanwhile
+            throw err;
+        }
         if (!running) session.orsDirections += lastRun.orsDirections - before;
         renderCalls();
     }
@@ -1048,6 +1056,7 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZonePlace, scoreZon
         setStatus('');
         setActive(null); // a click on the result map no longer moves anyone
         clearResults();
+        const signal = beginBatch(); // cancelled by clearResults when a participant or a setting changes
         resetSteps();
         if (checkedValue('transit-engine') === 'motis') motisStepLabels();
         scrollToSection(document.getElementById('location-progress'));
@@ -1064,6 +1073,7 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZonePlace, scoreZon
                 participants: participants.map(({ row, ...p }) => p) };
             // lastRun is updated by the engine as calls are made
             const onEvent = event => {
+                if (signal.aborted) return;
                 handleEvent(event, participants, rows, state);
                 renderCalls();
             };
@@ -1071,7 +1081,7 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZonePlace, scoreZon
             // that have zones; the debug view compares it with the tool's below
             const byZones = input.transitEngine === 'motis' && !isDebug() && !categories.includes('station');
             if (byZones) await evaluateByZones(input, data, lastRun, onEvent);
-            else await evaluate(input, keys, data, lastRun, onEvent);
+            else await evaluate({ ...input, signal }, keys, data, lastRun, onEvent);
             if (input.transitEngine === 'motis' && isDebug() && current) {
                 beginBatch();
                 current.zoneInput = { categories: input.categories, data };

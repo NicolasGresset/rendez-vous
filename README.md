@@ -69,7 +69,7 @@ Development scripts (not deployed):
 index.html, legal.html   the tool, and its legal notice and privacy page
 js/                      engine.js (candidates, scoring), ors.js, transitous.js, tisseo.js (routing),
                          motis.js, debug-motis.js (local MOTIS: method by zones, debug view),
-                         search.js (address search), keys.js (localStorage),
+                         search.js (address search), keys.js (localStorage), cancel.js (stale work),
                          main.js, map.js, results.js, slots.js, labels.js (interface)
 css/                     base.css (shared), rendez-vous.css, legal.css, fonts.css
 data/                    pois-toulouse.json (places), tisseo-area.json (build input), README.md (sources)

@@ -7,7 +7,7 @@
 // Progress is reported through emit(event), with event.type:
 //   start -> candidates -> matrix (one per mode) -> transit (progress) -> result
 //   -> route (one per participant, path to the chosen place with the retained mode) -> done
-// Errors are thrown.
+// Errors are thrown, an AbortError when input.signal is cancelled: nothing is emitted after it.
 
 import { durationMatrix, routePath } from './ors.js';
 import { transitTrip, forEachLimited } from './transitous.js';
@@ -20,7 +20,7 @@ const RETRY_DELAY_MS = 2000; // a transit journey failing for a technical reason
 // journeys computed in parallel. Transitous slows down beyond 3; Tisséo answered 6 in parallel
 // without slowing down (2026-10-28)
 const TRANSIT_ENGINES = {
-    transitous: { trip: (keys, onCall, ...args) => (onCall(), transitTrip(...args)), parallel: 3 },
+    transitous: { trip: (keys, onCall, from, to, arriveFrom, arriveTo, signal) => (onCall(), transitTrip(from, to, arriveFrom, arriveTo, undefined, signal)), parallel: 3 },
     tisseo:     { trip: (keys, onCall, ...args) => tisseoTrip(keys.tisseo, onCall, ...args), parallel: 6 },
     // Debug view only (dev server and local MOTIS, motis.js): walk, bike and car times and paths
     // come from it too, instead of openrouteservice
@@ -182,11 +182,12 @@ export function computationBase(participants, slot) {
 // participants: [{ lat, lon, modes, people }], slot: the meeting time "HH:MM",
 // categories: keys of CATEGORIES (1 to 4), transitEngine: key of TRANSIT_ENGINES,
 // maxCandidates: places evaluated, at most MAX_CANDIDATES, metric: key of SCORES,
+// signal: to cancel the computation and its calls (optional),
 // keys: { ors, tisseo }, data: from loadData(),
 // calls: external API call counters, updated as calls are made
 export async function evaluate({ participants, slot, categories,
     transitEngine = 'transitous', maxCandidates = MAX_CANDIDATES,
-    metric = DEFAULT_METRIC },
+    metric = DEFAULT_METRIC, signal = null },
     keys, data, calls, emit) {
     const base = computationBase(participants, slot);
     const { center, slot: { from: arriveFrom, to: arriveTo } } = base;
@@ -213,10 +214,10 @@ export async function evaluate({ participants, slot, categories,
         let matrix;
         if (localStreets) {
             calls.motis++;
-            matrix = await motis.durationMatrix(mode, sources, candidates);
+            matrix = await motis.durationMatrix(mode, sources, candidates, signal);
         } else {
             calls.orsMatrix++;
-            matrix = await durationMatrix(keys.ors, mode, sources, candidates);
+            matrix = await durationMatrix(keys.ors, mode, sources, candidates, signal);
         }
         durations[mode] = new Map(indices.map((i, k) => [i, matrix.durations[k]]));
         emit({ type: 'matrix', mode, sources: indices.length, destinations: candidates.length,
@@ -241,15 +242,16 @@ export async function evaluate({ participants, slot, categories,
     // if it fails again, the journey is marked failed: its candidate is incomplete (see below)
     const engineName = ENGINE_NAMES[transitEngine];
     const onCall = () => { calls[transitEngine]++; };
-    const trip = (i, j) => engine.trip(keys, onCall, participants[i], candidates[j], arriveFrom, arriveTo);
+    const trip = (i, j) => engine.trip(keys, onCall, participants[i], candidates[j], arriveFrom, arriveTo, signal);
     const tripWithRetry = async (i, j) => {
         try {
             return await trip(i, j);
         } catch (err) {
-            if (err instanceof TisseoKeyError) throw err;
+            if (err instanceof TisseoKeyError || err.name === 'AbortError') throw err;
             console.warn(`${engineName} failed, trying again: ${err.message}`);
         }
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+        signal?.throwIfAborted();
         try {
             return await trip(i, j);
         } catch (err) {
@@ -269,7 +271,7 @@ export async function evaluate({ participants, slot, categories,
                 ? { error: 'aucun trajet n\'arrive à temps' }
                 : { seconds: trip.seconds, trip };
         } catch (err) {
-            if (err instanceof TisseoKeyError) throw err;
+            if (err instanceof TisseoKeyError || err.name === 'AbortError') throw err;
             console.error(err);
             errors++;
             times[i][j].transit = { error: `${engineName} indisponible (2 essais)`, failed: true };
@@ -277,6 +279,7 @@ export async function evaluate({ participants, slot, categories,
         done++;
         progress();
     });
+    signal?.throwIfAborted();
 
     // Each participant's fastest time; the total breaks ties
     const people = participants.map(p => p.people);
@@ -291,14 +294,15 @@ export async function evaluate({ participants, slot, categories,
     const best = ranking.length ? ranking[0] : null;
 
     emit({ type: 'result', ...base, candidates: evaluated, ranking, best, metric });
-    if (best != null) await placeRoutes(participants, evaluated[best], keys, calls, emit, transitEngine);
+    if (best != null) await placeRoutes(participants, evaluated[best], keys, calls, emit, transitEngine, signal);
     emit({ type: 'done' });
 }
 
 // Paths to a place with each participant's retained mode, emitted as route events: the legs of
 // the Transitous journey already fetched, or one openrouteservice directions call per participant
-// (made only for the places actually displayed; local MOTIS paths with the debug view's engine)
-export async function placeRoutes(participants, place, keys, calls, emit, transitEngine = 'transitous') {
+// (made only for the places actually displayed; local MOTIS paths with the debug view's engine).
+// signal: to cancel the calls (an AbortError is then thrown)
+export async function placeRoutes(participants, place, keys, calls, emit, transitEngine = 'transitous', signal = null) {
     await Promise.all(participants.map(async (p, i) => {
         const choice = place.choices[i];
         if (!choice) return emit({ type: 'route', place: place.id, participant: i, legs: null, error: 'injoignable' });
@@ -311,14 +315,15 @@ export async function placeRoutes(participants, place, keys, calls, emit, transi
             let route;
             if (transitEngine === 'motis') {
                 calls.motis++;
-                route = await motis.routePath(mode, p, place);
+                route = await motis.routePath(mode, p, place, signal);
             } else {
                 calls.orsDirections++;
-                route = await routePath(keys.ors, mode, p, place);
+                route = await routePath(keys.ors, mode, p, place, signal);
             }
             emit({ type: 'route', place: place.id, participant: i, mode, legs: [{ kind: mode, path: route.path }],
                 ...(route.quota && { orsQuota: { service: 'directions', ...route.quota } }) });
         } catch (err) {
+            if (err.name === 'AbortError') throw err;
             console.error(err);
             emit({ type: 'route', place: place.id, participant: i, mode, legs: null, error: 'tracé indisponible' });
         }

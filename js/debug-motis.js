@@ -7,6 +7,7 @@
 // participants, 0 to 15 min too long) and exact times for the EXACT_SHORTLIST best of each score.
 
 import * as motis from './motis.js';
+import { batch, beginBatch } from './cancel.js';
 import { CATEGORIES, SCORES, computationBase, haversine, placeRoutes } from './engine.js';
 import { forEachLimited, parseParis } from './transitous.js';
 import { PROPOSALS } from './results.js';
@@ -26,12 +27,6 @@ const ZONE_SPACING_M = 500;
 // Places of a zone kept scored exactly, its representative included; the others are scored when chosen
 // (docs/evaluation.md § A maximum of places)
 const ZONE_EXACT_PLACES = 5;
-
-// The running batch of calls of this file, cancelled when its result is no longer wanted: a
-// computation still running must not keep the page waiting for it
-let batch = new AbortController();
-export const cancelBatch = () => batch.abort();
-export const beginBatch = () => { if (batch.signal.aborted) batch = new AbortController(); };
 
 // participants: [{ lat, lon, modes, people }], slot: { from, to } ("YYYY-MM-DD HH:MM", as in the
 // result event); onProgress(text). Returns { places: [{ ...place, times: [{ mode: seconds }],
@@ -177,7 +172,7 @@ export async function scoreZones(participants, categories, slot, data, metric, o
 
 // The method by zones as a computation of the engine (engine.js evaluate: same events, same
 // candidates): the candidates are the places of the zones kept, each zone's best first (the
-// proposals), each with its `zoneInfo`. Then the zones' places without times, `pending` until chosen (scoreZonePlace). Stops at the first failed journey; cancelled by cancelBatch
+// proposals), each with its `zoneInfo`. Then the zones' places without times, `pending` until chosen (scoreZonePlace). Stops at the first failed journey; cancelled by cancelBatch (cancel.js)
 export async function evaluateByZones({ participants, slot, categories, metric }, data, calls, emit) {
     beginBatch();
     const base = computationBase(participants, slot);
@@ -192,7 +187,7 @@ export async function evaluateByZones({ participants, slot, categories, metric }
     const pending = found.zones.flatMap(zone => zone.unscored.map(p => (
         { ...p, score: null, pending: true, incomplete: false, zoneInfo: zoneInfo(p, data) })));
     emit({ type: 'result', ...base, candidates: [...candidates, ...pending], ranking, proposals: ranking.slice(0, places.length), best, metric });
-    if (best != null) await placeRoutes(participants, candidates[best], {}, calls, emit, 'motis');
+    if (best != null) await placeRoutes(participants, candidates[best], {}, calls, emit, 'motis', batch.signal);
     emit({ type: 'done' });
 }
 

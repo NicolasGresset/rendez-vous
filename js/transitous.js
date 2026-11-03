@@ -106,8 +106,7 @@ export async function transitTrip(from, to, arriveFrom, arriveTo, planUrl = PLAN
         arriveBy:  'true',
         ...PLAN_OPTIONS,
     });
-    const timeout = AbortSignal.timeout(TIMEOUT_MS);
-    const res = await fetch(`${planUrl}?${params}`, { signal: signal ? AbortSignal.any([timeout, signal]) : timeout });
+    const res = await fetch(`${planUrl}?${params}`, { signal: timeoutSignal(TIMEOUT_MS, signal) });
     if (res.status === 429) throw new Error('Transitous rate limit reached');
     if (!res.ok) throw new Error(`Transitous plan failed: ${res.status}`);
     const data = await res.json();
@@ -125,6 +124,12 @@ export async function transitTrip(from, to, arriveFrom, arriveTo, planUrl = PLAN
         arrival:   itinerary.endTime,
         legs:      itineraryLegs(itinerary),
     };
+}
+
+// Ends a call after this time, or when signal (if any) is cancelled. Shared with ors.js and tisseo.js
+export function timeoutSignal(ms, signal = null) {
+    const timeout = AbortSignal.timeout(ms);
+    return signal ? AbortSignal.any([timeout, signal]) : timeout;
 }
 
 // Run fn on every item, at most `parallel` at a time
