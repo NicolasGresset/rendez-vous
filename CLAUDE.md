@@ -131,16 +131,16 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
 
 - Extracted from the portfolio on 2026-10-30 (`git filter-repo`, 52 commits kept; early commits
   lack their styles, which lived in the portfolio's shared `css/style.css`). Pushed; Vercel project
-  and DNS done, live at `rendez-vous.gresset-bourgeois.fr` (stated 2026-11-02). Then the portfolio drops the tool (files, CSP entries, `legal.html` section), redirects
-  `/rendez-vous` and `/location` here, and presents it on a projects page. A new origin: keys and
+  and DNS done, live at `rendez-vous.gresset-bourgeois.fr` (stated 2026-11-02). The portfolio (`~/repos/personal_web_page`) has
+  dropped the tool, redirects `/rendez-vous` and `/location` here and presents it on a projects page (checked 2026-11-03). A new origin: keys and
   settings in localStorage must be entered again once.
-- Transitous audit leftovers (2026-10-28): `maxItineraries=5&detailedTransfers=false` (measured: half
-  the size, same best trip on 11/12 trips); the 720 calls / 24 h shared counter is deferred to the
-  home server.
+- Transitous: `maxItineraries=5&detailedTransfers=false` is in the code (`PLAN_OPTIONS`). Measured 2026-11-03: no journey lost with the
+  local MOTIS, but no geometry on walks between two lines (the map draws nothing there, doc § Transitous answer size). To decide by the user. The 720
+  calls / 24 h shared counter is deferred to the home server.
 - Make sure the repository holds no dead code (stated by the user, 2026-10-28).
 - Local search: scoring implemented 2026-10-28 with starting weights; the user tunes them after testing.
   Sorted index: built in the browser on purpose (shipping it: +103 KB brotli, slower below ~16 Mbit/s).
-  Not yet measured on the user's phone (Galaxy A33). Since 2026-10-29, at equal rounded score the
+  Speed satisfying on the user's phone (Galaxy A33, stated 2026-11-03). Since 2026-10-29, at equal rounded score the
   category (metro > others > bus) wins over distance ("jean jau": the metro station before a nearer
   hairdresser). Reference queries to compare rankings: `node scripts/search-queries.js [query…]`.
 - Later, once the page's purpose is settled (personal service, debug view…): cache of
@@ -157,7 +157,7 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
 - Placing on the map (2026-10-29): a click places the *active* participant (last card focused or
   touched, then the next one to fill; none during and after a computation), a double click only
   zooms, points draggable on computers only (the user feared it would misbehave on phones). Doc § 2.
-  Not yet tried on the user's phone.
+  Works on the user's phone (stated 2026-11-03).
 - Participants (decided 2026-11-02): 5 at most with the public services, whose quota is shared; 10 with the local MOTIS.
 - Links to stops (decided 2026-11-02): no link to their OSM page, a marker there and a Google Maps text search (kind,
   name, city), checked on Carmes. OSM has several points per bus stop; 36 of the 37 metro stations would match.

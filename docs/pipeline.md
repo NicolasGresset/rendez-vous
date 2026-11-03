@@ -269,7 +269,10 @@ copies them to the clipboard where there is none (most computers).
 Transitous answer size (measured 2026-10-28 on 12 trips, 18:00–18:15 slot): by default `/plan`
 returns up to ~14 journeys over 2 h with turn-by-turn walking steps, ~400 KB raw (~100 KB gzip) per
 call. `maxItineraries=5&detailedTransfers=false` halves it and kept the same best journey on 11/12
-trips (one 1 min longer); no field the page uses is lost (geometry, stops, lines, colors).
+trips (one 1 min longer). Stops, lines, colors and the first and last walks' geometry stay, but
+`detailedTransfers=false` drops the geometry of walks between two lines: the map draws nothing there, the
+steps still list them (checked 2026-11-03, 1 Transitous call and the local MOTIS). Local MOTIS, 136 trips x 4 times of a
+Tuesday (Tisséo only): the same best journey as ~29 journeys over 3 h, on every trip; `detailedTransfers=false` alone saves ~11 %.
 `timetableView=false` would be ~8x lighter but returns only the latest-arriving journey, worse on
 7/12 trips (up to +14 min) since it drops faster journeys arriving early.
 
