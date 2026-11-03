@@ -100,9 +100,9 @@ for (const [name, cs] of Object.entries(METHODS)) {
 // spaced by construction, then show each cluster's best member. Compared with the tool's rule.
 function spaced(pool, c, spacing, wanted) {
     const sorted = pool.map(p => ({ p, d: dist(c, p) })).sort((a, b) => a.d - b.d);
-    let r = 1000, out = [];
+    let r = 1000;
     for (;;) {
-        out = [];
+        const out = [];
         for (const { p, d } of sorted) { if (d > r) break; if (out.length < wanted && out.every(x => dist(x, p) >= spacing)) out.push(p); }
         if (out.length >= wanted || r >= 5000) return out;
         r += 500;

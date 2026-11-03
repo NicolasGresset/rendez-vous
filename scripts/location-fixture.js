@@ -118,8 +118,8 @@ const until = async (evaluate, expression, what) => {
     }
 };
 
-// Fills the form as SCENARIO says, starts the computation and waits for its end
-async function runComputation({ evaluate }, scenario = SCENARIO) {
+// Fills the form as SCENARIO says
+async function fillForm({ evaluate }, scenario = SCENARIO) {
     await until(evaluate, `document.querySelectorAll('#participants .participant').length >= 2`, 'participants');
     for (const [i, p] of scenario.participants.entries()) {
         await evaluate(`(() => {
@@ -139,12 +139,23 @@ async function runComputation({ evaluate }, scenario = SCENARIO) {
         await evaluate(`document.querySelectorAll('#participants .participant')[${i}].querySelector('[name="address"]')
             .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
     }
+}
+
+// Picks the scenario's time and starts the computation
+async function startComputation({ evaluate }, scenario = SCENARIO) {
     await evaluate(`(() => {
         const li = [...document.querySelectorAll('#slot-options li')].find(li => li.textContent.startsWith(${JSON.stringify(scenario.slot)}));
         if (!li) throw new Error('slot ${scenario.slot} not offered');
         li.click();
         document.querySelector('#location-form [type="submit"]').click();
     })()`);
+}
+
+// Fills the form, starts the computation and waits for its end
+async function runComputation(page, scenario = SCENARIO) {
+    await fillForm(page, scenario);
+    await startComputation(page, scenario);
+    const { evaluate } = page;
     await until(evaluate, `/Terminé|Aucun lieu/.test(document.getElementById('progress-text').textContent)`, 'computation');
 }
 
@@ -198,4 +209,4 @@ async function main(command) {
 
 if (require.main === module) main(process.argv[2]).catch(err => { console.error(err); process.exitCode = 1; });
 
-module.exports = { openWithFixture, runComputation, SCENARIO, FIXTURE_FILE, BASE_URL };
+module.exports = { preload, openWithFixture, fillForm, startComputation, runComputation, SCENARIO, FIXTURE_FILE, BASE_URL };

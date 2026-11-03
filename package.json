@@ -1,0 +1,19 @@
+{
+  "name": "rendez-vous",
+  "private": true,
+  "description": "Development tools only: the site itself has no dependency and no build step.",
+  "engines": {
+    "node": ">=22.7"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "test:unit": "node --test \"tests/unit/*.test.mjs\"",
+    "test:e2e": "playwright test",
+    "test": "npm run lint && npm run test:unit && npm run test:e2e"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.1",
+    "eslint": "10.14.0"
+  }
+}

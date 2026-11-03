@@ -54,6 +54,18 @@ The dev server applies the clean URLs and the Content-Security-Policy of `vercel
 openrouteservice key is needed as soon as someone walks, cycles or drives. With a local MOTIS on port
 8080 (setup in [docs/evaluation.md](docs/evaluation.md)), the page also offers it as an engine, which needs no key.
 
+Tests (not deployed; the site itself still has no dependency and no build step):
+
+```sh
+npm ci                                        # ESLint and Playwright, development only
+npx playwright install firefox                # with: chromium --only-shell, for the phone tests
+npm test                                      # lint, unit tests (tests/unit), browser tests (tests/e2e)
+```
+
+They make no API call: the browser tests replay a recorded computation. On GitHub
+(`.github/workflows/ci.yml`) every push runs them, on a phone-sized Safari too; Vercel's Deployment Checks can
+hold production until they pass (jobs `lint-and-unit` and `browser-tests`).
+
 Development scripts (not deployed):
 
 - `scripts/location-fixture.js shot`: replays a recorded computation in headless Firefox, without any
@@ -75,7 +87,8 @@ js/                      engine.js (candidates, scoring), ors.js, transitous.js,
 css/                     base.css (shared), rendez-vous.css, legal.css, fonts.css
 data/                    pois-toulouse.json (places), tisseo-area.json (build input), README.md (sources)
 docs/                    pipeline.md (a computation, end to end), evaluation.md (measures)
-scripts/                 dev server, browser tests, places build, eval/ (measures)
+scripts/                 dev server, recorded computation, places build, eval/ (measures)
+tests/                   unit/ (Node's test runner), e2e/ (Playwright)
 ```
 
 ## Privacy

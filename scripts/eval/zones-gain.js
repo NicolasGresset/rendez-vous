@@ -96,7 +96,7 @@ for (const testCase of CASES) {
                 // With zones
                 let order = zones.filter(z => estimate(z.rep) != null).sort((a, b) => estimate(a.rep) - estimate(b.rep));
                 let size = 20;
-                let kept = [];
+                let kept;
                 for (; ; size += 20) {
                     const short = order.slice(0, size).filter(z => score(z.rep) != null).sort((a, b) => score(a.rep) - score(b.rep));
                     kept = spaced(short, z => z.rep);
@@ -108,7 +108,7 @@ for (const testCase of CASES) {
                 const placesOrder = places.filter(p => estimate(p) != null).sort((a, b) => estimate(a) - estimate(b));
                 for (const k of WITHOUT_ZONES) {
                     let n = k;
-                    let shown = [];
+                    let shown;
                     for (; ; n += 20) {
                         shown = spaced(ranked(placesOrder.slice(0, n)));
                         if (shown.length === PROPOSALS || n >= placesOrder.length) break;

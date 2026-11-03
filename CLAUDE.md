@@ -35,7 +35,13 @@ This file is excluded from the deployment (`.vercelignore`) but versioned on Git
   `legal.html` kept true.
 - Fonts (`assets/fonts`, no italic), Leaflet (`assets/vendor/leaflet`) and the places file are served
   with the tool: no third-party request on load besides the map tiles. No cookies.
-- Browser tests: headless Firefox (`/snap/bin/firefox`) against the dev server, driven through
+- Tests and CI (2026-11-03): `npm test` = ESLint, `tests/unit` (`node:test`, no dependency), `tests/e2e` (Playwright, Firefox and a
+  phone-sized Chrome here; a phone-sized Safari on GitHub only, WebKit needing system libraries, and no sudo here). No API call, map
+  tiles included; any page error or CSP violation fails a test. `.github/workflows/ci.yml` runs them on every push (actions pinned by
+  commit). `package.json` is for development tools only (`dependencies` stays empty, a test checks it), kept out of the deployment
+  (`.vercelignore`). **A bug fixed or a behaviour added comes with a test; check a new test can fail by breaking the code once.** MOTIS features and
+  `scripts/eval` are not in CI (they need local data). `npm audit`: 5 moderate, all from `minimatch` inside ESLint (a tool, not deployed; `--force` would downgrade ESLint to 4).
+- Ad hoc browser scenarios and screenshots: headless Firefox (`/snap/bin/firefox`) against the dev server, driven through
   WebDriver BiDi by `scripts/firefox-bidi.js` (`withFirefox(async ({ send, context, evaluate,
   screenshot, errors }) => …)`: navigation, in-page scenarios, console errors, screenshots under
   `~/snap/firefox/common/shots`). Always go through it, never launch Firefox by hand: it picks a

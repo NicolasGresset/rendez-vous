@@ -21,7 +21,7 @@ async function orsPost(key, path, body, signal) {
         // A refused key gets a 403 without CORS headers (checked 2026-10-28), so the browser only
         // sees a network error, like a passing network failure (and probably an exceeded quota)
         if (err.name === 'TypeError') {
-            throw new Error('openrouteservice injoignable, clé refusée ou quota dépassé.');
+            throw new Error('openrouteservice injoignable, clé refusée ou quota dépassé.', { cause: err });
         }
         throw err;
     }

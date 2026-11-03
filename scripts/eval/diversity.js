@@ -72,7 +72,7 @@ const STRATEGIES = {
     'espacés 1200 m': (pool, c, cats) => grow(pool, c, cats, 1200, TOTAL),
     'max-min disque 1,5 km': (pool, c, cats) => farthest(pool, c, cats, 1500),
     'max-min disque 2,5 km': (pool, c, cats) => farthest(pool, c, cats, 2500),
-    'tout le fichier (réf. serveur)': (pool, c, cats) => pool,
+    'tout le fichier (réf. serveur)': pool => pool,
 };
 const SEPARATIONS = [0, 300, 500, 700];
 

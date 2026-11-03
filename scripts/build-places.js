@@ -186,7 +186,7 @@ async function readZippedCsv(zip, name, onRow) {
     const lines = readline.createInterface({ input: unzip.stdout, crlfDelay: Infinity });
     let header = null;
     for await (const raw of lines) {
-        const line = raw.replace(/^﻿/, '');
+        const line = raw.replace(/^\uFEFF/, '');
         if (!line) continue;
         const [fields] = parseCsvRows(line);
         if (!header) { header = fields; continue; }
@@ -261,6 +261,7 @@ const tagValues = value => (value || '').split(';').map(v => v.trim()).filter(Bo
 function readOsmPlaces(file) {
     const places = [];
     for (const raw of fs.readFileSync(file, 'utf8').split('\n')) {
+        // eslint-disable-next-line no-control-regex -- the record separator of osmium's GeoJSON sequences
         const line = raw.replace(/^\x1e/, '').trim();
         if (!line) continue;
         const { id, geometry, properties: tags } = JSON.parse(line);
