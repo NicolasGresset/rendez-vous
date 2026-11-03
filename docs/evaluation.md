@@ -376,3 +376,29 @@ So the zones do not improve the best place. They halve the estimate's time (2 to
 the exact journeys, mostly in the worst case. With an engine of one's own, reading precomputed street times to stops, the first gain would mostly go.
 What stays is the shape of the answer: areas with several places to choose from.
 
+
+### A maximum of places scored exactly per zone (`zone-cap.js`, 2026-11-03, not adopted)
+
+Idea of the user: in the third phase, at most 4 places besides the representative, already exact. Picked farthest first (each time the
+place farthest from those picked, as the crow flies, the distance to a set being the one to its closest member; Gonzalez's k-center
+heuristic), since the closest ones would mostly repeat the same destination. Replayed on the oracle, score "équitable", 30 rows, loss in
+minutes on the first proposal (mean / max) and per zone kept, against every place of the 3 zones:
+
+| places | method | first | zone's best place found | loss per zone | third phase, journeys |
+|---|---|---|---|---|---|
+| bars | every place | 0 / 0 | 100 % | 0 / 0 | 17.9 / 76 |
+| bars | 5 closest | 0.00 / 0.1 | 96 % | 0.01 / 0.5 | 11.6 / 40 |
+| bars | 5 farthest first | 0.02 / 0.5 | 91 % | 0.02 / 0.5 | 11.6 / 40 |
+| cafés | every place | 0 / 0 | 100 % | 0 / 0 | 22.0 / 84 |
+| cafés | 5 closest | 0.00 / 0.0 | 93 % | 0.01 / 0.2 | 10.8 / 36 |
+| cafés | 5 farthest first | 0.01 / 0.3 | 87 % | 0.05 / 0.8 | 10.8 / 36 |
+| restaurants | every place | 0 / 0 | 100 % | 0 / 0 | 36.1 / 188 |
+| restaurants | 5 closest | 0.16 / 1.2 | 77 % | 0.14 / 1.8 | 14.3 / 48 |
+| restaurants | 5 farthest first | 0.02 / 0.5 | 81 % | 0.04 / 0.7 | 14.3 / 48 |
+| bars, cafés, restaurants | every place | 0 / 0 | 100 % | 0 / 0 | 19.4 / 80 |
+| bars, cafés, restaurants | 5 closest | 0.00 / 0.1 | 91 % | 0.04 / 1.3 | 10.8 / 48 |
+| bars, cafés, restaurants | 5 farthest first | 0.00 / 0.0 | 91 % | 0.03 / 0.8 | 10.8 / 48 |
+
+Farthest first is clearly better on restaurants, the only kind with large zones, and slightly worse on bars and cafés. 3 and 8 places per zone
+are in the script's output. Real time of the third phase's journeys on the local MOTIS (16-core PC, 8 in parallel, walk + transit, 10 groups, mean /
+most): restaurants 0.86 / 1.90 s for every place, 0.31 / 0.49 s for 5 farthest first; bars 0.40 / 0.78 s, 0.26 / 0.42 s. Tuesday 19:00 only.

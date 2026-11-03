@@ -13,7 +13,7 @@ This file is excluded from the deployment (`.vercelignore`) but versioned on Git
 - List methodological choices (scoring, candidates, time handling, data sources, new external
   services) with trade-offs and ask before coding them. The user likes to measure and test before deciding.
 - Commit often on `main`; **push only when the user asks** (each push triggers a Vercel deploy).
-- Keep `docs/pipeline.md` (Mermaid diagrams, API calls, data sources) up to date with every change.
+- Keep `docs/pipeline.md` (Mermaid diagrams, API calls, data sources) and `README.md` up to date with every change.
 - Keep API usage conservative.
 - UI rules (stated by the user, 2026-11-02): a click anywhere on a card folds or unfolds it, on every
   card of the project. Practical view: straight to the point, the default map and no display option.
@@ -78,7 +78,7 @@ Full pipeline: `docs/pipeline.md`.
   such as `amenity=bar`, `office=company`, or GTFS `metro` / `bus`) and a `categories` label table.
   Candidates: `amenity=bar`, `pub`, `biergarten`, `cafe`, `restaurant`, `metro`, `bus` (only they keep an `id`); the rest is
   for the address search. Address split into street / postcode / city (normalized at generation),
-  `addrSrc`, `near`; `aliases` and `oldNames` apart. Same name within 300 m = one place (bar > restaurant
+  `addrSrc` (index in the `addressSources` table), `near`; `aliases` and `oldNames` apart. Same name within 300 m = one place (bar > restaurant
   > …). Rules and fields: `docs/pipeline.md` § 6. Rebuilt from scratch by
   `scripts/regenerate-places.sh` (download + osmium + `scripts/build-places.js`; output reproducible). ~3.1 MB raw, ~325 KB at the highest brotli level but ~490 KB as Vercel serves it (measured 2026-10-30), loaded once the page is shown (window load).
 - Local search: scored over name, aliases, oldNames, category label + synonyms, city; weights and bonuses
@@ -134,10 +134,10 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   and DNS done, live at `rendez-vous.gresset-bourgeois.fr` (stated 2026-11-02). The portfolio (`~/repos/personal_web_page`) has
   dropped the tool, redirects `/rendez-vous` and `/location` here and presents it on a projects page (checked 2026-11-03). A new origin: keys and
   settings in localStorage must be entered again once.
-- Transitous: `maxItineraries=5&detailedTransfers=false` is in the code (`PLAN_OPTIONS`). Measured 2026-11-03: no journey lost with the
-  local MOTIS, but no geometry on walks between two lines (the map draws nothing there, doc § Transitous answer size). To decide by the user. The 720
-  calls / 24 h shared counter is deferred to the home server.
-- Make sure the repository holds no dead code (stated by the user, 2026-10-28).
+- Transitous: `maxItineraries=5&detailedTransfers=false` kept (decided by the user 2026-11-03), knowing that the map then draws nothing
+  on walks between two lines (doc § Transitous answer size). The 720 calls / 24 h shared counter is deferred to the home server.
+- Make sure the repository holds no dead code (stated by the user, 2026-10-28). Audited 2026-11-03 (ESLint and a search of the uses of
+  every export, id, CSS class and script), the debug view's experimental features being kept on purpose by the user for now.
 - Local search: scoring implemented 2026-10-28 with starting weights; the user tunes them after testing.
   Sorted index: built in the browser on purpose (shipping it: +103 KB brotli, slower below ~16 Mbit/s).
   Speed satisfying on the user's phone (Galaxy A33, stated 2026-11-03). Since 2026-10-29, at equal rounded score the
@@ -162,9 +162,10 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
 - Links to stops (decided 2026-11-02): no link to their OSM page, a marker there and a Google Maps text search (kind,
   name, city), checked on Carmes. OSM has several points per bus stop; 36 of the 37 metro stations would match.
 - Zones kept (stated by the user 2026-11-02: good engineering, `docs/evaluation.md` § What the zones bring). Idea of the user, not
-  done: a maximum of members per zone, to bound the third phase. Measured (the 3 zones kept: ~12 places in all on average; the
-  members closest to the representative exact): no loss on the first proposal down to 5 per zone, third phase 18 -> 12 journeys on
-  average, 76 -> 40 at most; it matters mostly for restaurants (a zone of 31). Whether to split zones or only limit exact times: open.
+  done: a maximum of members per zone, to bound the third phase; the user proposes the representative + 4 places, picked farthest first (each
+  time the place farthest from those picked, the distance to a set being the one to its closest member), not the closest ones, which would
+  mostly repeat the same destination. Measured 2026-11-03 against every place (`scripts/eval/zone-cap.js`, `docs/evaluation.md` § A maximum of
+  places): to be decided by the user, then what to show of a zone's places without exact times.
 - Later (stated by the user 2026-11-02): on the home server, maybe an engine of one's own instead of MOTIS, doing only what is
   needed; the user has ideas on the transit times.
 - Tuned on Toulouse's bars, to do again elsewhere (stated by the user, 2026-11-02): the 5 min on foot of
