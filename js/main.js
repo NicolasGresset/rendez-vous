@@ -1,19 +1,19 @@
-// main.js - Meeting point prototype, entirely in the browser: the user's API keys and settings
-// (practical or debug view, score), participants form with address autocompletion,
-// computation progress, API call counters and the glue between the engine and the page's other
-// modules (search, slots, map, results).
+// main.js - Meeting point finder, entirely in the browser: the user's API keys and settings
+// (practical or debug view, score), the form's submission and the computation's events,
+// API call counters, the results, and the glue between the engine and the page's other modules.
 
 import { loadData, evaluate, placeRoutes, rankCandidates } from './engine.js';
 import { loadKeys, saveKeys, clearKeys, loadSettings, saveSettings } from './keys.js';
-import { createPlaceSearch } from './search.js';
 import { slotPicker } from './slots.js';
-import { TOULOUSE, createMap, drawCenter, drawCandidates, drawRoute as drawPath, drawEnumeration, drawRadius,
-    drawNetworkLines, drawTimeGrid, drawZones, drawZoneResults } from './map.js';
-import { resultsHtml, enumerationHtml, zonesHtml, choiceText, placeLinks, shareText, proposalsOf, inSameZone, METRIC_LABELS, METRIC_DESCRIPTIONS } from './results.js';
-import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
+import { createMap, drawCenter, drawCandidates, drawRoute as drawPath } from './map.js';
+import { resultsHtml, enumerationHtml, zonesHtml, choiceText, placeLinks, shareText, proposalsOf, inSameZone, METRIC_DESCRIPTIONS } from './results.js';
+import { MODE_LABELS, escapeHtml } from './labels.js';
 import * as motis from './motis.js';
-import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZonePlace, scoreZones, timeGrid } from './debug-motis.js';
+import { evaluateByZones, scoreZonePlace } from './debug-motis.js';
 import { beginBatch, cancelBatch } from './cancel.js';
+import { createParticipants } from './participants.js';
+import { createProgress } from './progress.js';
+import { createDebugView } from './debug-view.js';
 
 (function () {
     const form = document.getElementById('location-form');
@@ -21,9 +21,6 @@ import { beginBatch, cancelBatch } from './cancel.js';
 
     // Public services (Transitous' quota is shared, a journey per participant and place): 5; local MOTIS: 10
     const MAX_PARTICIPANTS = { motis: 10, other: 5 };
-    const MIN_QUERY_LENGTH = 3;       // Géoplateforme suggestions
-    const MIN_LOCAL_QUERY_LENGTH = 2; // local place suggestions
-    const SUGGEST_DELAY_MS = 250;
     const ORS_MODES = ['walk', 'bike', 'car'];
     // Modes checked for every new participant: without an openrouteservice key, only those it
     // does not need, so that a first visit can run at once
@@ -33,27 +30,13 @@ import { beginBatch, cancelBatch } from './cancel.js';
         'amenity=bar': 'bars', 'amenity=pub': 'pubs', 'amenity=biergarten': 'biergartens', 'amenity=cafe': 'cafés',
         'amenity=restaurant': 'restaurants', metro: 'stations de métro', bus: 'arrêts de bus',
     };
-    const PLACE_KINDS = { housenumber: 'adresse', street: 'voie', municipality: 'commune', locality: 'lieu-dit' };
-    const STEPS = [
-        { id: 'center',     label: 'Barycentre des participants' },
-        { id: 'candidates', label: 'Lieux candidats (extrait local OSM + GTFS Tisséo)' },
-        { id: 'matrix',     label: 'Temps marche, vélo, voiture (openrouteservice)' },
-        { id: 'transit',    label: 'Temps en transports en commun' },
-        { id: 'result',     label: 'Sélection du lieu' },
-        { id: 'routes',     label: 'Tracés des itinéraires (openrouteservice directions, trajets en transports en commun)' },
-    ];
 
-    const list    = document.getElementById('participants');
-    const addBtn  = document.getElementById('add-participant');
     const slot    = document.getElementById('slot');
     const status  = document.getElementById('location-status');
     const results = document.getElementById('location-results');
     const banner  = document.getElementById('location-banner');
-    const steps   = document.getElementById('progress-steps');
     const callsEl = document.getElementById('location-calls');
     const layout  = document.querySelector('.location-layout');
-    const progressBar  = document.getElementById('progress-bar');
-    const progressText = document.getElementById('progress-text');
 
     // Bring a section into view (below the fixed navigation, see scroll-margin-top in the CSS)
     function scrollToSection(el) {
@@ -83,10 +66,6 @@ import { beginBatch, cancelBatch } from './cancel.js';
     const scoreDescription = document.getElementById('score-description');
     const ENGINE_NAMES = { transitous: 'Transitous', tisseo: 'Tisséo', motis: 'MOTIS local' };
     let motisReady = false; // a local MOTIS answers through the dev server (debug view, motis.js)
-    let timeLayer = null;   // its time map layer, once offered
-    let enumLayer = null;   // its layer of every place of the file (off by default), once offered
-    let layersControl = null; // the map's optional layers, debug view only
-    let optionalLayers = {};
     let keys = loadKeys();
 
     function showKeys(message) {
@@ -133,7 +112,7 @@ import { beginBatch, cancelBatch } from './cancel.js';
     // with bus/metro participants only can still run. Returns why it cannot, or null
     function submitBlocker() {
         if (checkedValue('transit-engine') === 'motis') return null; // street times from MOTIS too
-        const needsOrs = [...list.querySelectorAll('[name="modes"]:checked')].some(c => ORS_MODES.includes(c.value));
+        const needsOrs = participantForm.usedModes().some(mode => ORS_MODES.includes(mode));
         return needsOrs && !keys.ors
             ? 'La marche, le vélo et la voiture sont calculés par openrouteservice : saisissez votre clé dans les réglages, ou ne gardez que bus/métro.'
             : null;
@@ -200,166 +179,20 @@ import { beginBatch, cancelBatch } from './cancel.js';
 
     // ---- Map (map.js) ----
     const map = createMap('location-map');
-    const mapElement = document.getElementById('location-map');
-    const mapHint = document.getElementById('map-hint');
-    const participantMarkers = new Map(); // participant row -> marker
     const resultLayer = L.layerGroup().addTo(map);
     let routeLayers = [];    // per participant: layer group holding its path to the selected place
     // Displayed result: { data (result event), rows, selected (candidate index),
     // routes (place id -> participant index -> route event) }
     let current = null;
 
-    // Participants are told apart by their number and color (no name field)
-    const participantLabel = row => `participant ${[...list.children].indexOf(row) + 1}`;
-
-    const colorOf = row => PARTICIPANT_COLORS[[...list.children].indexOf(row) % PARTICIPANT_COLORS.length];
-
-    // People leaving from a participant's place: a whole number from 1, anything else typed reads as
-    // the nearest one (empty or below 1: 1)
-    const peopleOf = row => Number(row.querySelector('[name="people"]').value);
-    function setPeople(row, value) {
-        const people = Math.max(1, Math.round(Number(value)) || 1);
-        row.querySelector('[name="people"]').value = people;
-        row.querySelector('[data-action="people-less"]').disabled = people === 1;
-        if (people > 1) row.querySelector('.participant-people').classList.add('participant-people--open');
-        updateMarker(row);
-        clearResults();
-    }
-
-    function fitParticipants() {
-        const points = [...participantMarkers.values()].map(m => m.getLatLng());
-        if (points.length === 1) map.setView(points[0], 14);
-        else if (points.length > 1) map.fitBounds(points, { padding: [40, 40], maxZoom: 15 });
-    }
-
-    function updateMarker(row) {
-        let marker = participantMarkers.get(row);
-        if (!row.dataset.lat) {
-            if (marker) { marker.remove(); participantMarkers.delete(row); }
-            return updateMapHint();
-        }
-        const latLng = [Number(row.dataset.lat), Number(row.dataset.lon)];
-        if (!marker) {
-            // A disc in the participant's color with their number, as in their card; a click on it
-            // does not place the active participant there (markers do not pass clicks to the map)
-            marker = L.marker(latLng, {
-                icon: L.divIcon({ className: `participant-marker${finePointer ? ' participant-marker--draggable' : ''}`,
-                    iconSize: [24, 24], popupAnchor: [0, -12] }),
-                keyboard: false, zIndexOffset: 1500,
-            }).addTo(map);
-            if (finePointer) makeDraggable(marker, row);
-            participantMarkers.set(row, marker);
-        }
-        // Updated in place: a new icon would drop the drag listener on its element
-        const element = marker.setLatLng(latLng).unbindPopup().getElement();
-        element.textContent = [...list.children].indexOf(row) + 1;
-        element.dataset.people = peopleOf(row) > 1 ? `×${peopleOf(row)}` : '';
-        element.style.background = colorOf(row);
-        element.title = participantLabel(row) + (peopleOf(row) > 1 ? `, ${peopleOf(row)} personnes` : '');
-        updateMapHint();
-    }
-
-    // ---- Placing participants on the map: a click places the active participant (the one
-    //      whose card was used last), dragging a participant's point moves it (computers only) ----
-    const DOUBLE_CLICK_MS = 300;
-    const DRAG_THRESHOLD_PX = 3;
-    let activeRow = null;
-    let clickTimer = null;
-    let dragJustEnded = false;
-
-    function setActive(row) {
-        activeRow = row;
-        [...list.children].forEach(r => r.classList.toggle('participant--active', r === row));
-        mapElement.classList.toggle('location-map--picking', !!row);
-        updateMapHint();
-    }
-
-    function updateMapHint() {
-        const dragHint = finePointer && participantMarkers.size ? ' Glissez un point pour le déplacer.' : '';
-        if (!activeRow) {
-            mapHint.textContent = `Choisissez un participant pour le placer sur la carte.${dragHint}`;
-            return;
-        }
-        const name = document.createElement('strong');
-        name.textContent = participantLabel(activeRow);
-        name.style.color = colorOf(activeRow);
-        mapHint.replaceChildren('Cliquez sur la carte pour placer ', name, `.${dragHint}`);
-    }
-
-    // First participant without a position after row (then from the top), null if all are placed
-    function nextToFill(row) {
-        const rows = [...list.children];
-        const start = rows.indexOf(row) + 1;
-        return [...rows.slice(start), ...rows.slice(0, start)].find(r => !r.dataset.lat) || null;
-    }
-
-    // Once the active participant is placed, the next one to fill becomes active
-    function placed(row) {
-        if (activeRow === row) setActive(nextToFill(row));
-    }
-
-    // The exact position is kept at once; the address, which only describes it, follows
-    async function placeAt(row, lat, lon, fallbackLabel, options) {
-        setPosition(row, { lat, lon, label: `${fallbackLabel} (adresse en cours…)` }, options);
-        placed(row);
-        const label = await reverseGeocode(lat, lon);
-        if (row.dataset.lat !== String(lat) || row.dataset.lon !== String(lon)) return; // moved meanwhile
-        row.querySelector('[name="address"]').value = label || fallbackLabel;
-    }
-
-    // A double click (or double tap) only zooms: a single click waits to be sure it is one
-    map.on('click', e => {
-        if (dragJustEnded) return;
-        if (clickTimer) {
-            clearTimeout(clickTimer);
-            clickTimer = null;
-            return;
-        }
-        clickTimer = setTimeout(() => {
-            clickTimer = null;
-            // The map does not move under the cursor: the clicked point stays in view
-            if (activeRow) placeAt(activeRow, e.latlng.lat, e.latlng.lng, 'point sur la carte', { fit: false });
-        }, DOUBLE_CLICK_MS);
-    });
-
-    // Leaflet only drags its image markers: a participant's circle follows the mouse by hand,
-    // listened on its own element so that the map does not pan at the same time
-    function makeDraggable(marker, row) {
-        marker.getElement().addEventListener('mousedown', down => {
-            if (down.button !== 0) return;
-            down.preventDefault();
-            down.stopPropagation();
-            const start = marker.getLatLng();
-            let moved = false;
-            mapElement.classList.add('location-map--dragging');
-            const move = e => {
-                moved = moved || Math.hypot(e.clientX - down.clientX, e.clientY - down.clientY) > DRAG_THRESHOLD_PX;
-                if (moved) marker.setLatLng(map.mouseEventToLatLng(e));
-            };
-            const up = () => {
-                document.removeEventListener('mousemove', move);
-                mapElement.classList.remove('location-map--dragging');
-                if (!moved) return marker.setLatLng(start);
-                // The click that follows a drop is not a click on the map
-                dragJustEnded = true;
-                setTimeout(() => { dragJustEnded = false; });
-                const { lat, lng } = marker.getLatLng();
-                placeAt(row, lat, lng, 'point sur la carte', { fit: false });
-            };
-            document.addEventListener('mousemove', move);
-            document.addEventListener('mouseup', up, { once: true });
-        });
-    }
-
     // Any change to the participants makes the displayed result stale
     function clearResults() {
         cancelBatch(); // what still runs for this result is no longer wanted
         resultLayer.clearLayers();
-        timeLayer?.clearLayers();
-        enumLayer?.clearLayers();
+        debugView.clearLayers();
         routeLayers = [];
         current = null;
-        participantMarkers.forEach(m => m.unbindPopup());
+        participantForm.unbindPopups();
         results.hidden = true;
     }
 
@@ -374,373 +207,8 @@ import { beginBatch, cancelBatch } from './cancel.js';
         return dataPromise;
     };
 
-    // ---- Local place search (search.js), without any call ----
-    let placeSearch = null; // search(text, origin), once the places are loaded and indexed
-
-    function loadPlaceIndex() {
-        return getData()
-            .then(data => { placeSearch = placeSearch || createPlaceSearch(data); })
-            .catch(err => console.error(err));
-    }
-
-
-    // Load the places and build the search index as soon as the page is shown (after its own
-    // resources, so the map is not slowed down): the search is ready before the first address is typed
-    if (document.readyState === 'complete') loadPlaceIndex();
-    else window.addEventListener('load', loadPlaceIndex, { once: true });
-
-    // Center of the participants already located, the Capitole (TOULOUSE) if none
-    function searchOrigin() {
-        const located = [...list.children].filter(r => r.dataset.lat);
-        if (!located.length) return { lat: TOULOUSE[0], lon: TOULOUSE[1] };
-        return {
-            lat: located.reduce((s, r) => s + Number(r.dataset.lat), 0) / located.length,
-            lon: located.reduce((s, r) => s + Number(r.dataset.lon), 0) / located.length,
-        };
-    }
-
-    // ---- Address autocompletion (French national address base, IGN Géoplateforme),
-    //      restricted to Haute-Garonne: addresses and points of interest ----
-    async function suggestPlaces(text) {
-        const params = new URLSearchParams({
-            text,
-            terr:             '31',
-            type:             'StreetAddress,PositionOfInterest',
-            maximumResponses: 6,
-            lonlat:           `${TOULOUSE[1]},${TOULOUSE[0]}`,
-        });
-        session.geocode++;
-        renderCalls();
-        const res = await fetch(`https://data.geopf.fr/geocodage/completion/?${params}`);
-        if (!res.ok) throw new Error(`Geocoding completion failed: ${res.status}`);
-        return ((await res.json()).results || []).map(r => ({
-            label: r.fulltext, kind: PLACE_KINDS[r.kind] || r.kind || '', lat: r.y, lon: r.x,
-        }));
-    }
-
-    // Nearest address of a position, null if none or unavailable
-    async function reverseGeocode(lat, lon) {
-        session.geocode++;
-        renderCalls();
-        try {
-            const res = await fetch(`https://data.geopf.fr/geocodage/reverse?${new URLSearchParams({ lat, lon, limit: 1 })}`);
-            if (!res.ok) throw new Error(`Reverse geocoding failed: ${res.status}`);
-            return (await res.json()).features?.[0]?.properties.label || null;
-        } catch (err) {
-            console.error(err);
-            return null;
-        }
-    }
-
-    // fit: false when the position was picked on the map, which then stays where it is
-    function setPosition(row, place, { fit = true } = {}) {
-        if (place) {
-            row.dataset.lat = place.lat;
-            row.dataset.lon = place.lon;
-            row.querySelector('[name="address"]').value = place.label;
-        } else {
-            delete row.dataset.lat;
-            delete row.dataset.lon;
-        }
-        row.classList.toggle('participant--located', !!place);
-        // How to pick an address is said once, above the participants
-        row.querySelector('.participant-hint').textContent = place ? '✓ position enregistrée' : '';
-        updateMarker(row);
-        clearResults();
-        if (place && fit) fitParticipants();
-    }
-
-    function attachAutocomplete(row) {
-        const input = row.querySelector('[name="address"]');
-        const box = row.querySelector('.address-options');
-        let options = [];
-        let active = -1;
-        let timer = null;
-        let requestId = 0;
-
-        // Touch screens: the keyboard covers the lower part of the screen, where the suggestions
-        // open; the field moves to the top of the screen, below the navigation, to leave them room
-        // (after the tap's own events: they would interrupt a smooth scroll started during them)
-        input.addEventListener('focus', () => {
-            if (!finePointer) setTimeout(() => scrollToSection(row.querySelector('.participant-address')), 50);
-        });
-
-        const close = () => {
-            box.hidden = true;
-            input.setAttribute('aria-expanded', 'false');
-            input.removeAttribute('aria-activedescendant');
-            active = -1;
-        };
-        const highlight = index => {
-            active = index;
-            [...box.children].forEach((li, i) => li.setAttribute('aria-selected', i === index ? 'true' : 'false'));
-            if (index >= 0) input.setAttribute('aria-activedescendant', box.children[index].id);
-        };
-        const choose = index => {
-            if (!options[index]) return;
-            // A Géoplateforme answer still to come must not open the list again
-            clearTimeout(timer);
-            requestId++;
-            setPosition(row, options[index]);
-            placed(row);
-            close();
-            focusNextParticipant(row);
-        };
-        // Local places (name, tag and address) first, then Géoplateforme addresses;
-        // pending: Géoplateforme has not answered yet, so "no result" is not shown
-        const render = (pending = false) => {
-            if (!options.length && pending) return close();
-            box.innerHTML = options.length
-                ? options.map((o, i) => `
-                    <li role="option" id="${box.id}-${i}" aria-selected="false" data-index="${i}">
-                        ${o.name
-                            ? `<strong>${escapeHtml(o.name)}</strong> <span class="address-tag">${escapeHtml(o.kind)}</span>
-                               <span class="address-detail">${escapeHtml(o.address)}</span>`
-                            : `${escapeHtml(o.label)} <span class="location-muted">${escapeHtml(o.kind)}</span>`}</li>`).join('')
-                : '<li class="address-empty">Aucun résultat en Haute-Garonne</li>';
-            box.hidden = false;
-            input.setAttribute('aria-expanded', 'true');
-            active = -1;
-        };
-
-        input.addEventListener('input', async () => {
-            if (row.dataset.lat) setPosition(row, null);
-            clearTimeout(timer);
-            const id = ++requestId; // answers to older queries are ignored
-            const text = input.value.trim();
-            if (text.length < MIN_LOCAL_QUERY_LENGTH) return close();
-            if (!placeSearch) await loadPlaceIndex(); // typed before the data file arrived
-            if (id !== requestId) return;
-            const local = placeSearch ? placeSearch(text, searchOrigin()) : [];
-            options = local;
-            render(true);
-            if (text.length < MIN_QUERY_LENGTH) return;
-            timer = setTimeout(async () => {
-                try {
-                    const found = await suggestPlaces(text);
-                    if (id !== requestId) return;
-                    options = [...local, ...found];
-                    render();
-                } catch (err) {
-                    console.error(err);
-                    row.querySelector('.participant-hint').textContent = 'géocodage indisponible';
-                }
-            }, SUGGEST_DELAY_MS);
-        });
-
-        input.addEventListener('keydown', e => {
-            if (box.hidden || !options.length) return;
-            if (e.key === 'ArrowDown') { e.preventDefault(); highlight((active + 1) % options.length); }
-            else if (e.key === 'ArrowUp') { e.preventDefault(); highlight((active - 1 + options.length) % options.length); }
-            else if (e.key === 'Enter') { e.preventDefault(); choose(active >= 0 ? active : 0); }
-            else if (e.key === 'Escape') close();
-        });
-
-        // mousedown fires before the input blur, so the click is not lost
-        box.addEventListener('mousedown', e => {
-            const li = e.target.closest('li[data-index]');
-            if (!li) return;
-            e.preventDefault();
-            choose(Number(li.dataset.index));
-        });
-        input.addEventListener('blur', close);
-    }
-
-    // ---- Participants form ----
-    // Keyboard flow on computers: Tab goes from address to address; choosing an address goes to
-    // the next participant to fill, or to "Trouver le lieu". Not on touch screens, where focusing
-    // opens the keyboard.
-
-    function focusNextParticipant(row) {
-        if (!finePointer) return;
-        const rows = [...list.children];
-        const next = rows.slice(rows.indexOf(row) + 1).find(r => !r.dataset.lat);
-        (next ? next.querySelector('[name="address"]') : form.querySelector('[type="submit"]')).focus();
-    }
-
-    let rowCounter = 0;
-    function addParticipant() {
-        const uid = ++rowCounter;
-        const row = document.createElement('fieldset');
-        row.className = 'participant';
-        row.innerHTML = `
-            <legend class="participant-legend"></legend>
-            <div class="location-field participant-address">
-                <label class="visually-hidden" for="address-${uid}">Adresse ou lieu</label>
-                <!-- Address field and position button: one control for one thing, the place -->
-                <div class="address-group">
-                    <input type="text" id="address-${uid}" name="address" placeholder="Adresse ou lieu"
-                        autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"
-                        aria-controls="address-options-${uid}">
-                    <!-- Own drawing (a target): no third-party icon -->
-                    <button type="button" class="location-button location-button--icon" data-action="locate" tabindex="-1"
-                    aria-label="Ma position actuelle" title="Ma position actuelle">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"
-                        fill="currentColor" stroke="none"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg>
-            </button>
-                    <ul class="address-options" id="address-options-${uid}" role="listbox" hidden></ul>
-                </div>
-                <span class="participant-hint"></span>
-            </div>
-            <div class="participant-options">
-                <div class="participant-modes chips" role="group" aria-label="Modes de transport">
-                    ${Object.entries(MODE_LABELS).map(([mode, label]) => `
-                        <label class="chip"><input type="checkbox" name="modes" value="${mode}" tabindex="-1"${defaultModes().includes(mode) ? ' checked' : ''}><span>${label}</span></label>
-                    `).join('')}
-                </div>
-                <!-- People leaving from this place (a team, a company): 1 by default, no upper bound;
-                     folded into a chip (a person and 1) until opened. Own drawing: no third-party icon -->
-                <div class="participant-people stepper" role="group" aria-label="Personnes au départ de ce lieu">
-                    <button type="button" class="chip people-open" data-action="people-open" tabindex="-1"
-                        aria-label="1 personne, en ajouter" title="Plusieurs personnes partent de ce lieu ?">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <circle cx="12" cy="7" r="4"/><path d="M4 21a8 8 0 0 1 16 0z"/></svg>1</button>
-                    <button type="button" class="stepper-button" data-action="people-less" tabindex="-1"
-                        aria-label="Une personne de moins" title="Une personne de moins" disabled>−</button>
-                    <input type="number" name="people" value="1" min="1" step="1" inputmode="numeric" tabindex="-1"
-                        aria-label="Nombre de personnes">
-                    <button type="button" class="stepper-button" data-action="people-more" tabindex="-1"
-                        aria-label="Une personne de plus" title="Une personne de plus">+</button>
-                    <svg class="stepper-unit" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <circle cx="12" cy="7" r="4"/><path d="M4 21a8 8 0 0 1 16 0z"/></svg>
-                </div>
-            </div>
-            <button type="button" class="location-button location-button--ghost participant-remove" data-action="remove" tabindex="-1"
-                aria-label="Retirer ce participant" title="Retirer ce participant">×</button>`;
-        list.appendChild(row);
-        attachAutocomplete(row);
-        refreshRows();
-        return row;
-    }
-
-    function refreshRows() {
-        [...list.children].forEach((row, i) => {
-            // A disc in the participant's color with its number; the label for screen readers only
-            const legend = row.querySelector('legend');
-            legend.innerHTML = `<span class="participant-number" aria-hidden="true">${i + 1}</span>
-                <span class="visually-hidden">participant ${i + 1}</span>`;
-            row.style.setProperty('--participant', PARTICIPANT_COLORS[i]);
-            row.querySelector('[data-action="remove"]').hidden = list.children.length <= 1;
-            updateMarker(row);
-        });
-        addBtn.hidden = list.children.length >= maxParticipants();
-        updateSubmit();
-    }
-
-    // The people stepper, opened from its chip, folds again when the focus leaves it with one person
-    list.addEventListener('focusout', e => {
-        const group = e.target.closest('.participant-people');
-        if (group && !group.contains(e.relatedTarget) && peopleOf(group.closest('.participant')) === 1) {
-            group.classList.remove('participant-people--open');
-        }
-    });
-
-    // The participant whose card is used is the one a click on the map places
-    list.addEventListener('focusin', e => setActive(e.target.closest('.participant')));
-    // pointerdown, before the suggestion chosen with mousedown moves on to the next participant
-    list.addEventListener('pointerdown', e => {
-        const row = e.target.closest('.participant');
-        if (row && row !== activeRow) setActive(row);
-    });
-
-    list.addEventListener('change', e => {
-        if (e.target.name === 'people') return setPeople(e.target.closest('.participant'), e.target.value);
-        if (e.target.name !== 'modes') return;
-        updateSubmit();
-        clearResults();
-    });
-
-    list.addEventListener('click', e => {
-        const button = e.target.closest('button[data-action]');
-        if (!button) return;
-        const row = button.closest('.participant');
-        if (button.dataset.action === 'people-open') {
-            button.parentElement.classList.add('participant-people--open');
-            return button.parentElement.querySelector('[data-action="people-more"]').focus();
-        }
-        if (button.dataset.action === 'people-less' || button.dataset.action === 'people-more') {
-            return setPeople(row, peopleOf(row) + (button.dataset.action === 'people-more' ? 1 : -1));
-        }
-        if (button.dataset.action === 'remove') {
-            participantMarkers.get(row)?.remove();
-            participantMarkers.delete(row);
-            row.remove();
-            refreshRows();
-            if (activeRow === row) setActive(nextToFill(null));
-            clearResults();
-            return;
-        }
-        if (!navigator.geolocation) return setStatus('Géolocalisation non disponible dans ce navigateur.');
-        button.disabled = true;
-        navigator.geolocation.getCurrentPosition(pos => {
-            button.disabled = false;
-            placeAt(row, pos.coords.latitude, pos.coords.longitude, 'ma position actuelle');
-        }, () => {
-            setStatus('Position refusée ou introuvable.');
-            button.disabled = false;
-        }, { enableHighAccuracy: true, timeout: 10000 });
-    });
-
-    addBtn.addEventListener('click', () => {
-        const row = addParticipant();
-        setActive(row);
-        if (finePointer) row.querySelector('[name="address"]').focus();
-    });
-    const firstRow = addParticipant();
-    addParticipant();
-    addParticipant();
-    setActive(firstRow);
-    if (finePointer) firstRow.querySelector('[name="address"]').focus();
-
-    // Participants left untouched (no address) are ignored: three are shown by default
-    function readParticipants() {
-        const untouched = row => !row.dataset.lat && !row.querySelector('[name="address"]').value.trim();
-        const rows = [...list.children].filter(row => !untouched(row));
-        if (rows.length < 2) throw new Error('Choisissez une adresse pour au moins deux participants.');
-        if (rows.length > maxParticipants()) throw new Error(`Ce moteur de transports en commun accepte ${maxParticipants()} participants au plus : retirez-en ${rows.length - maxParticipants()}.`);
-        return rows.map(row => {
-            const label = participantLabel(row);
-            const modes = [...row.querySelectorAll('[name="modes"]:checked')].map(c => c.value);
-            if (!row.dataset.lat) {
-                row.querySelector('[name="address"]').focus();
-                throw new Error(`Choisissez une adresse dans la liste, un point sur la carte ou « ma position actuelle » pour le ${label}.`);
-            }
-            if (!modes.length) throw new Error(`Choisissez au moins un mode de transport pour le ${label}.`);
-            // Label and color go with the participant: an ignored one before it must not shift the others'
-            return { label, modes, people: peopleOf(row), lat: Number(row.dataset.lat), lon: Number(row.dataset.lon),
-                color: colorOf(row), row };
-        });
-    }
-
-    // ---- Progress steps ----
-    function resetSteps() {
-        steps.innerHTML = STEPS.map(s => `
-            <li class="progress-step" data-step="${s.id}" data-state="pending">
-                <span class="progress-label">${s.label}</span>
-                <span class="progress-detail location-muted"></span></li>`).join('');
-        steps.hidden = false;
-        setProgress(0, 'Recherche des lieux candidats…');
-        document.getElementById('location-progress').hidden = false;
-    }
-
-    // Practical view: one bar and one line; the transit journeys are most of the waiting
-    function setProgress(fraction, text) {
-        progressBar.value = fraction;
-        progressText.textContent = text;
-    }
-
-    function setStep(id, state, detail) {
-        const li = steps.querySelector(`[data-step="${id}"]`);
-        li.dataset.state = state;
-        if (detail != null) li.querySelector('.progress-detail').textContent = detail;
-    }
-
-    function failRunningStep(message) {
-        const running = steps.querySelector('[data-state="running"]') || steps.querySelector('[data-state="pending"]');
-        if (running) setStep(running.dataset.step, 'error', message);
-        setProgress(progressBar.value, `Échec : ${message}`);
-    }
+    const progress = createProgress();
+    const { resetSteps, setProgress, setStep, failRunningStep, closeSteps } = progress;
 
     function describeCandidates(candidates) {
         const counts = {};
@@ -749,6 +217,16 @@ import { beginBatch, cancelBatch } from './cancel.js';
             .map(([category, n]) => `${n} ${n > 1 ? CATEGORY_PLURALS[category] : categoryLabels[category]}`);
         return `${candidates.length} lieu${candidates.length > 1 ? 'x' : ''}${parts.length ? ` : ${parts.join(', ')}` : ''}`;
     }
+
+    const participantForm = createParticipants({ map, finePointer, getData, defaultModes, maxParticipants, scrollToSection, setStatus,
+        onStale: clearResults,
+        onChange: updateSubmit,
+        onGeocode: () => {
+            session.geocode++;
+            renderCalls();
+        },
+    });
+    participantForm.start(3);
 
     // ---- Results (results.js): the chosen place, each participant's trip to it, and the paths
     //      on the map ----
@@ -765,26 +243,18 @@ import { beginBatch, cancelBatch } from './cancel.js';
         const place = data.candidates[selected];
         const debug = isDebug();
         resultLayer.clearLayers();
-        enumLayer?.clearLayers();
-        if (debug && current.enum) {
-            drawRadius(resultLayer, data.center, current.radius);
-            drawEnumeration(enumLayer, current.enum.places, current.enum.ranking, categoryLabels, METRIC_LABELS[data.metric]);
-        }
-        if (debug && current.zones) drawZoneResults(resultLayer, current.zones.zones, METRIC_LABELS[data.metric]);
-        if (debug) drawCenter(resultLayer, data.center);
+        debugView.drawResult(resultLayer);
         drawCandidates(resultLayer, data.candidates, categoryLabels,
             { selected, proposals: proposalsOf(data), all: debug, onSelect: selectPlace,
                 also: place?.zoneInfo ? inSameZone(data, place) : [] });
         routeLayers = data.participants.map((p, i) => {
-            participantMarkers.get(rows[i])
+            participantForm.markerOf(rows[i])
                 ?.bindPopup(`<strong>${escapeHtml(p.label)}</strong><br>${choiceText(place?.choices[i])}`);
             return place ? L.layerGroup().addTo(resultLayer) : null;
         });
         if (place) data.participants.forEach((_, i) => drawRoute(i));
         if (fit) {
-            const shown = debug ? data.candidates : proposalsOf(data).map(j => data.candidates[j]);
-            if (debug && current.enum && map.hasLayer(enumLayer)) shown.push(...current.enum.ranking.slice(0, 3).map(j => current.enum.places[j]));
-            if (debug && current.zones) shown.push(...current.zones.zones.flatMap(zone => zone.places));
+            const shown = [...(debug ? data.candidates : proposalsOf(data).map(j => data.candidates[j])), ...debugView.placesToShow()];
             const points = [...shown.map(c => [c.lat, c.lon]), ...data.participants.map(p => [p.lat, p.lon])];
             if (points.length) map.fitBounds(points, { padding: [30, 30], maxZoom: 16 });
         }
@@ -899,26 +369,16 @@ import { beginBatch, cancelBatch } from './cancel.js';
         if (data.proposals) return running ? undefined : form.requestSubmit();
         data.metric = checkedValue('score-metric');
         data.ranking = rankCandidates(data.candidates, data.metric, data.participants.map(p => p.people));
-        if (current.enum) current.enum.ranking = scorePlaces(current.enum.places, data.metric, data.participants.map(p => p.people));
-        if (current.grid) showTimeGrid();
-        if (current.zones) computeZones().catch(console.error);
+        debugView.rerank();
         data.best = data.ranking.length ? data.ranking[0] : null;
         if (data.best != null && data.best !== current.selected) return selectPlace(data.best);
         renderResults();
         drawSelection(false);
     }
 
-    // The practical view has the default map and no option: the debug view's layers go with it
-    function showMapOptions() {
-        if (!layersControl) return;
-        if (isDebug()) return layersControl.addTo(map);
-        layersControl.remove();
-        Object.values(optionalLayers).forEach(layer => map.removeLayer(layer));
-    }
-
     function applyView() {
         layout.classList.toggle('location--debug', isDebug());
-        showMapOptions();
+        debugView.showMapOptions();
         if (!current) return;
         renderResults();
         drawSelection(false);
@@ -978,10 +438,7 @@ import { beginBatch, cancelBatch } from './cancel.js';
         case 'result': {
             const reachable = event.candidates.filter(c => c.score != null).length;
             const evaluated = event.candidates.filter(c => !c.pending).length;
-            STEPS.forEach(s => {
-                const li = steps.querySelector(`[data-step="${s.id}"]`);
-                if (s.id !== 'routes' && li.dataset.state !== 'done') setStep(s.id, 'done', s.id === 'result' ? null : '—');
-            });
+            closeSteps();
             setStep('result', 'done', event.best != null
                 ? `${reachable}/${evaluated} candidats atteignables par tous`
                 : 'aucun lieu retenu');
@@ -1022,7 +479,7 @@ import { beginBatch, cancelBatch } from './cancel.js';
         storeSettings();
         clearResults();
         updateSubmit();
-        refreshRows();
+        participantForm.refresh();
     }));
     document.getElementById('score-metric').addEventListener('change', () => {
         storeSettings();
@@ -1046,7 +503,7 @@ import { beginBatch, cancelBatch } from './cancel.js';
         const submit = form.querySelector('[type="submit"]');
         let participants;
         try {
-            participants = readParticipants();
+            participants = participantForm.read();
         } catch (err) {
             return setStatus(err.message);
         }
@@ -1054,11 +511,11 @@ import { beginBatch, cancelBatch } from './cancel.js';
         if (!categories.length) return setStatus('Choisissez au moins un type de lieu.');
 
         setStatus('');
-        setActive(null); // a click on the result map no longer moves anyone
+        participantForm.setActive(null); // a click on the result map no longer moves anyone
         clearResults();
         const signal = beginBatch(); // cancelled by clearResults when a participant or a setting changes
         resetSteps();
-        if (checkedValue('transit-engine') === 'motis') motisStepLabels();
+        if (checkedValue('transit-engine') === 'motis') debugView.stepLabels();
         scrollToSection(document.getElementById('location-progress'));
         submit.disabled = true;
         lastRun = { orsMatrix: 0, orsDirections: 0, transitous: 0, tisseo: 0, motis: 0 };
@@ -1083,10 +540,7 @@ import { beginBatch, cancelBatch } from './cancel.js';
             if (byZones) await evaluateByZones(input, data, lastRun, onEvent);
             else await evaluate({ ...input, signal }, keys, data, lastRun, onEvent);
             if (input.transitEngine === 'motis' && isDebug() && current) {
-                beginBatch();
-                current.zoneInput = { categories: input.categories, data };
-                await addZones();
-                await enumerate(input, data, state);
+                await debugView.compute(input, data, state);
             }
         } catch (err) {
             if (err.name === 'AbortError') {
@@ -1105,148 +559,22 @@ import { beginBatch, cancelBatch } from './cancel.js';
         }
     });
 
-    // ---- Debug view with a local MOTIS (dev server only): every candidate place of the file
-    //      scored, test cases of scripts/eval, the network's lines on the map ----
-    // The steps' labels name openrouteservice: the debug view's engine computes everything locally
-    function motisStepLabels() {
-        const label = (id, text) => { steps.querySelector(`[data-step="${id}"] .progress-label`).textContent = text; };
-        label('matrix', 'Temps marche, vélo, voiture (MOTIS local)');
-        label('routes', 'Tracés des itinéraires (MOTIS local)');
-    }
-
-    // The method by zones; another score changes the zones kept, so it is computed again (local, no quota)
-    async function computeZones(onProgress = text => setProgress(0.99, text)) {
-        const shown = current;
-        const { data } = shown;
-        beginBatch();
-        const result = await scoreZones(data.participants, shown.zoneInput.categories, data.slot,
-            shown.zoneInput.data, data.metric, onProgress);
-        if (current !== shown) return result; // the result was cleared meanwhile
-        shown.zones = result;
-        renderResults();
-        drawSelection(false);
-        return result;
-    }
-
-    async function addZones() {
-        steps.insertAdjacentHTML('beforeend', `<li class="progress-step" data-step="zones" data-state="running">
-            <span class="progress-label">Par zones : estimation de toutes, puis temps exacts des meilleures (MOTIS local, debug)</span>
-            <span class="progress-detail location-muted"></span></li>`);
-        const result = await computeZones(text => {
-            setStep('zones', 'running', text);
-            setProgress(0.96, text);
-        });
-        setStep('zones', 'done', result
-            ? `${result.estimated} zones estimées, ${result.journeys} trajets exacts, ${result.seconds.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} s`
-            : 'aucune zone pour ces types de lieux');
-    }
-
-    async function enumerate(input, data, state) {
-        const shown = current;
-        steps.insertAdjacentHTML('beforeend', `<li class="progress-step" data-step="enum" data-state="running">
-            <span class="progress-label">Tous les lieux candidats du fichier (MOTIS local, debug)</span>
-            <span class="progress-detail location-muted"></span></li>`);
-        const progress = text => {
-            setStep('enum', 'running', text);
-            setProgress(0.97, text);
-        };
-        const found = await enumeratePlaces(input.participants, input.categories, shown.data.slot, data, progress);
-        if (current !== shown) return; // the result was cleared meanwhile
-        const people = input.participants.map(p => p.people);
-        current.enum = { ...found, ranking: scorePlaces(found.places, current.data.metric, people) };
-        setStep('enum', 'done', `${found.places.length} lieux${found.estimated ? `, dont ${found.estimated} avec bus/métro estimé` : ''}`);
-        setProgress(1, `Terminé en ${Math.round((performance.now() - state.startedAt) / 1000)} s (énumération comprise).`);
-        drawSelection(true);
-        renderResults();
-        if (map.hasLayer(timeLayer)) await computeTimeGrid();
-    }
-
-    // Time map: computed once per result, when its layer is on; another score only redraws it
-    async function computeTimeGrid() {
-        const shown = current;
-        if (!shown?.enum || shown.grid || shown.gridPending) return;
-        shown.gridPending = true;
-        beginBatch();
-        const best = shown.enum.ranking.slice(0, 10).map(j => shown.enum.places[j]);
-        const grid = await timeGrid(shown.data.participants, best, shown.data.slot, text => setProgress(0.99, text));
-        if (current !== shown) return;
-        shown.grid = grid;
-        setProgress(1, `Carte des temps : ${grid.cells.length} cases (bus/métro estimé, trop long de 0 à 15 min).`);
-        showTimeGrid();
-    }
-
-    function showTimeGrid() {
-        scorePlaces(current.grid.cells, current.data.metric, current.data.participants.map(p => p.people));
-        timeLayer.clearLayers();
-        drawTimeGrid(timeLayer, current.grid);
-    }
-
-    function loadCase(testCase, modes) {
-        [...list.children].forEach(row => {
-            participantMarkers.get(row)?.remove();
-            participantMarkers.delete(row);
-            row.remove();
-        });
-        testCase.points.forEach((point, i) => {
-            const row = addParticipant();
-            row.querySelectorAll('[name="modes"]').forEach(box => { box.checked = modes(i).includes(box.value); });
-            if (point.people > 1) setPeople(row, point.people);
-            setPosition(row, { lat: point.lat, lon: point.lon, label: point.name }, { fit: false });
-        });
-        refreshRows();
-        setActive(null);
-        fitParticipants();
-        if (!slotValue.select('19:00')) setStatus('19:00 est passé pour aujourd\'hui : heure du rendez-vous inchangée.');
-        clearResults();
-    }
-
-    async function setupMotisDebug() {
-        motisReady = true;
-        document.querySelector('#transit-engine .chips').insertAdjacentHTML('beforeend',
-            '<label class="chip"><input type="radio" name="transit-engine" value="motis"><span>MOTIS local (debug)</span></label>');
-        if (loadSettings().engine === 'motis') engineInput('motis').checked = true;
-        updateSubmit();
-        refreshRows();
-        renderCalls();
-
-        map.createPane('network').style.zIndex = 350; // under the other drawings (overlay pane: 400)
-        const linesLayer = L.layerGroup();
-        timeLayer = L.layerGroup();
-        enumLayer = L.layerGroup();
-        const zoneLayers = new Map([['bar', L.layerGroup()], ['cafe', L.layerGroup()], ['restaurant', L.layerGroup()]]);
-        optionalLayers = { 'Tous les lieux du fichier': enumLayer, 'Lignes Tisséo (MOTIS local)': linesLayer,
-            'Carte des temps (estimée)': timeLayer, 'Zones de bars': zoneLayers.get('bar'),
-            'Zones de cafés': zoneLayers.get('cafe'), 'Zones de restaurants': zoneLayers.get('restaurant') };
-        layersControl = L.control.layers(null, optionalLayers, { collapsed: false });
-        showMapOptions();
-        map.on('overlayadd', async e => {
-            if (e.layer === timeLayer) return computeTimeGrid();
-            const kind = [...zoneLayers].find(([, layer]) => layer === e.layer)?.[0];
-            if (kind && !e.layer.getLayers().length) {
-                const { zones, places } = await getData();
-                return drawZones(e.layer, zones, places, kind);
-            }
-            if (e.layer !== linesLayer || linesLayer.getLayers().length) return;
-            drawNetworkLines(linesLayer, await motis.networkLines(43.42, 1.20, 43.75, 1.62), 'network');
-        });
-
-        // Test cases: served by the dev server from scripts/ (not deployed)
-        const module = await import('/scripts/eval/cases.js');
-        const { CONFIGS } = module;
-        const CASES = [...module.CASES, ...(module.DEBUG_CASES || [])];
-        list.insertAdjacentHTML('beforebegin', `<div class="location-field debug-only debug-cases">
-            <label for="debug-case">Cas de test (scripts/eval, debug)</label>
-            <select id="debug-case"><option value="">—</option>${CASES.flatMap(c => Object.entries(CONFIGS).map(([k, config]) =>
-                `<option value="${c.id}:${k}">${c.id} ${escapeHtml(c.label)} · ${escapeHtml(config.label)}</option>`)).join('')}</select></div>`);
-        document.getElementById('debug-case').addEventListener('change', e => {
-            const [id, config] = e.target.value.split(':');
-            if (id) loadCase(CASES.find(c => c.id === id), CONFIGS[config].modes);
-        });
-    }
+    const debugView = createDebugView({ map, getData, getCurrent: () => current, categoryLabels: () => categoryLabels, isDebug,
+        renderResults, drawSelection, clearResults, progress, participantForm, slotValue, setStatus });
 
     restoreSettings();
     showScoreDescription();
     applyView();
     showKeys();
-    motis.available().then(ok => ok && setupMotisDebug());
+    motis.available().then(ok => {
+        if (!ok) return;
+        motisReady = true;
+        document.querySelector('#transit-engine .chips').insertAdjacentHTML('beforeend',
+            '<label class="chip"><input type="radio" name="transit-engine" value="motis"><span>MOTIS local (debug)</span></label>');
+        if (loadSettings().engine === 'motis') engineInput('motis').checked = true;
+        updateSubmit();
+        participantForm.refresh();
+        renderCalls();
+        return debugView.setup();
+    });
 })();

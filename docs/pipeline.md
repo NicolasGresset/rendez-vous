@@ -89,7 +89,7 @@ flowchart TB
     DATA --> ENGINE
 ```
 
-## 2. Address search (search.js, main.js)
+## 2. Address search (search.js, geocode.js, autocomplete.js, participants.js)
 
 ```mermaid
 flowchart LR

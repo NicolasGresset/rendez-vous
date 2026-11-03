@@ -67,7 +67,9 @@ Proposes the 3 meeting places with the best score (équitable or égalitaire) fo
 Toulouse area. Fully client-side; the user's own openrouteservice key is stored in localStorage only.
 Full pipeline: `docs/pipeline.md`.
 
-- `main.js` UI glue (keys, form, progress), `search.js` local address search (no DOM), `slots.js`
+- `main.js` keys, settings, the computation's events and the results; `participants.js` the cards and their points on the map;
+  `autocomplete.js` an address field's list, `geocode.js` Géoplateforme, `progress.js` bar and steps, `debug-view.js` the page's debug
+  view with MOTIS (split from a 1,250-line `main.js` on 2026-11-03); `search.js` local address search (no DOM), `slots.js`
   arrival slot picker, `map.js` Leaflet drawing, `results.js` results HTML, `labels.js` shared labels, duration format and `escapeHtml`;
   `cancel.js` the signal cancelling the work of a stale result; `engine.js` candidates and scoring, `ors.js` openrouteservice (matrix 50/day,
   directions 200/day), `transitous.js` public transport (Transitous `/plan`, max 3 parallel calls,
@@ -98,6 +100,9 @@ prefer simple, explainable rules to fine modelling of edge cases. Lateness and p
 are out of scope.
 
 ## Next big steps (stated by the user, 2026-10-28)
+
+Target architecture (stated by the user, 2026-11-03): Transitous and Tisséo go away for the home server. The page makes a single API call
+(participants' positions and modes, then one answer); behind it, self-hosted engines and a middleware that splits the question and gathers the answer.
 
 1. **Home server** (bought, stated 2026-11-02, due around 2026-11-06/08: refurbished Lenovo ThinkCentre M720q
    Tiny, i5-8400T 6 cores, 16 GB, 512 GB SSD; other services will share it, so MOTIS does not get
@@ -150,6 +155,9 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   give 199,000 graph nodes (intersections) and 268,000 edges; naive binary 4.5 MB, 1.9 MB brotli
   (without the shapes needed to draw paths); one full walking Dijkstra 77 ms on a PC. Would replace the
   openrouteservice matrix (50/day) by one Dijkstra per participant and mode.
+- Known bug left as is (audit of 2026-11-03, the user's choice since Transitous is going away): for a short trip Transitous answers only a walk in
+  `direct` (0 itineraries at ~150 m and ~600 m from the Capitole), which `transitous.js` ignores, so a place near a bus/metro-only participant (the
+  default without a key) counts as unreachable. Keep it in mind for the home server's API: a short walk must be a valid answer.
 - Transit robustness (2026-10-28, after a walk-instead-of-metro report from Viveris, Ramonville, not
   reproduced; most likely a failed Transitous call silently replaced by walking): 1 retry after 2 s,
   failures counted in the progress, failed candidates marked incomplete and chosen only if nothing
