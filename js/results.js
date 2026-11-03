@@ -143,19 +143,26 @@ function proposalButton(data, j, rank, selected) {
         </button></li>`;
 }
 
-// The other places of the chosen one's zone, folded: any of them can be chosen instead
+// The other places of the chosen one's zone, folded: any of them can be chosen instead, those not scored
+// yet being scored then. Best first, then those without a score
 function zoneOthers(data, place, selected) {
     if (!place.zoneInfo) return '';
-    const others = inSameZone(data, place).filter(j => j !== selected);
+    const scoreOf = j => data.candidates[j].score ?? Infinity;
+    const others = inSameZone(data, place).filter(j => j !== selected).sort((a, b) => scoreOf(a) - scoreOf(b));
     if (!others.length) return '';
     const n = others.length;
     const difference = c => {
+        if (c.computing) return 'calcul…';
+        if (c.failed) return 'échec, réessayer';
+        if (c.pending) return 'calculer';
+        if (c.score == null) return 'injoignable';
         const seconds = c.score - place.score;
         return Math.abs(seconds) < 30 ? 'pareil' : `${seconds > 0 ? '+' : '−'}${formatDuration(Math.abs(seconds))}`;
     };
+    const unreachable = c => c.score == null && !c.pending;
     return `<details class="zone-others">
         <summary>${n > 1 ? `Les ${n} autres ${ZONE_KINDS[place.zoneInfo.kind][1]}` : `L'autre ${ZONE_KINDS[place.zoneInfo.kind][0]}`} de la zone ${escapeHtml(place.zoneInfo.name)}, à moins de 5 min à pied</summary>
-        <ul class="zone-others-list">${others.map(j => `<li><button type="button" class="zone-other" data-place="${j}">
+        <ul class="zone-others-list">${others.map(j => `<li><button type="button" class="zone-other" data-place="${j}"${unreachable(data.candidates[j]) ? ' disabled' : ''}>
             <span class="zone-other-name">${escapeHtml(data.candidates[j].name)}</span>
             <span class="zone-other-time">${difference(data.candidates[j])}</span></button></li>`).join('')}</ul>
     </details>`;
@@ -179,8 +186,8 @@ export function resultsHtml(data, selected, categoryLabels, { debug = false } = 
     const options = ranked.map(j => {
         const c = data.candidates[j];
         return `
-        <option value="${j}"${j === selected ? ' selected' : ''}${c.score == null ? ' disabled' : ''}>
-            ${escapeHtml(c.name)} (${categoryLabels[c.category]}) — ${c.score != null ? `score ${formatDuration(c.score)}` : 'injoignable'}${c.incomplete ? ' · incomplet' : ''}
+        <option value="${j}"${j === selected ? ' selected' : ''}${c.score == null && !c.pending ? ' disabled' : ''}>
+            ${escapeHtml(c.name)} (${categoryLabels[c.category]}) — ${c.score != null ? `score ${formatDuration(c.score)}` : c.pending ? 'à calculer' : 'injoignable'}${c.incomplete ? ' · incomplet' : ''}
         </option>`;
     }).join('');
     const proposals = proposalsOf(data);
@@ -266,7 +273,7 @@ export function zonesHtml(data, result, enumeration, categoryLabels) {
             <td>${formatDuration(p.score)}</td><td>${p.choices.map(choiceText).join(' · ')}</td></tr>`;
         return `<li class="zone-card">
             <h3 class="zone-card-title"><span class="rank-pin rank-pin--zone location-swatch--rank"><span>${rank + 1}</span></span>
-                ${escapeHtml(zone.name)} <span class="location-muted">${zone.places.length} lieu${zone.places.length > 1 ? 'x' : ''}</span></h3>
+                ${escapeHtml(zone.name)} <span class="location-muted">${zone.places.length + zone.unscored.length} lieu${zone.places.length + zone.unscored.length > 1 ? 'x' : ''}</span></h3>
             <p><strong>${escapeHtml(first.name)}</strong> <span class="location-muted">(${categoryLabels[first.category]})</span> :
                 moyenne ${formatDuration(mean)} · le plus long ${formatDuration(Math.max(...trips))}</p>
             <p class="location-muted">${first.choices.map(choiceText).join(' · ')}</p>
@@ -282,7 +289,7 @@ export function zonesHtml(data, result, enumeration, categoryLabels) {
     return `<section class="location-enum">
         <div class="chart-header"><h2 class="chart-title">Par zones (MOTIS local)</h2></div>
         ${result.zones.length ? `<p>${result.estimated} zones estimées, les ${result.exact} meilleures en temps exact,
-            puis tous les lieux des ${result.zones.length} retenues, à au moins ${result.spacing} m l'une de l'autre :
+            puis au plus ${result.perZone} lieux de chacune des ${result.zones.length} retenues, à au moins ${result.spacing} m l'une de l'autre :
             ${result.journeys} trajets bus/métro exacts, ${result.seconds.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} s.
             ${gap != null ? `Par rapport au meilleur lieu du fichier : <strong>${gap >= 30 ? `+${formatDuration(gap)}` : 'équivalent'}</strong>.` : ''}</p>
         <ol class="zone-cards">${result.zones.map(zoneItem).join('')}</ol>`

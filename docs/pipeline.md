@@ -367,3 +367,6 @@ map layers, and the method by zones (`js/debug-motis.js` `scoreZones`, doc `docs
 engine. With the local MOTIS engine, the practical view uses that method too (`evaluateByZones`: same events and
 candidates as the engine's `evaluate`), when no station is picked: each zone's best place is a proposal, with its zone as
 context, and the zone's other places can be chosen in a folded list or, for the chosen place's zone, as small grey pins. A map without options, and another score computes again.
+Within a zone kept, 5 places get exact times: the representative, then each time the place farthest from those picked, as the crow flies (the
+distance to a set being the one to its closest member; `docs/evaluation.md` § A maximum of places). The others are listed without a time: choosing one computes it
+(`scoreZonePlace`: 1 street call per participant and street mode, then 1 `/plan` per transit participant), without changing the proposals.

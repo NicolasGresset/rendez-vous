@@ -42,7 +42,7 @@ export function drawCandidates(layer, candidates, categoryLabels, { selected = n
             zIndexOffset: isSelected ? 1000 : small ? 0 : 500, keyboard: !!onSelect, title: '',
         });
         marker.bindTooltip(tooltip).addTo(layer);
-        if (onSelect && c.score != null && !isSelected) marker.on('click', () => onSelect(j));
+        if (onSelect && (c.score != null || c.pending) && !isSelected) marker.on('click', () => onSelect(j));
     });
 }
 
@@ -173,7 +173,8 @@ export function drawZones(layer, zones, places, kind) {
 export function drawZoneResults(layer, zones, metricLabel) {
     zones.forEach((zone, rank) => {
         const best = zone.places[0];
-        drawZoneShape(layer, zone.places, COLORS.zone, `Zone n° ${rank + 1} : ${escapeHtml(zone.name)} · ${placesCount(zone.places.length)}`);
+        const all = [...zone.places, ...zone.unscored];
+        drawZoneShape(layer, all, COLORS.zone, `Zone n° ${rank + 1} : ${escapeHtml(zone.name)} · ${placesCount(all.length)}`);
         L.marker([best.lat, best.lon], {
             icon: L.divIcon({ className: 'rank-marker', html: `<span class="rank-pin rank-pin--zone"><span>${rank + 1}</span></span>`,
                 iconSize: [26, 26], iconAnchor: [13, Math.round(13 + 26 / Math.SQRT2)], tooltipAnchor: [0, -13] }),

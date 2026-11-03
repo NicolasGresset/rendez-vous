@@ -12,7 +12,7 @@ import { TOULOUSE, createMap, drawCenter, drawCandidates, drawRoute as drawPath,
 import { resultsHtml, enumerationHtml, zonesHtml, choiceText, placeLinks, shareText, proposalsOf, inSameZone, METRIC_LABELS, METRIC_DESCRIPTIONS } from './results.js';
 import { MODE_LABELS, PARTICIPANT_COLORS, escapeHtml } from './labels.js';
 import * as motis from './motis.js';
-import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZones, timeGrid, beginBatch, cancelBatch } from './debug-motis.js';
+import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZonePlace, scoreZones, timeGrid, beginBatch, cancelBatch } from './debug-motis.js';
 
 (function () {
     const form = document.getElementById('location-form');
@@ -797,9 +797,35 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZones, timeGrid, be
         if (current.data.candidates[current.selected]?.id === event.place) drawRoute(event.participant);
     }
 
+    // A place of a zone without times (method by zones): scored now, then shown unless another place
+    // was chosen meanwhile
+    async function scoreThenSelect(j) {
+        const shown = current;
+        const { data } = shown;
+        shown.wanted = j;
+        if (data.candidates[j].computing) return;
+        data.candidates[j].computing = true;
+        data.candidates[j].failed = false;
+        renderResults();
+        try {
+            data.candidates[j] = await scoreZonePlace(data.candidates[j], data.participants, data.slot, data.metric);
+        } catch (err) {
+            if (current !== shown) return; // the result was cleared meanwhile
+            console.error(err);
+            data.candidates[j].computing = false;
+            data.candidates[j].failed = true;
+        }
+        if (current !== shown) return;
+        if (shown.wanted === j && data.candidates[j].score != null) return selectPlace(j);
+        renderResults();
+        drawSelection(false);
+    }
+
     // Show another place; its openrouteservice paths are fetched once, only when it is shown
     async function selectPlace(j) {
+        if (current?.data.candidates[j]?.pending) return scoreThenSelect(j);
         if (!current || j === current.selected || current.data.candidates[j]?.score == null) return;
+        current.wanted = j;
         current.selected = j;
         renderResults();
         drawSelection(false);
@@ -943,12 +969,13 @@ import { enumeratePlaces, evaluateByZones, scorePlaces, scoreZones, timeGrid, be
         }
         case 'result': {
             const reachable = event.candidates.filter(c => c.score != null).length;
+            const evaluated = event.candidates.filter(c => !c.pending).length;
             STEPS.forEach(s => {
                 const li = steps.querySelector(`[data-step="${s.id}"]`);
                 if (s.id !== 'routes' && li.dataset.state !== 'done') setStep(s.id, 'done', s.id === 'result' ? null : '—');
             });
             setStep('result', 'done', event.best != null
-                ? `${reachable}/${event.candidates.length} candidats atteignables par tous`
+                ? `${reachable}/${evaluated} candidats atteignables par tous`
                 : 'aucun lieu retenu');
             state.routesTotal = event.best != null ? event.participants.length : 0;
             state.routesDone = 0;

@@ -377,7 +377,10 @@ the exact journeys, mostly in the worst case. With an engine of one's own, readi
 What stays is the shape of the answer: areas with several places to choose from.
 
 
-### A maximum of places scored exactly per zone (`zone-cap.js`, 2026-11-03, not adopted)
+### A maximum of places scored exactly per zone (`zone-cap.js`, adopted 2026-11-03: 5 places, farthest first)
+
+The zone's other places stay listed and are scored when chosen; the proposals and their order do not change then. Measured in the page (T1,
+3 participants, restaurants, local MOTIS on this PC, no network): ~0.2 s from the click to the place shown, 2 stages of calls (street times, then transit journeys).
 
 Idea of the user: in the third phase, at most 4 places besides the representative, already exact. Picked farthest first (each time the
 place farthest from those picked, as the crow flies, the distance to a set being the one to its closest member; Gonzalez's k-center

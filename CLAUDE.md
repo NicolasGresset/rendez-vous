@@ -161,11 +161,10 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
 - Participants (decided 2026-11-02): 5 at most with the public services, whose quota is shared; 10 with the local MOTIS.
 - Links to stops (decided 2026-11-02): no link to their OSM page, a marker there and a Google Maps text search (kind,
   name, city), checked on Carmes. OSM has several points per bus stop; 36 of the 37 metro stations would match.
-- Zones kept (stated by the user 2026-11-02: good engineering, `docs/evaluation.md` § What the zones bring). Idea of the user, not
-  done: a maximum of members per zone, to bound the third phase; the user proposes the representative + 4 places, picked farthest first (each
+- Zones kept (stated by the user 2026-11-02: good engineering, `docs/evaluation.md` § What the zones bring). Maximum of places per zone
+  (decided by the user 2026-11-03, measured by `scripts/eval/zone-cap.js`): the representative + 4 places picked farthest first (each
   time the place farthest from those picked, the distance to a set being the one to its closest member), not the closest ones, which would
-  mostly repeat the same destination. Measured 2026-11-03 against every place (`scripts/eval/zone-cap.js`, `docs/evaluation.md` § A maximum of
-  places): to be decided by the user, then what to show of a zone's places without exact times.
+  mostly repeat the same destination. The zone's other places stay listed, their times computed when chosen; the proposals do not change then.
 - Later (stated by the user 2026-11-02): on the home server, maybe an engine of one's own instead of MOTIS, doing only what is
   needed; the user has ideas on the transit times.
 - Tuned on Toulouse's bars, to do again elsewhere (stated by the user, 2026-11-02): the 5 min on foot of
@@ -189,7 +188,7 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   accepted, lone bars are zones, no bonus for richer zones, names 100 % automatic (closest metro / bus stop,
   then street). The method, coarse then finer (the user likes this hierarchy: geographic and in
   computing time, not brute force, so that the service scales): every zone's representative estimated (MOTIS one-to-many,
-  one forward search per participant, leaving 60 min before the meeting time; no center nor radius), the 20 best exact, the best 3 zones at least 500 m apart, then every place of these 3
+  one forward search per participant, leaving 60 min before the meeting time; no center nor radius), the 20 best exact, the best 3 zones at least 500 m apart, then at most 5 places of each of these 3
   exact. Cafés and restaurants get zones the same way. The geometric median was measured worse on the
   équitable score, not adopted. Practical view (2026-11-02, MOTIS engine only, so not visible online until the home server): proposes each zone's best
   place, its zone as context, no address (stated by the user), the zone's other places folded and selectable, also as small grey pins for the zone of the chosen place only, whose proposal stays pressed (`evaluateByZones`); with stations (no

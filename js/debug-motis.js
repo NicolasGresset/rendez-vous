@@ -23,6 +23,9 @@ const ZONE_ESTIMATE_LEAD_MIN = 60; // the estimate leaves this long before the m
 // Between the zones kept: neighbouring zones are often the best 3. Measured on Toulouse's bars: the
 // value is to be measured again on other data (docs/evaluation.md § Around which center)
 const ZONE_SPACING_M = 500;
+// Places of a zone kept scored exactly, its representative included; the others are scored when chosen
+// (docs/evaluation.md § A maximum of places)
+const ZONE_EXACT_PLACES = 5;
 
 // The running batch of calls of this file, cancelled when its result is no longer wanted: a
 // computation still running must not keep the page waiting for it
@@ -97,11 +100,25 @@ async function exactTransit(participants, places, indices, slot, onProgress, kee
     return pairs.length;
 }
 
+// At most `count` of the places, spread around the representative: each time the one farthest from those
+// picked, as the crow flies, the distance to a set being the one to its closest member
+function farthestFirst(representative, places, count) {
+    const picked = [];
+    const left = new Map(places.map(p => [p, haversine(representative, p)]));
+    while (picked.length < count && left.size) {
+        const [next] = [...left].reduce((far, entry) => (entry[1] > far[1] ? entry : far));
+        picked.push(next);
+        left.delete(next);
+        left.forEach((d, p) => left.set(p, Math.min(d, haversine(next, p))));
+    }
+    return picked;
+}
+
 // The method with the zones of the data file (scripts/build-zones.js), coarse then finer: every
 // zone's representative estimated (one search per participant, not per zone), the ZONE_SHORTLIST best exact, the PROPOSALS best zones at least
-// ZONE_SPACING_M apart, then every place of these zones exact; a zone's best place makes its rank.
+// ZONE_SPACING_M apart, then ZONE_EXACT_PLACES places of each of these zones exact; a zone's best of them makes its rank.
 // Stations have no zones. No richer zone is favoured. Returns null without bars, cafés nor restaurants, or
-// { zones: [{ kind, name, lat, lon, places: best first }], spacing, estimated, exact, journeys, seconds }
+// { zones: [{ kind, name, lat, lon, places: best first, unscored: places without times }], spacing, perZone, estimated, exact, journeys, seconds }
 export async function scoreZones(participants, categories, slot, data, metric, onProgress) {
     const kinds = categories.filter(c => c !== 'station');
     if (!kinds.length) return null;
@@ -139,8 +156,9 @@ export async function scoreZones(participants, categories, slot, data, metric, o
         }
     }
 
-    // Second round: the other places of the zones kept, the representatives' times being known
-    const others = kept.flatMap(rep => members[rep.zone].filter(p => p.id !== rep.id).map(p => toScore(p, participants)));
+    // Second round: other places of the zones kept, the representatives' times being known
+    const others = kept.flatMap(rep => farthestFirst(rep, members[rep.zone].filter(p => p.id !== rep.id), ZONE_EXACT_PLACES - 1))
+        .map(p => toScore(p, participants));
     onProgress(`zones : ${others.length} autres lieux des ${kept.length} meilleures…`);
     if (others.length) {
         await streetTimes(participants, others);
@@ -151,14 +169,15 @@ export async function scoreZones(participants, categories, slot, data, metric, o
     const zones = kept.map(rep => ({
         ...data.zones[rep.zone],
         places: ranking.map(j => scored[j]).filter(p => p.zone === rep.zone),
+        unscored: members[rep.zone].filter(p => !scored.some(s => s.id === p.id)),
     })).sort((a, b) => a.places[0].score - b.places[0].score);
-    return { zones, spacing: ZONE_SPACING_M, estimated: reps.length, exact: shortlist.length, journeys,
+    return { zones, spacing: ZONE_SPACING_M, perZone: ZONE_EXACT_PLACES, estimated: reps.length, exact: shortlist.length, journeys,
         seconds: (performance.now() - started) / 1000 };
 }
 
 // The method by zones as a computation of the engine (engine.js evaluate: same events, same
 // candidates): the candidates are the places of the zones kept, each zone's best first (the
-// proposals), each with its `zoneInfo`. Stops at the first failed journey; cancelled by cancelBatch
+// proposals), each with its `zoneInfo`. Then the zones' places without times, `pending` until chosen (scoreZonePlace). Stops at the first failed journey; cancelled by cancelBatch
 export async function evaluateByZones({ participants, slot, categories, metric }, data, calls, emit) {
     beginBatch();
     const base = computationBase(participants, slot);
@@ -167,21 +186,38 @@ export async function evaluateByZones({ participants, slot, categories, metric }
         text => emit({ type: 'zones', text }));
     const places = found.zones.map(zone => zone.places).sort((a, b) => a[0].score - b[0].score);
     const inOrder = [...places.map(list => list[0]), ...places.flatMap(list => list.slice(1))];
-    const candidates = inOrder.map(p => toCandidate(p, participants, data));
+    const candidates = inOrder.map(p => toCandidate(p, participants, zoneInfo(p, data)));
     const ranking = candidates.map((_, j) => j);
     const best = candidates.length ? 0 : null;
-    emit({ type: 'result', ...base, candidates, ranking, proposals: ranking.slice(0, places.length), best, metric });
+    const pending = found.zones.flatMap(zone => zone.unscored.map(p => (
+        { ...p, score: null, pending: true, incomplete: false, zoneInfo: zoneInfo(p, data) })));
+    emit({ type: 'result', ...base, candidates: [...candidates, ...pending], ranking, proposals: ranking.slice(0, places.length), best, metric });
     if (best != null) await placeRoutes(participants, candidates[best], {}, calls, emit, 'motis');
     emit({ type: 'done' });
 }
 
+// A pending place of a zone (evaluateByZones), now chosen: the candidate with its times, score null when
+// someone cannot reach it
+export async function scoreZonePlace(pending, participants, slot, metric) {
+    beginBatch();
+    const place = toScore(pending, participants);
+    await streetTimes(participants, [place]);
+    await exactTransit(participants, [place], [0], slot, () => {}, true);
+    scorePlaces([place], metric, participants.map(p => p.people));
+    return { ...toCandidate(place, participants, pending.zoneInfo), pending: false, computing: false };
+}
+
+const zoneInfo = (p, data) => {
+    const { name, kind } = data.zones[p.zone];
+    return { index: p.zone, name, kind };
+};
+
 // A place scored here in the shape of the engine's candidates
-function toCandidate(p, participants, data) {
+function toCandidate(p, participants, info) {
     const times = p.times.map((modeTimes, i) => Object.fromEntries(Object.entries(modeTimes).map(([mode, seconds]) =>
         [mode, mode === 'transit' ? { seconds, trip: p.trips[i] } : { seconds }])));
-    const { name, kind } = data.zones[p.zone];
-    return { ...p, times, incomplete: false, zoneInfo: { index: p.zone, name, kind },
-        total: p.choices.reduce((sum, c, i) => sum + participants[i].people * c.seconds, 0) };
+    return { ...p, times, incomplete: false, zoneInfo: info,
+        total: p.score == null ? null : p.choices.reduce((sum, c, i) => sum + participants[i].people * c.seconds, 0) };
 }
 
 // Each place's fastest time per participant ({ mode, seconds } or null) and score for the metric
