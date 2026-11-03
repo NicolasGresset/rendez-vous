@@ -38,7 +38,8 @@ This file is excluded from the deployment (`.vercelignore`) but versioned on Git
 - Tests and CI (2026-11-03): `npm test` = ESLint, `tests/unit` (`node:test`, no dependency), `tests/e2e` (Playwright, Firefox and a
   phone-sized Chrome here; a phone-sized Safari on GitHub only, WebKit needing system libraries, and no sudo here). No API call, map
   tiles included; any page error or CSP violation fails a test. `.github/workflows/ci.yml` runs them on every push (actions pinned by
-  commit). `package.json` is for development tools only (`dependencies` stays empty, a test checks it), kept out of the deployment
+  commit). Vercel's Deployment Checks (set by the user, tried 2026-11-03: a failing test kept production as it was, then a passing commit reached it about 2 min after the push) require the jobs
+  `lint-and-unit` and `browser-tests`: renaming a job means updating them in Vercel's settings. A push on `main` is thus live only once they pass; Force Promote on the deployment's page bypasses them. `package.json` is for development tools only (`dependencies` stays empty, a test checks it), kept out of the deployment
   (`.vercelignore`). **A bug fixed or a behaviour added comes with a test; check a new test can fail by breaking the code once.** MOTIS features and
   `scripts/eval` are not in CI (they need local data). `npm audit`: 5 moderate, all from `minimatch` inside ESLint (a tool, not deployed; `--force` would downgrade ESLint to 4).
 - Ad hoc browser scenarios and screenshots: headless Firefox (`/snap/bin/firefox`) against the dev server, driven through

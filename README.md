@@ -63,8 +63,8 @@ npm test                                      # lint, unit tests (tests/unit), b
 ```
 
 They make no API call: the browser tests replay a recorded computation. On GitHub
-(`.github/workflows/ci.yml`) every push runs them, on a phone-sized Safari too; Vercel's Deployment Checks can
-hold production until they pass (jobs `lint-and-unit` and `browser-tests`).
+(`.github/workflows/ci.yml`) every push runs them, on a phone-sized Safari too; Vercel's Deployment Checks hold
+production until they pass (jobs `lint-and-unit` and `browser-tests`).
 
 Development scripts (not deployed):
 
