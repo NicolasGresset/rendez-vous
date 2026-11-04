@@ -36,18 +36,7 @@
 /* =============================================
    LOCATION (meeting point prototype)
    ============================================= */
-.location-banner {
-    margin-bottom: 1.5rem;
-    padding: 0.75rem 1rem;
-    border: 1px solid var(--color-orange);
-    border-radius: var(--radius-lg);
-    background: var(--color-warning-bg);
-    color: var(--color-warning-text);
-    font-family: var(--font-mono);
-    font-size: var(--text-sm);
-}
-
-/* Warning inside the results: same look as the banner */
+/* Warning inside the results */
 .location-warning {
     margin: 0.5rem 0 1rem;
     padding: 0.5rem 0.75rem;
@@ -58,7 +47,7 @@
     font-size: var(--text-md);
 }
 
-/* Keys: one compact line with their state, the form only when unfolded */
+/* Settings: one compact line, the rest only when unfolded */
 .location-keys {
     margin-bottom: 1.5rem;
     padding-block: 0;
@@ -71,12 +60,10 @@
     padding-block: 0.65rem;
     cursor: pointer;
 }
-.location-keys-form { display: grid; gap: 0.9rem; margin-top: 1rem; max-width: 40rem; font-size: var(--text-md); }
-.location-keys-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
-/* Settings below the keys: transit engine, number of candidates (a digit: a narrow list) */
+/* Number of candidates (a digit: a narrow list) */
 .location-candidates { margin-top: 0.25rem; }
 .location-field.location-candidates select { width: 5rem; align-self: start; }
-/* The transit engine, below the keys */
+/* The transit engine */
 .location-keys .location-categories { margin-top: 1rem; border-top: 1px solid var(--color-border); }
 
 .page-header--compact {
@@ -453,9 +440,8 @@
 .location-button:disabled { opacity: 0.5; cursor: default; }
 .chip:has(input:checked),
 .location-button--primary { color: var(--color-on-accent); background: var(--color-accent); border-color: var(--color-accent); }
-.location-button--primary:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--color-accent-light); }
+.location-button--primary:hover:not(:disabled) { background: var(--color-accent-light); }
 /* Blocked: looks disabled but stays clickable, to say why */
-.location-button[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 /* Square button holding an icon, as tall as an input */
 .location-button--icon {
     display: grid;

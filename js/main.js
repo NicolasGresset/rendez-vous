@@ -1,9 +1,9 @@
-// main.js - Meeting point finder, entirely in the browser: the user's API keys and settings
+// main.js - Meeting point finder, in the browser, the site's relays holding the API keys: the settings
 // (practical or debug view, score), the form's submission and the computation's events,
 // API call counters, the results, and the glue between the engine and the page's other modules.
 
 import { loadData, evaluate, placeRoutes, rankCandidates } from './engine.js';
-import { loadKeys, saveKeys, clearKeys, loadSettings, saveSettings } from './keys.js';
+import { loadSettings, saveSettings } from './keys.js';
 import { slotPicker } from './slots.js';
 import { createMap, drawCenter, drawCandidates, drawRoute as drawPath } from './map.js';
 import { resultsHtml, enumerationHtml, zonesHtml, choiceText, placeLinks, shareText, proposalsOf, inSameZone, METRIC_DESCRIPTIONS } from './results.js';
@@ -22,9 +22,8 @@ import { createDebugView } from './debug-view.js';
     // Public services (Transitous' quota is shared, a journey per participant and place): 5; local MOTIS: 10
     const MAX_PARTICIPANTS = { motis: 10, other: 5 };
     const ORS_MODES = ['walk', 'bike', 'car'];
-    // Modes checked for every new participant: without an openrouteservice key, only those it
-    // does not need, so that a first visit can run at once
-    const defaultModes = () => (keys.ors ? ['walk', 'transit'] : ['transit']);
+    // Modes checked for every new participant
+    const defaultModes = () => ['walk', 'transit'];
     // Plurals of the candidate categories; every category's label comes with the data
     const CATEGORY_PLURALS = {
         'amenity=bar': 'bars', 'amenity=pub': 'pubs', 'amenity=biergarten': 'biergartens', 'amenity=cafe': 'cafés',
@@ -34,7 +33,6 @@ import { createDebugView } from './debug-view.js';
     const slot    = document.getElementById('slot');
     const status  = document.getElementById('location-status');
     const results = document.getElementById('location-results');
-    const banner  = document.getElementById('location-banner');
     const callsEl = document.getElementById('location-calls');
     const layout  = document.querySelector('.location-layout');
 
@@ -49,39 +47,15 @@ import { createDebugView } from './debug-view.js';
         status.hidden = !text;
     }
 
-    // ---- API keys (stored only in this browser) and the banner they drive ----
-    const keysPanel  = document.getElementById('keys-panel');
-    const keysForm   = document.getElementById('keys-form');
-    const keysStatus = document.getElementById('keys-status');
-    const orsInput   = document.getElementById('ors-key');
-    const tisseoInput = document.getElementById('tisseo-key');
     // The transit engine is picked in the settings panel, outside the participants form
     const engineInput = value => document.querySelector(`[name="transit-engine"][value="${value}"]`);
     // Reloading, Firefox restores the radios as they were: with the local MOTIS checked, whose radio
     // is only added later, none is checked here
-    if (!document.querySelector('[name="transit-engine"]:checked')) engineInput('transitous').checked = true;
-    const tisseoEngine = engineInput('tisseo');
-    const engineHint = document.getElementById('transit-engine-hint');
+    if (!document.querySelector('[name="transit-engine"]:checked')) engineInput('tisseo').checked = true;
     const candidateCount = document.getElementById('candidate-count');
     const scoreDescription = document.getElementById('score-description');
     const ENGINE_NAMES = { transitous: 'Transitous', tisseo: 'Tisséo', motis: 'MOTIS local' };
     let motisReady = false; // a local MOTIS answers through the dev server (debug view, motis.js)
-    let keys = loadKeys();
-
-    function showKeys(message) {
-        orsInput.value = keys.ors || '';
-        tisseoInput.value = keys.tisseo || '';
-        // Folded: no key is needed for a bus/metro computation (the banner says when one is)
-        const saved = [keys.ors && 'openrouteservice', keys.tisseo && 'Tisséo'].filter(Boolean);
-        keysStatus.textContent = message || (saved.length
-            ? `Clé${saved.length > 1 ? 's' : ''} ${saved.join(' et ')} enregistrée${saved.length > 1 ? 's' : ''} (dans ce navigateur uniquement).`
-            : 'Aucune clé enregistrée.');
-        // Tisséo needs the visitor's own key; without it, back to Transitous
-        tisseoEngine.disabled = !keys.tisseo;
-        if (!keys.tisseo && tisseoEngine.checked) engineInput('transitous').checked = true;
-        engineHint.textContent = keys.tisseo ? '' : 'Tisséo : saisissez votre clé ci-dessus.';
-        updateSubmit();
-    }
 
     // Under the criteria, only the picked one's explanation
     function showScoreDescription() {
@@ -108,40 +82,7 @@ import { createDebugView } from './debug-view.js';
             candidates: candidateCount.value });
     }
 
-    // openrouteservice computes walking, cycling and driving only: without its key, a computation
-    // with bus/metro participants only can still run. Returns why it cannot, or null
-    function submitBlocker() {
-        if (checkedValue('transit-engine') === 'motis') return null; // street times from MOTIS too
-        const needsOrs = participantForm.usedModes().some(mode => ORS_MODES.includes(mode));
-        return needsOrs && !keys.ors
-            ? 'La marche, le vélo et la voiture sont calculés par openrouteservice : saisissez votre clé dans les réglages, ou ne gardez que bus/métro.'
-            : null;
-    }
-
-    // A blocked button stays clickable (a disabled one gets no hover, and phones have none):
-    // its title and the banner say why, and a click opens the keys panel
     const maxParticipants = () => MAX_PARTICIPANTS[checkedValue('transit-engine') === 'motis' ? 'motis' : 'other'];
-
-    function updateSubmit() {
-        const reason = submitBlocker();
-        const submit = form.querySelector('[type="submit"]');
-        submit.setAttribute('aria-disabled', reason ? 'true' : 'false');
-        submit.title = reason || '';
-        banner.hidden = !reason;
-        banner.textContent = reason || '';
-    }
-
-    keysForm.addEventListener('submit', e => {
-        e.preventDefault();
-        const persisted = saveKeys({ ors: orsInput.value.trim(), tisseo: tisseoInput.value.trim() });
-        keys = loadKeys();
-        showKeys(persisted ? null : 'Stockage local indisponible : clé gardée jusqu\'à la fermeture de la page.');
-    });
-    document.getElementById('keys-clear').addEventListener('click', () => {
-        clearKeys();
-        keys = {};
-        showKeys('Clés effacées de ce navigateur.');
-    });
 
     // ---- External API calls: last computation and whole session (since the page was loaded) ----
     const session = { geocode: 0, orsMatrix: 0, orsDirections: 0, transitous: 0, tisseo: 0, motis: 0 };
@@ -220,7 +161,6 @@ import { createDebugView } from './debug-view.js';
 
     const participantForm = createParticipants({ map, finePointer, getData, defaultModes, maxParticipants, scrollToSection, setStatus,
         onStale: clearResults,
-        onChange: updateSubmit,
         onGeocode: () => {
             session.geocode++;
             renderCalls();
@@ -306,7 +246,7 @@ import { createDebugView } from './debug-view.js';
         shown.routes.set(place.id, new Map());
         const before = lastRun.orsDirections;
         try {
-            await placeRoutes(shown.data.participants, place, keys, lastRun, event => {
+            await placeRoutes(shown.data.participants, place, lastRun, event => {
                 if (current !== shown) return;
                 if (event.orsQuota) orsQuota.directions = event.orsQuota;
                 storeRoute(event);
@@ -478,7 +418,6 @@ import { createDebugView } from './debug-view.js';
     [candidateCount, document.getElementById('transit-engine')].forEach(input => input.addEventListener('change', () => {
         storeSettings();
         clearResults();
-        updateSubmit();
         participantForm.refresh();
     }));
     document.getElementById('score-metric').addEventListener('change', () => {
@@ -495,11 +434,6 @@ import { createDebugView } from './debug-view.js';
 
     form.addEventListener('submit', async e => {
         e.preventDefault();
-        const reason = submitBlocker();
-        if (reason) {
-            keysPanel.open = true;
-            return setStatus(reason);
-        }
         const submit = form.querySelector('[type="submit"]');
         let participants;
         try {
@@ -538,7 +472,7 @@ import { createDebugView } from './debug-view.js';
             // that have zones; the debug view compares it with the tool's below
             const byZones = input.transitEngine === 'motis' && !isDebug() && !categories.includes('station');
             if (byZones) await evaluateByZones(input, data, lastRun, onEvent);
-            else await evaluate({ ...input, signal }, keys, data, lastRun, onEvent);
+            else await evaluate({ ...input, signal }, data, lastRun, onEvent);
             if (input.transitEngine === 'motis' && isDebug() && current) {
                 await debugView.compute(input, data, state);
             }
@@ -565,14 +499,12 @@ import { createDebugView } from './debug-view.js';
     restoreSettings();
     showScoreDescription();
     applyView();
-    showKeys();
     motis.available().then(ok => {
         if (!ok) return;
         motisReady = true;
         document.querySelector('#transit-engine .chips').insertAdjacentHTML('beforeend',
             '<label class="chip"><input type="radio" name="transit-engine" value="motis"><span>MOTIS local (debug)</span></label>');
         if (loadSettings().engine === 'motis') engineInput('motis').checked = true;
-        updateSubmit();
         participantForm.refresh();
         renderCalls();
         return debugView.setup();

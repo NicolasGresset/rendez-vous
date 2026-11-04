@@ -31,16 +31,17 @@ globalThis.fetch = async (input, init = {}) => {
     if (url === 'data/pois-toulouse.json') return new Response(fs.readFileSync(DATA_URL));
     if (url.startsWith(MOTIS_URL)) return realFetch(input, init);
     if (url.startsWith('https://api.transitous.org/')) return realFetch(url.replace('https://api.transitous.org', MOTIS_URL), init);
-    const matrix = url.match(/^https:\/\/api\.openrouteservice\.org\/v2\/matrix\/([\w-]+)$/);
+    const relayed = url === '/api/ors' ? JSON.parse(init.body) : null;
+    const matrix = relayed?.path.match(/^matrix\/([\w-]+)$/);
     if (matrix) {
         const mode = { 'foot-walking': 'walk', 'cycling-regular': 'bike', 'driving-car': 'car' }[matrix[1]];
-        const { locations, sources, destinations } = JSON.parse(init.body);
+        const { locations, sources, destinations } = relayed.body;
         const point = ([lon, lat]) => ({ lat, lon });
         const targets = destinations.map(k => point(locations[k]));
         const durations = await Promise.all(sources.map(k => streetDurations(mode, point(locations[k]), targets)));
         return reply({ durations });
     }
-    if (url.startsWith('https://api.openrouteservice.org/')) return reply({ error: 'not in the evaluation' }, 503);
+    if (relayed) return reply({ error: 'not in the evaluation' }, 503);
     throw new Error(`unexpected fetch: ${url}`);
 };
 // evaluate() logs the refused directions; nothing else is expected there
@@ -54,7 +55,7 @@ async function runTool(testCase, configName, categories, data) {
     const calls = { orsMatrix: 0, orsDirections: 0, transitous: 0, tisseo: 0 };
     let result = null;
     await evaluate({ participants, slot: SLOT, categories, transitEngine: 'transitous', metric: 'mean' },
-        { ors: 'evaluation' }, data, calls, event => { if (event.type === 'result') result = event; });
+        data, calls, event => { if (event.type === 'result') result = event; });
     return { participants, result, calls };
 }
 

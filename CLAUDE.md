@@ -21,7 +21,7 @@ This file is excluded from the deployment (`.vercelignore`) but versioned on Git
 
 ## Layout
 
-- Vanilla HTML/CSS/JS, no build step, no server code: `index.html` (the tool) and `legal.html` (legal
+- Vanilla HTML/CSS/JS, no build step, no server code but the two temporary relays of `api/` (see the trial in Open topics): `index.html` (the tool) and `legal.html` (legal
   notice and privacy), each with its static navigation and footer. Styles: `css/fonts.css`,
   `css/base.css` (variables, navigation, footer, cards), then `css/rendez-vous.css` or `css/legal.css`.
   Code and CSS classes keep the tool's former `location` name (`location-*` classes, `location.*`
@@ -141,6 +141,10 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
 
 ## Open topics (update when they move)
 
+- Trial with a friend, until Sunday 2026-11-08 (asked by the user 2026-11-04): visitors enter no key, Tisséo is the default engine and
+  the Vercel Functions `api/ors.mjs` and `api/tisseo.mjs` add the user's keys (`OPENROUTESERVICE_API_KEY`, `TISSEO_API_KEY` in Vercel's
+  settings; the repository is public, so never in the code). Anyone can call them: quotas are the only limit. **Temporary: to undo
+  afterwards** (remove the two variables, revert the commit). Where this file still says the key is the visitor's, it describes the state to return to.
 - Extracted from the portfolio on 2026-10-30 (`git filter-repo`, 52 commits kept; early commits
   lack their styles, which lived in the portfolio's shared `css/style.css`). Pushed; Vercel project
   and DNS done, live at `rendez-vous.gresset-bourgeois.fr` (stated 2026-11-02). The portfolio (`~/repos/personal_web_page`) has

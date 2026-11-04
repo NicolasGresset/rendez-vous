@@ -59,9 +59,9 @@ function rowHtml(uid, checkedModes) {
 // map: the Leaflet map, finePointer: a computer's mouse or touchpad (keyboard flow between the fields,
 // draggable points), getData: the places file, defaultModes() and maxParticipants(): settings of the
 // moment, scrollToSection and setStatus: of the page, onStale(): a change makes the displayed result
-// stale, onChange(): the rows or their modes changed, onGeocode(): a geocoding call is made
+// stale, onGeocode(): a geocoding call is made
 export function createParticipants({ map, finePointer, getData, defaultModes, maxParticipants, scrollToSection, setStatus,
-    onStale, onChange, onGeocode }) {
+    onStale, onGeocode }) {
     const form = document.getElementById('location-form');
     const list = document.getElementById('participants');
     const addBtn = document.getElementById('add-participant');
@@ -303,7 +303,6 @@ export function createParticipants({ map, finePointer, getData, defaultModes, ma
             updateMarker(row);
         });
         addBtn.hidden = list.children.length >= maxParticipants();
-        onChange();
     }
 
     // The people stepper, opened from its chip, folds again when the focus leaves it with one person
@@ -325,7 +324,6 @@ export function createParticipants({ map, finePointer, getData, defaultModes, ma
     list.addEventListener('change', e => {
         if (e.target.name === 'people') return setPeople(e.target.closest('.participant'), e.target.value);
         if (e.target.name !== 'modes') return;
-        onChange();
         onStale();
     });
 
@@ -393,7 +391,6 @@ export function createParticipants({ map, finePointer, getData, defaultModes, ma
         fit: fitParticipants,
         markerOf: row => participantMarkers.get(row),
         unbindPopups: () => participantMarkers.forEach(m => m.unbindPopup()),
-        usedModes: () => [...list.querySelectorAll('[name="modes"]:checked')].map(c => c.value),
         // The first cards of the page; those left untouched are ignored
         start(count) {
             const rows = Array.from({ length: count }, addParticipant);

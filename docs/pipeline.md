@@ -1,9 +1,10 @@
 # Rendez-vous — processing pipeline
 
 How the meeting point finder (`index.html`; code in `js/`) turns participants into a
-ranked list of places. Everything runs in the browser: Vercel only serves static files, and the
-keys (openrouteservice, needed only when a participant walks, cycles or drives; Tisséo, optional) are the user's own, kept in `localStorage`
-(key `location.apiKeys`), like the settings (`location.settings`: view, score, number of candidates, transit engine).
+ranked list of places. Everything runs in the browser, except two small Vercel Functions (`api/ors.mjs`, `api/tisseo.mjs`)
+that relay the page's openrouteservice and Tisséo calls with the author's keys (`OPENROUTESERVICE_API_KEY`, `TISSEO_API_KEY`
+in Vercel's settings, never in the repository or the page). Temporary, for a friend to try the tool until 2026-11-08: visitors
+enter no key. The settings stay in `localStorage` (`location.settings`: view, score, number of candidates, transit engine).
 
 Participants have no name field (removed 2026-10-29): they are "participant 1, 2…", with a color each,
 shown as a disc in their color with their number (the label is kept for screen readers). The
@@ -76,15 +77,15 @@ flowchart TB
 
     subgraph BROWSER["In the browser (js/)"]
         direction TB
-        KEY[("ORS key<br/>localStorage")]:::user
         INPUT["Participants (2 to 5, 10 with the local MOTIS): position + modes<br/>people (1 by default)<br/>(walk and transit checked by default)<br/>Meeting time (quarter hours, today, Europe/Paris)<br/>Place types: stations / bars / restaurants"]:::user
         SEARCH["2. Address search"]
         ENGINE["3. Computation (engine.js)"]
         RESULT["4. Result: chosen place,<br/>trip details, map paths"]
         INPUT --> SEARCH --> ENGINE --> RESULT
-        KEY --> ENGINE
     end
 
+    KEY[("Relays api/ors.mjs, api/tisseo.mjs<br/>(Vercel Functions, the author's keys)")]:::api
+    ENGINE --> KEY
     DATA --> SEARCH
     DATA --> ENGINE
 ```
@@ -194,7 +195,7 @@ flowchart TB
 
     subgraph TRANSIT["Transit (engine picked in the page)"]
         PLAN[("Transitous /api/v6/plan (default)<br/>1 call per transit participant x candidate,<br/>3 at a time; arriveBy = meeting time + 10 min;<br/>maxItineraries=5, detailedTransfers=false")]:::api
-        TISSEO[("Tisséo /v2/journeys.xml (user's key)<br/>2 calls per participant x candidate, 6 at a time:<br/>4 journeys leaving 1 h before meeting time + 10 min,<br/>then 4 leaving (shortest travel time + 10 min) before it")]:::api
+        TISSEO[("Tisséo /v2/journeys.xml (through api/tisseo.mjs)<br/>2 calls per participant x candidate, 6 at a time:<br/>4 journeys leaving 1 h before meeting time + 10 min,<br/>then 4 leaving (shortest travel time + 10 min) before it")]:::api
         WINDOW["keep journeys arriving by meeting time + 10 min;<br/>time = journey + wait until the meeting time<br/>when arriving early (walking included);<br/>shortest time wins, then latest departure"]:::algo
         RETRY["technical failure: 1 retry after 2 s;<br/>failing twice = journey failed,<br/>its candidate is 'incomplete'"]:::algo
         WINDOW --- RETRY
@@ -259,8 +260,8 @@ sequenceDiagram
 |---|---|---|
 | openrouteservice matrix | `M` ≤ 3 | 50 / day (free plan) |
 | openrouteservice directions | ≤ `P` for the chosen place, + ≤ `P` per other place shown | 200 / day (free plan) |
-| Transitous plan | `T` × `C` ≤ 40 | > 720 / 24 h: coordinate with Transitous |
-| Tisséo journeys (instead of Transitous) | 2 × `T` × `C` ≤ 80 | per key, monitored by Tisséo; paid beyond thresholds if they ever set some |
+| Tisséo journeys (default) | 2 × `T` × `C` ≤ 80 | per key (all visitors share the author's), monitored by Tisséo; paid beyond thresholds if they ever set some |
+| Transitous plan (instead of Tisséo) | `T` × `C` ≤ 40 | > 720 / 24 h: coordinate with Transitous |
 | Géoplateforme completion | 1 per pause while typing (≥ 3 chars) | none stated |
 | Géoplateforme reverse | 1 per "ma position actuelle", map click or drag of a point | none stated |
 | Local data | 0 (one static file, loaded once) | — |
@@ -281,15 +282,13 @@ Tuesday (Tisséo only): the same best journey as ~29 journeys over 3 h, on every
 `timetableView=false` would be ~8x lighter but returns only the latest-arriving journey, worse on
 7/12 trips (up to +14 min) since it drops faster journeys arriving early.
 
-openrouteservice note (checked 2026-10-28): a refused key gets a 403 without CORS headers, so the
-browser only sees a network error; the page then says "openrouteservice injoignable, clé refusée ou
-quota dépassé" (an exceeded quota, 429, probably looks the same; not checked).
+Relays: the page POSTs `{ path, body }` to `/api/ors` and the journey fields to `/api/tisseo` (a POST, so that positions
+stay out of the request logs). They let through only the services and fields the page uses, relay the openrouteservice quota
+headers, and never relay an error's body, which might repeat the key. A key refused or not configured reaches the page as a
+401 or 403, and the computation stops with "Clé … refusée". Nothing limits who calls them: the quotas are the only limit. To
+end the trial: remove the two variables in Vercel, or revert the commit.
 
-Tisséo API notes (checked 2026-10-28): CORS headers only on XML answers (none on JSON), hence
-`journeys.xml` read with `DOMParser`; a refused key answers 403 without CORS headers, so the
-browser only sees a network error, like a passing network failure: it is tried again once, and a
-second network error stops the computation as a refused key (an explicit 401/403 stops it at once);
-no arrival-time search, hence the two calls; Tisséo network
+Tisséo API notes (checked 2026-10-28): `journeys.xml` read with `DOMParser`; no arrival-time search, hence the two calls; Tisséo network
 only (no TER, no liO coaches); it gives no count of stops travelled.
 
 ## 5. Data sources and licences
@@ -299,9 +298,9 @@ only (no TER, no liO coaches); it gives no count of stops travelled.
 | Bars, restaurants, companies, shops, schools… | OpenStreetMap via Geofabrik, data of 2026-10-27 | ODbL |
 | Metro stations, bus stops | Tisséo GTFS, 2026-10-28 | ODbL |
 | Place addresses | OpenStreetMap, else IGN Géoplateforme (Base Adresse Nationale), 2026-10-28 | ODbL / Licence Ouverte |
-| Transit journeys | Transitous (networks' open GTFS) | open-source, non-commercial, light use |
-| Transit journeys (optional) | Tisséo API v2, with the visitor's own key | ODbL; a key in a web page is accepted by Tisséo (developer documentation § 2.7) |
-| Walk, bike, car | openrouteservice | free plan, user's own key |
+| Transit journeys (default) | Tisséo API v2, with the author's key | ODbL |
+| Transit journeys (optional) | Transitous (networks' open GTFS) | open-source, non-commercial, light use |
+| Walk, bike, car | openrouteservice | free plan, the author's key |
 | Map tiles | OpenStreetMap | tile usage policy |
 
 ## 6. Place categories

@@ -20,11 +20,11 @@ const RETRY_DELAY_MS = 2000; // a transit journey failing for a technical reason
 // journeys computed in parallel. Transitous slows down beyond 3; Tisséo answered 6 in parallel
 // without slowing down (2026-10-28)
 const TRANSIT_ENGINES = {
-    transitous: { trip: (keys, onCall, from, to, arriveFrom, arriveTo, signal) => (onCall(), transitTrip(from, to, arriveFrom, arriveTo, undefined, signal)), parallel: 3 },
-    tisseo:     { trip: (keys, onCall, ...args) => tisseoTrip(keys.tisseo, onCall, ...args), parallel: 6 },
+    transitous: { trip: (onCall, from, to, arriveFrom, arriveTo, signal) => (onCall(), transitTrip(from, to, arriveFrom, arriveTo, undefined, signal)), parallel: 3 },
+    tisseo:     { trip: tisseoTrip, parallel: 6 },
     // Debug view only (dev server and local MOTIS, motis.js): walk, bike and car times and paths
     // come from it too, instead of openrouteservice
-    motis:      { trip: (keys, onCall, ...args) => (onCall(), motis.trip(...args)), parallel: 8 },
+    motis:      { trip: (onCall, ...args) => (onCall(), motis.trip(...args)), parallel: 8 },
 };
 const ENGINE_NAMES = { transitous: 'Transitous', tisseo: 'Tisséo', motis: 'MOTIS local' };
 // Arrival window [meeting time, + this]: a bus arriving at 19:01 would otherwise force the one
@@ -183,12 +183,12 @@ export function computationBase(participants, slot) {
 // categories: keys of CATEGORIES (1 to 4), transitEngine: key of TRANSIT_ENGINES,
 // maxCandidates: places evaluated, at most MAX_CANDIDATES, metric: key of SCORES,
 // signal: to cancel the computation and its calls (optional),
-// keys: { ors, tisseo }, data: from loadData(),
+// data: from loadData(),
 // calls: external API call counters, updated as calls are made
 export async function evaluate({ participants, slot, categories,
     transitEngine = 'transitous', maxCandidates = MAX_CANDIDATES,
     metric = DEFAULT_METRIC, signal = null },
-    keys, data, calls, emit) {
+    data, calls, emit) {
     const base = computationBase(participants, slot);
     const { center, slot: { from: arriveFrom, to: arriveTo } } = base;
     emit({ type: 'start', ...base });
@@ -217,7 +217,7 @@ export async function evaluate({ participants, slot, categories,
             matrix = await motis.durationMatrix(mode, sources, candidates, signal);
         } else {
             calls.orsMatrix++;
-            matrix = await durationMatrix(keys.ors, mode, sources, candidates, signal);
+            matrix = await durationMatrix(mode, sources, candidates, signal);
         }
         durations[mode] = new Map(indices.map((i, k) => [i, matrix.durations[k]]));
         emit({ type: 'matrix', mode, sources: indices.length, destinations: candidates.length,
@@ -242,7 +242,7 @@ export async function evaluate({ participants, slot, categories,
     // if it fails again, the journey is marked failed: its candidate is incomplete (see below)
     const engineName = ENGINE_NAMES[transitEngine];
     const onCall = () => { calls[transitEngine]++; };
-    const trip = (i, j) => engine.trip(keys, onCall, participants[i], candidates[j], arriveFrom, arriveTo, signal);
+    const trip = (i, j) => engine.trip(onCall, participants[i], candidates[j], arriveFrom, arriveTo, signal);
     const tripWithRetry = async (i, j) => {
         try {
             return await trip(i, j);
@@ -252,13 +252,7 @@ export async function evaluate({ participants, slot, categories,
         }
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
         signal?.throwIfAborted();
-        try {
-            return await trip(i, j);
-        } catch (err) {
-            // Tisséo unreachable twice in a row: most likely a refused key
-            if (err.unreachable) throw new TisseoKeyError(err.message);
-            throw err;
-        }
+        return trip(i, j);
     };
     let done = 0;
     let errors = 0;
@@ -294,7 +288,7 @@ export async function evaluate({ participants, slot, categories,
     const best = ranking.length ? ranking[0] : null;
 
     emit({ type: 'result', ...base, candidates: evaluated, ranking, best, metric });
-    if (best != null) await placeRoutes(participants, evaluated[best], keys, calls, emit, transitEngine, signal);
+    if (best != null) await placeRoutes(participants, evaluated[best], calls, emit, transitEngine, signal);
     emit({ type: 'done' });
 }
 
@@ -302,7 +296,7 @@ export async function evaluate({ participants, slot, categories,
 // the Transitous journey already fetched, or one openrouteservice directions call per participant
 // (made only for the places actually displayed; local MOTIS paths with the debug view's engine).
 // signal: to cancel the calls (an AbortError is then thrown)
-export async function placeRoutes(participants, place, keys, calls, emit, transitEngine = 'transitous', signal = null) {
+export async function placeRoutes(participants, place, calls, emit, transitEngine = 'transitous', signal = null) {
     await Promise.all(participants.map(async (p, i) => {
         const choice = place.choices[i];
         if (!choice) return emit({ type: 'route', place: place.id, participant: i, legs: null, error: 'injoignable' });
@@ -318,7 +312,7 @@ export async function placeRoutes(participants, place, keys, calls, emit, transi
                 route = await motis.routePath(mode, p, place, signal);
             } else {
                 calls.orsDirections++;
-                route = await routePath(keys.ors, mode, p, place, signal);
+                route = await routePath(mode, p, place, signal);
             }
             emit({ type: 'route', place: place.id, participant: i, mode, legs: [{ kind: mode, path: route.path }],
                 ...(route.quota && { orsQuota: { service: 'directions', ...route.quota } }) });

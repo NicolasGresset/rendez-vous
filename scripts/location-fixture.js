@@ -10,13 +10,13 @@
 //   const { withFirefox } = require('./scripts/firefox-bidi.js');
 //   const { openWithFixture, runComputation } = require('./scripts/location-fixture.js');
 //   await withFirefox(async page => {
-//       const scenario = await openWithFixture(page);   // clock, keys and network replaced, page loaded
+//       const scenario = await openWithFixture(page);   // clock, settings and network replaced, page loaded
 //       await runComputation(page, scenario);           // form filled, computation done
 //       …                                      // page.evaluate(…), page.screenshot(…)
 //   });
 //
 // In the page (preload script, before any of its own): the clock is set back to the recording's
-// instant (same day, same slots, same Transitous times), the openrouteservice key is a fake one,
+// instant (same day, same slots, same Transitous times), Transitous is the engine picked,
 // and fetch is replaced for every other origin: recorded answers (Transitous, Géoplateforme),
 // made-up openrouteservice answers (straight lines at a fixed speed), an error for anything else.
 // The map tiles (images, not fetch) still load from OpenStreetMap.
@@ -47,7 +47,8 @@ const SCENARIO = {
 // (record: real clock, real calls, answers kept in window.__fixtureRecorded)
 function preload(fixture) {
     if (location.origin !== new URL(fixture.baseUrl).origin) return;
-    localStorage.setItem('location.apiKeys', JSON.stringify({ ors: 'fixture' }));
+    // The recorded answers are Transitous'
+    if (!localStorage.getItem('location.settings')) localStorage.setItem('location.settings', JSON.stringify({ engine: 'transitous' }));
 
     if (fixture.now != null) {
         const RealDate = Date;
@@ -66,10 +67,9 @@ function preload(fixture) {
         const x = (lon2 - lon1) * rad * Math.cos((lat1 + lat2) / 2 * rad);
         return 6371000 * Math.hypot(x, (lat2 - lat1) * rad) * 1.3;
     };
-    const orsAnswer = (url, body) => {
-        const profile = url.pathname.split('/')[3];
-        const speed = SPEEDS[profile];
-        if (url.pathname.includes('/matrix/')) {
+    const orsAnswer = ({ path, body }) => {
+        const speed = SPEEDS[path.split('/')[1]];
+        if (path.startsWith('matrix/')) {
             const at = i => body.locations[i];
             return { durations: body.sources.map(s => body.destinations.map(d => metres(at(s), at(d)) / speed)) };
         }
@@ -85,8 +85,8 @@ function preload(fixture) {
     const answers = new Map((fixture.responses || []).map(r => [r.url, r]));
     window.fetch = async (input, init = {}) => {
         const url = new URL(typeof input === 'string' ? input : input.url, location.href);
+        if (url.pathname === '/api/ors') return json(orsAnswer(JSON.parse(init.body)));
         if (url.origin === location.origin) return realFetch(input, init);
-        if (url.hostname === 'api.openrouteservice.org') return json(orsAnswer(url, JSON.parse(init.body)));
         if (fixture.now == null) {
             const res = await realFetch(input, init);
             recorded.push({ url: url.href, status: res.status, text: await res.clone().text() });

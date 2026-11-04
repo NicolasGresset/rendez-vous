@@ -86,7 +86,7 @@ describe('evaluate', () => {
     const run = async (input = {}) => {
         const events = [];
         const calls = { orsMatrix: 0, orsDirections: 0, transitous: 0, tisseo: 0, motis: 0 };
-        await evaluate({ participants, slot: '19:00', categories: ['bar'], ...input }, {}, data, calls, e => events.push(e));
+        await evaluate({ participants, slot: '19:00', categories: ['bar'], ...input }, data, calls, e => events.push(e));
         return { events, calls, result: events.find(e => e.type === 'result') };
     };
 
@@ -103,7 +103,7 @@ describe('evaluate', () => {
         // Bars every 110 m: most of them must be left out
         const close = Array.from({ length: 40 }, (_, i) => ({ id: `node/${i}`, name: `Bar ${i}`, category: 'amenity=bar', lat: 43.6 + i * 0.001, lon: 1.44 }));
         const events = [];
-        await evaluate({ participants, slot: '19:00', categories: ['bar'] }, {}, { places: close, sources: {} },
+        await evaluate({ participants, slot: '19:00', categories: ['bar'] }, { places: close, sources: {} },
             { transitous: 0 }, e => events.push(e));
         const { candidates } = events.find(e => e.type === 'result');
         assert.ok(candidates.length <= 8 && candidates.length > 1);
@@ -159,7 +159,7 @@ describe('evaluate', () => {
         const events = [];
         const calls = { transitous: 0 };
         await assert.rejects(
-            evaluate({ participants, slot: '19:00', categories: ['bar'], signal: stop.signal }, {}, data, calls, e => events.push(e)),
+            evaluate({ participants, slot: '19:00', categories: ['bar'], signal: stop.signal }, data, calls, e => events.push(e)),
             { name: 'AbortError' },
         );
         const before = started;
@@ -181,7 +181,7 @@ describe('evaluate', () => {
         const events = [];
         await assert.rejects(
             evaluate({ participants, slot: '19:00', categories: ['bar'], maxCandidates: 1, signal: stop.signal },
-                {}, data, { transitous: 0 }, e => events.push(e)),
+                data, { transitous: 0 }, e => events.push(e)),
             { name: 'AbortError' },
         );
         assert.ok(!events.some(e => e.type === 'result'));

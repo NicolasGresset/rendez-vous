@@ -98,22 +98,9 @@ test('at most 5 participants with the public services', async ({ app }) => {
     await expect(add).toBeHidden();
 });
 
-test('without a key, walking is refused and the reason shown; bus and metro alone need none', async ({ app }) => {
+test('a new participant walks or takes the bus, no key asked', async ({ app }) => {
     const { page } = app;
-    await page.evaluate(() => document.getElementById('keys-clear').click());
-    const banner = page.locator('#location-banner');
-    await expect(banner).toContainText('openrouteservice'); // the rows were created with a key: walking is checked
-    await page.evaluate(() => document.querySelectorAll('[name="modes"]:checked').forEach(box => { if (box.value !== 'transit') box.click(); }));
-    await expect(banner).toBeHidden();
-});
-
-test('a key is kept in this browser until cleared', async ({ app, page }) => {
-    await page.evaluate(() => {
-        document.getElementById('ors-key').value = 'abc';
-        document.getElementById('keys-form').requestSubmit();
-    });
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('location.apiKeys')).ors)).toBe('abc');
-    await page.evaluate(() => document.getElementById('keys-clear').click());
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('location.apiKeys') || '{}').ors)).toBeFalsy();
-    await expect(app.page.locator('#keys-status')).toContainText('effacées');
+    await expect(page.locator('input[type="password"]')).toHaveCount(0);
+    const modes = await app.row(0).locator('[name="modes"]:checked').evaluateAll(boxes => boxes.map(box => box.value));
+    expect(modes.sort()).toEqual(['transit', 'walk']);
 });

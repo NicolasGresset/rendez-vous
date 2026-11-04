@@ -5,6 +5,8 @@
 // The headers and cleanUrls of vercel.json are applied as on Vercel. To check a Content-Security-Policy change, set
 // CSP_REPORT=1 (violations logged here, policy enforced) or CSP_REPORT=only (logged, not enforced).
 //
+// /api/... runs the functions of api/ as Vercel does, with the keys of .env (OPENROUTESERVICE_API_KEY, TISSEO_API_KEY).
+//
 // /motis/... is relayed to a local MOTIS server (MOTIS_URL, default http://localhost:8080; see
 // docs/evaluation.md): the page's debug view engine calls it on its own origin, so neither the
 // Content-Security-Policy nor CORS are involved. Not on Vercel: there the engine is not offered.
@@ -18,6 +20,12 @@ const PORT = process.env.PORT || 3001;
 const CSP_REPORT_PATH = '/__csp-report';
 const MOTIS_PREFIX = '/motis/';
 const MOTIS_URL = process.env.MOTIS_URL || 'http://localhost:8080';
+
+try {
+    process.loadEnvFile(path.join(ROOT, '.env'));
+} catch {
+    // no .env (CI): the relays answer 401
+}
 
 const VERCEL_CONFIG = JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8'));
 
@@ -59,6 +67,19 @@ http.createServer((req, res) => {
                 + (r['source-file'] ? ` at ${r['source-file']}:${r['line-number']}` : ''));
             res.statusCode = 204;
             res.end();
+        });
+        return;
+    }
+    if (url.pathname.startsWith('/api/')) {
+        const chunks = [];
+        req.on('data', chunk => chunks.push(chunk));
+        req.on('end', async () => {
+            const name = url.pathname.slice('/api/'.length);
+            if (req.method !== 'POST' || !['ors', 'tisseo'].includes(name)) { res.statusCode = 405; return res.end(); }
+            const { POST } = await import(path.join(ROOT, 'api', `${name}.mjs`));
+            const answer = await POST(new Request(url, { method: 'POST', body: Buffer.concat(chunks) }));
+            res.writeHead(answer.status, Object.fromEntries(answer.headers));
+            res.end(await answer.text());
         });
         return;
     }

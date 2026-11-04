@@ -1,7 +1,5 @@
-// tisseo.js - Transit journeys from the Tisséo API (https://api.tisseo.fr, ODbL data), called
-// straight from the browser with the visitor's own key, like openrouteservice. Tisséo allows a
-// public key in web pages (its developer documentation, § 2.7) and sends CORS headers, but only
-// on XML answers (checked 2026-10-28): the journeys are read as XML.
+// tisseo.js - Transit journeys from the Tisséo API (https://api.tisseo.fr, ODbL data), through the
+// site's relay (api/tisseo.mjs), which holds the key. The journeys are read as XML.
 //
 // Tisséo only searches by departure time, so arriving by the end of the slot takes two calls of
 // a few successive journeys each: the first leaves an hour before the end of the slot and gives
@@ -12,7 +10,6 @@
 
 import { parseParis, bestJourney, timeoutSignal } from './transitous.js';
 
-const JOURNEYS_URL = 'https://api.tisseo.fr/v2/journeys.xml';
 const TIMEOUT_MS = 15000;
 const PROBE_LEAD_MIN = 60;  // first call: leave this long before the end of the slot
 const MARGIN_MIN = 10;      // second call: leave this much earlier than the travel time requires
@@ -109,27 +106,19 @@ function readJourney(journey) {
 }
 
 // Journeys leaving from the given time (Unix ms), [] when Tisséo finds none
-async function journeys(key, onCall, from, to, departure, number, signal) {
-    const params = new URLSearchParams({
-        key,
-        departurePlaceXY:       `${from.lon},${from.lat}`,
-        arrivalPlaceXY:         `${to.lon},${to.lat}`,
-        firstDepartureDatetime: formatParis(departure),
-        number,
-        lang:                   'fr',
-    });
-    let res;
+async function journeys(onCall, from, to, departure, number, signal) {
     onCall();
-    try {
-        res = await fetch(`${JOURNEYS_URL}?${params}`, { signal: timeoutSignal(TIMEOUT_MS, signal) });
-    } catch (err) {
-        // A refused key comes back without CORS headers: the browser only sees a network error,
-        // like a passing network failure. The engine tries again once before giving up
-        if (err.name === 'TypeError') {
-            throw Object.assign(new Error('Tisséo injoignable ou clé Tisséo refusée.'), { unreachable: true });
-        }
-        throw err;
-    }
+    const res = await fetch('/api/tisseo', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+            departurePlaceXY:       `${from.lon},${from.lat}`,
+            arrivalPlaceXY:         `${to.lon},${to.lat}`,
+            firstDepartureDatetime: formatParis(departure),
+            number,
+        }),
+        signal:  timeoutSignal(TIMEOUT_MS, signal),
+    });
     if (res.status === 404) return []; // no journey found
     if (res.status === 401 || res.status === 403) throw new TisseoKeyError('Clé Tisséo refusée.');
     if (!res.ok) throw new Error(`Tisséo journeys failed: ${res.status}`);
@@ -141,12 +130,12 @@ async function journeys(key, onCall, from, to, departure, number, signal) {
 // ("YYYY-MM-DD HH:MM" in Toulouse): { seconds (wait included), wait, departure, arrival, legs }
 // (times in ISO), or null when no journey arrives by the end of the slot
 // onCall: called before each Tisséo request (two per trip), signal: to cancel the calls
-export async function tisseoTrip(key, onCall, from, to, arriveFrom, arriveTo, signal = null) {
+export async function tisseoTrip(onCall, from, to, arriveFrom, arriveTo, signal = null) {
     const slotEnd = parseParis(arriveTo).getTime();
-    const probe = await journeys(key, onCall, from, to, slotEnd - PROBE_LEAD_MIN * 60000, JOURNEYS_PER_CALL, signal);
+    const probe = await journeys(onCall, from, to, slotEnd - PROBE_LEAD_MIN * 60000, JOURNEYS_PER_CALL, signal);
     if (!probe.length) return null;
     const travel = Math.min(...probe.map(j => j.arrival - j.departure));
-    const later = await journeys(key, onCall, from, to, slotEnd - travel - MARGIN_MIN * 60000, JOURNEYS_PER_CALL, signal);
+    const later = await journeys(onCall, from, to, slotEnd - travel - MARGIN_MIN * 60000, JOURNEYS_PER_CALL, signal);
     const found = bestJourney([...probe, ...later], arriveFrom, arriveTo);
     if (!found) return null;
     const best = found.journey;

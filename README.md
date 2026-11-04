@@ -18,14 +18,14 @@ interface, Toulouse area only). A project by [Nicolas Gresset-Bourgeois](https:/
    the Tisséo GTFS feed.
 2. **Travel times**: walking, cycling and driving times from
    [openrouteservice](https://openrouteservice.org) (one matrix request per mode), public transport
-   journeys from [Transitous](https://transitous.org) or, optionally, the Tisséo API. A journey may arrive
+   journeys from the Tisséo API or, optionally, [Transitous](https://transitous.org). A journey may arrive
    up to 10 min after the meeting time; arriving before it counts as waiting.
 3. **Score**: "équitable" by default, the mean time plus half the excess of the longest trip over the
    mean, or "égalitaire", the mean time per person. The 3 best places are shown with each person's
    journey, step by step.
 
-Everything runs in the browser: there is no backend, and the API keys (openrouteservice is free,
-Tisséo optional) are the visitor's own, stored in their browser only. Addresses are completed
+Everything runs in the browser, but for two small Vercel Functions (`api/`) that relay the openrouteservice
+and Tisséo calls with the author's keys, for a trial until 2026-11-08: visitors enter no key. Addresses are completed
 instantly from the local file, then by the French IGN Géoplateforme.
 
 The full pipeline, with diagrams, API calls, quotas and data sources, is in
@@ -50,8 +50,8 @@ No build step, no dependency: vanilla HTML, CSS and JavaScript modules, with
 node scripts/dev-server.js    # http://localhost:3001
 ```
 
-The dev server applies the clean URLs and the Content-Security-Policy of `vercel.json`. An
-openrouteservice key is needed as soon as someone walks, cycles or drives. With a local MOTIS on port
+The dev server applies the clean URLs and the Content-Security-Policy of `vercel.json`, and runs the functions of
+`api/` with `OPENROUTESERVICE_API_KEY` and `TISSEO_API_KEY` from `.env` (on Vercel: its project settings). With a local MOTIS on port
 8080 (setup in [docs/evaluation.md](docs/evaluation.md)), the page also offers it as an engine, which needs no key.
 
 Tests (not deployed; the site itself still has no dependency and no build step):
@@ -79,10 +79,11 @@ Development scripts (not deployed):
 
 ```
 index.html, legal.html   the tool, and its legal notice and privacy page
+api/                     ors.mjs, tisseo.mjs (Vercel Functions: relays holding the keys)
 js/                      engine.js (candidates, scoring), ors.js, transitous.js, tisseo.js (routing),
                          motis.js, debug-motis.js, debug-view.js (local MOTIS: method by zones, debug view),
-                         search.js, geocode.js, autocomplete.js (address search), keys.js (localStorage),
-                         cancel.js (stale work), main.js (keys, settings, computation, results),
+                         search.js, geocode.js, autocomplete.js (address search), keys.js (settings in localStorage),
+                         cancel.js (stale work), main.js (settings, computation, results),
                          participants.js, progress.js, map.js, results.js, slots.js, labels.js (interface)
 css/                     base.css (shared), rendez-vous.css, legal.css, fonts.css
 data/                    pois-toulouse.json (places), tisseo-area.json (build input), README.md (sources)

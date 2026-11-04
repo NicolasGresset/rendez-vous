@@ -1,5 +1,5 @@
 // ors.js - openrouteservice access from the browser: matrix (durations) and directions (paths)
-// with the user's own API key. The services ignore the time of day.
+// through the site's relay (api/ors.mjs), which holds the key. The services ignore the time of day.
 
 import { timeoutSignal } from './transitous.js';
 
@@ -8,21 +8,17 @@ const PROFILES = { walk: 'foot-walking', bike: 'cycling-regular', car: 'driving-
 
 const round = x => Math.round(x * 1e5) / 1e5;
 
-async function orsPost(key, path, body, signal) {
+async function orsPost(path, body, signal) {
     let res;
     try {
-        res = await fetch(`https://api.openrouteservice.org/v2/${path}`, {
+        res = await fetch('/api/ors', {
             method:  'POST',
-            headers: { Authorization: key, 'Content-Type': 'application/json' },
-            body:    JSON.stringify(body),
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ path, body }),
             signal:  timeoutSignal(TIMEOUT_MS, signal),
         });
     } catch (err) {
-        // A refused key gets a 403 without CORS headers (checked 2026-10-28), so the browser only
-        // sees a network error, like a passing network failure (and probably an exceeded quota)
-        if (err.name === 'TypeError') {
-            throw new Error('openrouteservice injoignable, clé refusée ou quota dépassé.', { cause: err });
-        }
+        if (err.name === 'TypeError') throw new Error('openrouteservice injoignable.', { cause: err });
         throw err;
     }
     if (res.status === 401 || res.status === 403) throw new Error('Clé openrouteservice refusée.');
@@ -39,8 +35,8 @@ async function orsPost(key, path, body, signal) {
 }
 
 // Durations in seconds, rows = sources, columns = destinations, null when unroutable
-export async function durationMatrix(key, mode, sources, destinations, signal = null) {
-    const { data, quota } = await orsPost(key, `matrix/${PROFILES[mode]}`, {
+export async function durationMatrix(mode, sources, destinations, signal = null) {
+    const { data, quota } = await orsPost(`matrix/${PROFILES[mode]}`, {
         locations:    [...sources, ...destinations].map(p => [p.lon, p.lat]),
         sources:      sources.map((_, i) => i),
         destinations: destinations.map((_, j) => sources.length + j),
@@ -50,8 +46,8 @@ export async function durationMatrix(key, mode, sources, destinations, signal = 
 }
 
 // Path from one point to another, as [lat, lon] pairs
-export async function routePath(key, mode, from, to, signal = null) {
-    const { data, quota } = await orsPost(key, `directions/${PROFILES[mode]}/geojson`, {
+export async function routePath(mode, from, to, signal = null) {
+    const { data, quota } = await orsPost(`directions/${PROFILES[mode]}/geojson`, {
         coordinates: [[from.lon, from.lat], [to.lon, to.lat]],
     }, signal);
     const path = data.features[0].geometry.coordinates.map(([lon, lat]) => [round(lat), round(lon)]);

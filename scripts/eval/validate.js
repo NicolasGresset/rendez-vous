@@ -2,8 +2,8 @@
 // the services the tool uses: 30 transit trips also asked to the Tisséo API (tisseo.js, run in
 // headless Firefox for its DOMParser; 2 calls per trip), and 3 openrouteservice matrices (one per
 // street mode, 10 x 10); and how far the oracle's cheap transit estimate is from its exact times.
-// Needs: the dev server (node scripts/dev-server.js), local MOTIS, TISSEO_API_KEY and
-// OPENROUTESERVICE_API_KEY in .env. Usage: node scripts/eval/validate.js [--json file]
+// Needs: the dev server (node scripts/dev-server.js, its relays use TISSEO_API_KEY and
+// OPENROUTESERVICE_API_KEY from .env), local MOTIS. Usage: node scripts/eval/validate.js [--json file]
 
 import fs from 'fs';
 import { createRequire } from 'module';
@@ -16,10 +16,9 @@ const DEV_URL = 'http://localhost:3001/';
 const TRIPS_PER_CASE = 3;
 const SLOT_TO = SLOT.replace(/\d+$/, m => String(Number(m) + TOLERANCE_MIN).padStart(2, '0'));
 
-const env = Object.fromEntries(fs.readFileSync(new URL('../../.env', import.meta.url), 'utf8')
-    .split('\n').filter(l => l.includes('=')).map(l => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]));
-const tisseoKey = env.TISSEO_API_KEY;
-const orsKey = env.OPENROUTESERVICE_API_KEY || env.OPENROUTESERVICE_API_JEY;
+// js/ors.js calls the site's relay by its path: here, the dev server's
+const realFetch = globalThis.fetch;
+globalThis.fetch = (url, init) => realFetch(new URL(url, DEV_URL), init);
 
 const data = JSON.parse(fs.readFileSync(new URL('../../data/pois-toulouse.json', import.meta.url)));
 const places = candidatePlaces(data);
@@ -50,7 +49,7 @@ await withFirefox(async ({ send, context, evaluate }) => {
         const out = [];
         for (const t of trips) {
             try {
-                const found = await tisseoTrip(${JSON.stringify(tisseoKey)}, () => {}, t.from, t.to, '${DATE} ${SLOT}', '${DATE} ${SLOT_TO}');
+                const found = await tisseoTrip(() => {}, t.from, t.to, '${DATE} ${SLOT}', '${DATE} ${SLOT_TO}');
                 out.push(found ? found.seconds : null);
             } catch (err) { out.push('error: ' + err.message); }
         }
@@ -64,7 +63,7 @@ const sources = CASES.map(c => c.points[0]);
 const targets = Array.from({ length: 10 }, () => random(places.length));
 const street = {};
 for (const mode of ['walk', 'bike', 'car']) {
-    const { durations } = await durationMatrix(orsKey, mode, sources, targets.map(j => places[j]));
+    const { durations } = await durationMatrix(mode, sources, targets.map(j => places[j]));
     street[mode] = CASES.flatMap((c, s) => {
         const oracle = loadOracle(c.id);
         return targets.map((j, t) => [durations[s][t], oracle.times[0][mode][j]]);
