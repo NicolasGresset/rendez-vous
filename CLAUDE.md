@@ -141,6 +141,14 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
 
 ## Open topics (update when they move)
 
+- Inviting people widely: only once the home server is received and set up (stated by the user 2026-11-05); the tool is online, but the shared
+  openrouteservice quota (50 matrix calls/day) would not hold.
+- Later, a big piece the user will take up after that (stated 2026-11-05, nothing decided or coded): a report mode. After the results, a button sends the user the
+  debug details (participants' positions and modes, deployed version, results) with a way to flag a result as odd; also feedback on the interface. The user's idea: an email,
+  details in the body and an attachment that can be replayed and inspected in the tool. Points raised: the browser cannot attach files (`mailto:`), so a function and a sending
+  service (a new external service: to choose, with DNS records); positions are often homes, some of other people: explicit consent, `legal.html` to update; interface feedback
+  sends no position; "review" the result as seen, without any call (timetables change, a new computation may not reproduce it), separate from "recompute and compare";
+  imported files come from strangers: validate and escape; measure a result's size (Vercel: about 4.5 MB per request).
 - Browser tests sensitive to timing (measured 2026-11-05, Firefox and Chrome x 3 on 2 CPUs with 2 workers: 8 failures in 144 runs, 5 on the commit before the
   trial, so not new; cancelling during a computation, suggestions). `choosing another proposal` failed on GitHub (Firefox, click without effect), not
   reproduced here: smooth scrolling suspected, a much slower one in Firefox did not trigger it either, cause unknown. One retry on CI since then; a test
