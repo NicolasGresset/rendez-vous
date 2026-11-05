@@ -141,6 +141,7 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
 
 ## Open topics (update when they move)
 
+- To do, font (stated by the user 2026-11-05; nothing decided or coded): change it, the current one looks like a "vibe-coded" tool, not a tool for the general public.
 - To do, mobile view (a friend's suggestion, reported by the user 2026-11-05; nothing decided or coded): show the map after the form, and make the form smaller.
 - Inviting people widely: only once the home server is received and set up (stated by the user 2026-11-05); the tool is online, but the shared
   openrouteservice quota (50 matrix calls/day) would not hold.
