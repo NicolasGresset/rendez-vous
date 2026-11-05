@@ -9,7 +9,8 @@ export default defineConfig({
     testMatch: '*.spec.mjs',
     timeout: 60000,
     forbidOnly: CI,
-    retries: 0,
+    // GitHub's machines are slow enough for timing-sensitive tests to fail now and then (see CLAUDE.md, Open topics)
+    retries: CI ? 1 : 0,
     workers: CI ? 2 : undefined,
     reporter: CI ? [['list'], ['html', { open: 'never' }]] : 'list',
     use: { baseURL: 'http://localhost:3001', trace: 'retain-on-failure', screenshot: 'only-on-failure' },

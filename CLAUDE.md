@@ -141,6 +141,10 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
 
 ## Open topics (update when they move)
 
+- Browser tests sensitive to timing (measured 2026-11-05, Firefox and Chrome x 3 on 2 CPUs with 2 workers: 8 failures in 144 runs, 5 on the commit before the
+  trial, so not new; cancelling during a computation, suggestions). `choosing another proposal` failed on GitHub (Firefox, click without effect), not
+  reproduced here: smooth scrolling suspected, a much slower one in Firefox did not trigger it either, cause unknown. One retry on CI since then; a test
+  reported flaky there is still worth a look. To do: make the cancellation tests independent of the machine's speed.
 - Trial with a friend, until Sunday 2026-11-08 (asked by the user 2026-11-04): visitors enter no key, Tisséo is the default engine and
   the Vercel Functions `api/ors.mjs` and `api/tisseo.mjs` add the user's keys (`OPENROUTESERVICE_API_KEY`, `TISSEO_API_KEY` in Vercel's
   settings; the repository is public, so never in the code). Anyone can call them: quotas are the only limit. **Temporary: to undo

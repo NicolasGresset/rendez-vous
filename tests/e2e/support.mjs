@@ -18,7 +18,8 @@ function instrument() {
     const json = data => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
     window.fetch = (input, init = {}) => {
         const url = new URL(typeof input === 'string' ? input : input.url, location.href);
-        if (url.origin === location.origin) return replayed(input, init);
+        // The site's own files; its relays (/api/) are API calls like the others
+        if (url.origin === location.origin && !url.pathname.startsWith('/api/')) return replayed(input, init);
         if (url.hostname === 'data.geopf.fr') {
             if (url.pathname.includes('reverse')) return Promise.resolve(json({ features: [{ properties: { label: '1 Rue du Test 31000 Toulouse' } }] }));
             const text = url.searchParams.get('text');
