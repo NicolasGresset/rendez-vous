@@ -5,28 +5,20 @@ import (
 	"testing"
 )
 
-// The cases of the page's score tests (tests/unit/engine.test.mjs)
-func TestScores(t *testing.T) {
-	if got := scoreOf(Egalitaire, []float64{10, 30}, []int{1, 1}); got != 20 {
-		t.Errorf("égalitaire is the mean per person: %v", got)
+// The équitable cases of the page's score tests (tests/unit/engine.test.mjs)
+func TestScore(t *testing.T) {
+	if got := scoreOf([]float64{10, 30}, []int{1, 1}); got != 25 {
+		t.Errorf("the mean plus half of what the longest trip has more: %v", got)
 	}
-	if got := scoreOf(Egalitaire, []float64{10, 30}, []int{3, 1}); got != 15 {
-		t.Errorf("every person counts: %v", got)
+	if got := scoreOf([]float64{20, 20}, []int{1, 1}); got != 20 {
+		t.Errorf("equal trips: %v", got)
 	}
-	if got := scoreOf(Equitable, []float64{10, 30}, []int{1, 1}); got != 25 {
-		t.Errorf("équitable is the mean plus half of what the longest trip has more: %v", got)
-	}
-	if got := scoreOf(Equitable, []float64{20, 20}, []int{1, 1}); got != 20 {
-		t.Errorf("équitable of equal trips: %v", got)
-	}
-	if got := scoreOf(Equitable, []float64{10, 30}, []int{3, 1}); got != (15+30)/2.0 {
+	if got := scoreOf([]float64{10, 30}, []int{3, 1}); got != (15+30)/2.0 {
 		t.Errorf("people weigh in the mean, not in the longest trip: %v", got)
 	}
 	// The reason "moyenne + écart" was dropped: (10, 30) scored worse than (20, 30)
-	for _, s := range scores {
-		if scoreOf(s, []float64{20, 30}, []int{1, 1}) < scoreOf(s, []float64{10, 30}, []int{1, 1}) {
-			t.Errorf("%s: a longer trip for someone improves the score", s)
-		}
+	if scoreOf([]float64{20, 30}, []int{1, 1}) < scoreOf([]float64{10, 30}, []int{1, 1}) {
+		t.Error("a longer trip for someone improves the score")
 	}
 }
 
@@ -62,21 +54,18 @@ func candidateOf(seconds ...float64) *Candidate {
 
 func TestRank(t *testing.T) {
 	people := []int{1, 1}
-	if got := rank([]*Candidate{candidateOf(10, 30), candidateOf(19, 20)}, Equitable, people); !reflect.DeepEqual(got, []int{1, 0}) {
-		t.Errorf("équitable: %v", got)
-	}
-	if got := rank([]*Candidate{candidateOf(10, 20), candidateOf(16, 16)}, Egalitaire, people); !reflect.DeepEqual(got, []int{0, 1}) {
-		t.Errorf("égalitaire: %v", got)
+	if got := rank([]*Candidate{candidateOf(10, 30), candidateOf(19, 20)}, people); !reflect.DeepEqual(got, []int{1, 0}) {
+		t.Errorf("best first: %v", got)
 	}
 	places := []*Candidate{candidateOf(10, Unreachable), candidateOf(40, 40)}
-	if got := rank(places, Equitable, people); !reflect.DeepEqual(got, []int{1}) {
+	if got := rank(places, people); !reflect.DeepEqual(got, []int{1}) {
 		t.Errorf("a place someone cannot reach is left out: %v", got)
 	}
-	if places[0].Scores != nil || places[0].Choices != nil || places[1].Scores[Egalitaire] != 40 {
-		t.Errorf("scores %v %v", places[0].Scores, places[1].Scores)
+	if places[0].Reachable || places[0].Choices != nil || !places[1].Reachable || places[1].Score != 40 {
+		t.Errorf("candidates %+v %+v", places[0], places[1])
 	}
 	equal := []*Candidate{candidateOf(20, 20), candidateOf(10, 30), candidateOf(20, 20)}
-	if got := rank(equal, Egalitaire, people); !reflect.DeepEqual(got, []int{0, 1, 2}) {
+	if got := rank(equal, people); !reflect.DeepEqual(got, []int{0, 2, 1}) {
 		t.Errorf("equal scores keep their order: %v", got)
 	}
 }
@@ -89,10 +78,10 @@ func TestRankIsStableOnManyPlaces(t *testing.T) {
 		c.Place = j
 		places = append(places, c)
 	}
-	order := rank(places, Egalitaire, []int{1, 1})
+	order := rank(places, []int{1, 1})
 	for k := 1; k < len(order); k++ {
 		a, b := places[order[k-1]], places[order[k]]
-		if a.Scores[Egalitaire] == b.Scores[Egalitaire] && a.Place > b.Place {
+		if a.Score == b.Score && a.Place > b.Place {
 			t.Fatalf("places %d and %d of equal score swapped", a.Place, b.Place)
 		}
 	}

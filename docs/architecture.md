@@ -12,7 +12,7 @@ needs from it.
 |---|---|
 | Server reachable in HTTPS at `api.rendez-vous.gresset-bourgeois.fr` | Done: Caddy forwards `/v1/*` to the middleware (HSTS, 413 beyond 16 KB, 404 elsewhere); from 5G: ~50 ms to connect, ~200 ms for a first request |
 | MOTIS (routing engine) on the server, not exposed | Done: tested from inside |
-| Middleware (Go), `middleware/` | Skeleton deployed and tested from outside (2026-11-07): `GET /v1/health`, CORS, request log, image (4 MB to download) built by CI; `POST /v1/proposals` validates the question; the places file is loaded and checked at start-up (computation not written) |
+| Middleware (Go), `middleware/` | Skeleton deployed and tested from outside (2026-11-07): `GET /v1/health`, CORS, request log, image (4 MB to download) built by CI; `POST /v1/proposals` validates the question; places file, MOTIS client, score and method by zones written and checked against the page (2026-11-08); not yet wired to the route, no limits yet |
 | The page calling the middleware | Not started |
 | Automatic timetable (GTFS) update | Designed, postponed: **needed before 2026-12-02** |
 | Load test of the whole chain | To do once the middleware exists |
@@ -43,7 +43,7 @@ flowchart LR
 - **Caddy**: the only exposed component (TCP 443), terminates HTTPS with a Let's Encrypt certificate and
   forwards `/v1/*` to the middleware.
 - **Middleware**: validates the request, applies the limits, picks candidates with the precomputed zones,
-  calls MOTIS, computes both scores, answers.
+  calls MOTIS, computes the score, answers.
 - **MOTIS**: street times (walk, bike, car), transit journeys, geocoding; reachable only by the middleware.
 
 ## Decisions
@@ -78,13 +78,14 @@ Each entry: what was decided, the options considered, and why.
 loads that file at start-up and only *uses* the zones at each request (estimate every zone, exact times
 for the best, 3 distinct zones, then their places: `docs/evaluation.md` § Zones).
 
-### Both scores from one computation (2026-11-07)
+### One score (2026-11-08)
 
-- The request carries **no score**: the costly part (street and transit times) is computed once, then both
-  rankings (équitable, égalitaire) are derived, so switching score in the page needs no new computation.
-- The zone shortlist depends on the score, so the exact times are computed for the **union** of each
-  score's 20 best zones (expected to overlap largely: to measure on the evaluation groups).
-- One of the two scores may be dropped later.
+- First decided (2026-11-07): no score in the request, both scores (équitable, égalitaire) derived from one
+  computation, the zone shortlist being the union of each score's.
+- Then (decided by the user 2026-11-08): **only the équitable score** (the mean time per person plus half of what the
+  longest trip has more). One score is more intuitive: it says the question was thought through and this is the best
+  way to rank, without asking a newcomer to pick a metric. Another score may come back later, deliberately. The page
+  is to lose its score setting.
 
 ### API contract (2026-11-07)
 
@@ -123,18 +124,17 @@ the value still goes through the same checks. A valid question gets `501 not_imp
 | `people` | Integer, 1 to 15 |
 | Anything else | Unknown fields refused; body at most 16 KB |
 
-The answer is complete (the page needs no file to show it) and indirect (a place ranked by both scores is
-sent once):
+The answer is complete (the page needs no file to show it):
 
 ```json
 {
   "places": [
     { "name": "…", "category": "amenity=bar", "lat": 43.60, "lon": 1.44,
       "zone": { "name": "…", "others": ["…"] },
-      "scores": { "equitable": 1520, "egalitaire": 1310 },
+      "score": 1520,
       "trips": [ { "participant": 0, "mode": "transit", "duration": 1260, "arrival": "…", "path": "…" } ] }
   ],
-  "proposals": { "equitable": [0, 2, 1], "egalitaire": [0, 1, 3] },
+  "proposals": [0, 2, 1],
   "data": { "gtfs": "2026-10-30", "places": "…" }
 }
 ```
@@ -240,10 +240,40 @@ from a porting mistake.
 
 `middleware/score.go`, as `debug-motis.js` `scorePlaces` and `engine.js` `SCORES`: each participant's fastest mode
 among the times known (with transit, the time counts the wait until the meeting time when arriving early, the time
-shown does not), then both scores; a place someone cannot reach is left out; equal scores keep the candidates' order
+shown does not), then the équitable score; a place someone cannot reach is left out; equal scores keep the candidates' order
 (JavaScript's sort is stable: `sort.SliceStable`, tested on 60 places since Go's sort is stable by chance below 12).
 Between two modes of equal time, the page's choice depends on the order its answers arrive; the middleware takes the
 first of walk, bike, car, transit: same score, only the mode shown may differ.
+
+### The method by zones (2026-11-08)
+
+`middleware/zones.go`, as `debug-motis.js` `scoreZones`: every zone's representative estimated (street times, one
+call per participant and mode; the transit estimate, one forward search per transit participant leaving 60 min before
+the meeting time), ranked; the 20 best exact, 20 more at a time while fewer than 3 zones 500 m apart are kept; then up
+to 4 other places of each kept zone, farthest first, exact; the zones best first by their best place. A failure of
+MOTIS fails the computation (as the page; to revisit). **Stations** (decided by the user 2026-11-08): each station is
+a zone of its own (no second round), instead of the page's former method around the barycenter; to measure against it
+with `scripts/eval`.
+
+- **Same proposals as the page**: `zones_integration_test.go` (build tag `integration`) runs the page's `scoreZones`
+  through Node and the middleware on the same MOTIS: the 10 evaluation groups x 3 mode configurations x bars, cafés,
+  restaurants, next Tuesday 19:00: **90 questions, 90 identical** (zones, places, order, scores), 2026-11-08.
+- A bug found by Go's race detector and fixed before any use: two street modes of one participant wrote the same map
+  from two goroutines. Calls now keep their results apart and are written once all are done; CI runs `go test -race`.
+- Time of the middleware alone (16-core PC, MOTIS local, 6 calls at once, 3 or 4 participants on walk + transit):
+
+  | Place type | Estimated | Whole computation | of which the estimate |
+  |---|---|---|---|
+  | Bars | 161 | 0.96–1.21 s | 0.5 s |
+  | Cafés | 109 | 0.94–1.11 s | |
+  | Restaurants | 581 | 1.80–2.15 s | 1.3 s |
+  | Stations | 1,779 | 3.16–3.55 s | 2.8 s |
+
+  The estimate dominates and grows with the places estimated (~1.5 ms each): MOTIS's one-to-many-intermodal routes the
+  walk from each point to its nearby stops. The 60 exact journeys take ~0.25 s; street times 0.1–0.2 s. The page took
+  1.8 s for bars (`docs/evaluation.md`). To measure on the server (6 cores, shared). Possible gain, not decided: for
+  stations, MOTIS's one-to-all (the times at every stop from one search) instead of the per-point estimate; for zones,
+  precomputed walks from each representative to its stops.
 
 ### MOTIS on the server (2026-11-07)
 

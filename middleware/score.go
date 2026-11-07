@@ -1,25 +1,13 @@
 package main
 
-// Scores and ranking of the method by zones, as js/debug-motis.js scorePlaces and js/engine.js SCORES
-// (docs/evaluation.md § Scores). Lower is better.
+// The score and ranking of the method by zones, as js/debug-motis.js scorePlaces and the "équitable" score of
+// js/engine.js SCORES (docs/evaluation.md § Scores). One score only (decided by the user 2026-11-08): the tool says
+// which places it finds best, without asking a newcomer to choose a metric. Lower is better.
 
 import (
 	"math"
 	"sort"
 )
-
-// Score is one way of ranking the places; the answer gives both.
-type Score string
-
-const (
-	// Equitable is the mean time per person plus half of what the longest trip has more: (1 − β)·mean + β·max with
-	// β = ½ (Ogryczak), so that the one coming from far is not penalized much. The page's "half", its default.
-	Equitable Score = "equitable"
-	// Egalitaire is the mean time per person: every minute counts the same, whoever spends it. The page's "mean".
-	Egalitaire Score = "egalitaire"
-)
-
-var scores = []Score{Equitable, Egalitaire}
 
 // modeOrder decides between two modes of equal time (the page's order is that of its asynchronous answers, so
 // arbitrary): the same time either way, only the mode shown can differ.
@@ -54,30 +42,28 @@ func fastest(times map[Mode]float64, transitWait float64) (Choice, bool) {
 	return best, found
 }
 
-// scoreOf computes a score from each participant's time and the people leaving from their point: every person
-// counts, so a participant of 3 people counts 3 times in the mean (not in the longest trip).
-func scoreOf(score Score, seconds []float64, people []int) float64 {
+// scoreOf is the mean time per person plus half of what the longest trip has more: (1 − β)·mean + β·max with
+// β = ½ (Ogryczak), so that the one coming from far is not penalized much, and a longer trip for someone never
+// improves it. Every person counts in the mean (a participant of 3 people counts 3 times), not in the longest trip.
+func scoreOf(seconds []float64, people []int) float64 {
 	total, persons, longest := 0.0, 0, 0.0
 	for i, s := range seconds {
 		total += float64(people[i]) * s
 		persons += people[i]
 		longest = math.Max(longest, s)
 	}
-	mean := total / float64(persons)
-	if score == Egalitaire {
-		return mean
-	}
-	return (mean + longest) / 2
+	return (total/float64(persons) + longest) / 2
 }
 
 // Candidate is a place being scored: each participant's times by mode, the transit wait, the transit trip kept.
 type Candidate struct {
-	Place   int // index in Data.Places
-	Times   []map[Mode]float64
-	Waits   []float64
-	Trips   []*Trip
-	Choices []Choice          // set by rank
-	Scores  map[Score]float64 // set by rank; absent when someone cannot reach the place
+	Place     int // index in Data.Places
+	Times     []map[Mode]float64
+	Waits     []float64
+	Trips     []*Trip
+	Choices   []Choice // set by rank
+	Score     float64  // set by rank
+	Reachable bool     // set by rank: everyone can reach the place
 }
 
 func newCandidate(place, participants int) *Candidate {
@@ -89,14 +75,14 @@ func newCandidate(place, participants int) *Candidate {
 	return c
 }
 
-// rank sets every candidate's choices and both scores, and returns the indices of those everyone can reach, best
-// first for the given score. Equal scores keep the candidates' order, as JavaScript's stable sort does.
-func rank(candidates []*Candidate, score Score, people []int) []int {
+// rank sets every candidate's choices and score, and returns the indices of those everyone can reach, best first.
+// Equal scores keep the candidates' order, as JavaScript's stable sort does.
+func rank(candidates []*Candidate, people []int) []int {
 	var reachable []int
 	for j, c := range candidates {
-		c.Choices = c.Choices[:0]
-		c.Scores = nil
+		c.Choices, c.Score, c.Reachable = nil, 0, false
 		seconds := make([]float64, len(c.Times))
+		choices := make([]Choice, 0, len(c.Times))
 		ok := true
 		for i := range c.Times {
 			choice, found := fastest(c.Times[i], c.Waits[i])
@@ -104,21 +90,17 @@ func rank(candidates []*Candidate, score Score, people []int) []int {
 				ok = false
 				break
 			}
-			c.Choices = append(c.Choices, choice)
+			choices = append(choices, choice)
 			seconds[i] = choice.Seconds
 		}
 		if !ok {
-			c.Choices = nil
 			continue
 		}
-		c.Scores = map[Score]float64{}
-		for _, s := range scores {
-			c.Scores[s] = scoreOf(s, seconds, people)
-		}
+		c.Choices, c.Score, c.Reachable = choices, scoreOf(seconds, people), true
 		reachable = append(reachable, j)
 	}
 	sort.SliceStable(reachable, func(a, b int) bool {
-		return candidates[reachable[a]].Scores[score] < candidates[reachable[b]].Scores[score]
+		return candidates[reachable[a]].Score < candidates[reachable[b]].Score
 	})
 	return reachable
 }

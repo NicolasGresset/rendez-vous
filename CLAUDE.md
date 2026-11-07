@@ -29,7 +29,9 @@ This file is excluded from the deployment (`.vercelignore`) but versioned on Git
   on `main`, an image pushed to GHCR tagged with the commit (`.github/workflows/middleware.yml`, not a Vercel check); excluded
   from Vercel (`.vercelignore`). No Docker in this WSL: images are built by the CI. Go 1.22 here, 1.27.3 in CI and the image.
   `go test -tags integration -run Integration ./...` (not in CI) compares the Go MOTIS client with the page's `transitTrip`
-  on a real MOTIS (`~/motis`: `./motis server -d data`, stop it afterwards); it needs Node.
+  on a real MOTIS (`~/motis`: `./motis server -d data`, stop it afterwards); it needs Node. `zones_integration_test.go` does the
+  same for the whole method (90 questions, 3.5 min); it needs `onetomany_max_many: 4000` (the local `data/config.yml` had 128
+  on 2026-11-08, the user's experiments: run a copy of `data` with 4000 rather than editing it).
 - Vanilla HTML/CSS/JS, no build step, no server code but the two temporary relays of `api/` (see the trial in Open topics): `index.html` (the tool) and `legal.html` (legal
   notice and privacy), each with its static navigation and footer. Styles: `css/fonts.css`,
   `css/base.css` (variables, navigation, footer, cards), then `css/rendez-vous.css` or `css/legal.css`.
@@ -154,9 +156,9 @@ Target architecture (stated by the user, 2026-11-03): Transitous and Tisséo go 
    cafe | restaurant; participants 2–10 of {lat, lon in the Tisséo area, modes ⊆ walk, bike, car, transit, non-empty,
    people 1–15}}; unknown fields refused, body ≤ 16 KB, errors as a fixed code, never echoing the input. **No score in
    the request**: the costly times are computed once and the answer ranks by both scores (the zone shortlist is the union
-   of each score's 20 best, overlap to measure); the user may drop one score later. Answer: `places` (complete: name,
-   category, position, zone and its other places, both scores, each participant's trip with mode, duration, arrival, path),
-   `proposals` {equitable: [indices into places], egalitaire: […]}, data versions (GTFS, places file). Later: a second route
+   of each score's 20 best); then one score only (équitable, 2026-11-08). Answer: `places` (complete: name,
+   category, position, zone and its other places, score, each participant's trip with mode, duration, arrival, path),
+   `proposals` [indices into places], data versions (GTFS, places file). Later: a second route
    for the times of another place of a zone, chosen in the page.
    API security (decided by the user 2026-11-07): CORS for the site's origin only (not a protection against abuse);
    per client 5 computations a minute and 100 a day (a computation = one `POST /v1/proposals`, the whole chain), with an
@@ -279,6 +281,7 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   restaurants. No opening hours: incomplete data, a misleading filter. No restaurants open late, even if
   bars hide there (Café Triplette). The user does not want to list bars by hand to measure OSM's
   coverage for now.
+- One score from the middleware on (decided by the user 2026-11-08): équitable only, the page's score setting to remove; below, the history.
 - Scores (2026-10-30): "équitable" (default, Ogryczak's (1 − β)·mean + β·max with β = ½) and
   "égalitaire" (the mean per person); "moyenne + écart" dropped, it can prefer a place worse for
   everyone ((10, 30) min: 40; (20, 30): 35). The user wants few, trustworthy choices: a newcomer
