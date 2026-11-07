@@ -1,0 +1,55 @@
+# Middleware (Go, middleware/): format, vet and tests on every push or pull request touching it; on main, the image is
+# then built and pushed to GHCR, tagged with the commit (docs/architecture.md § Deployment of the middleware).
+# The server pulls a given tag: deploying is changing the tag there. Not a Vercel Deployment Check.
+name: Middleware
+
+on:
+  push:
+    paths: ['middleware/**', '.github/workflows/middleware.yml']
+  pull_request:
+    paths: ['middleware/**', '.github/workflows/middleware.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: middleware
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.3' # as the Dockerfile
+          cache: false # no dependency yet
+      - run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet ./...
+      - run: go test ./...
+
+  image:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/nicolasgresset/rendez-vous-middleware
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build and push
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker build -t "$IMAGE:$GITHUB_SHA" middleware
+          docker push "$IMAGE:$GITHUB_SHA"
+          echo "Pushed $IMAGE:$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"

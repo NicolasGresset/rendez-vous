@@ -11,3 +11,4 @@ eslint.config.mjs
 playwright.config.mjs
 tests/
 .github/
+middleware/

@@ -12,7 +12,7 @@ needs from it.
 |---|---|
 | Server reachable in HTTPS at `api.rendez-vous.gresset-bourgeois.fr` | Done: answers a test text |
 | MOTIS (routing engine) on the server, not exposed | Done: tested from inside |
-| Middleware (Go) and `POST /v1/proposals` | Contract, security and deployment decided, not written |
+| Middleware (Go), `middleware/` | Skeleton: `GET /v1/health`, CORS, request log, image and CI (`.github/workflows/middleware.yml`); `POST /v1/proposals` not written |
 | The page calling the middleware | Not started |
 | Automatic timetable (GTFS) update | Designed, postponed: **needed before 2026-12-02** |
 | Load test of the whole chain | To do once the middleware exists |

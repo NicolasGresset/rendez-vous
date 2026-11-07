@@ -25,6 +25,9 @@ This file is excluded from the deployment (`.vercelignore`) but versioned on Git
 
 ## Layout
 
+- `middleware/` (2026-11-07): the server side in Go, being written (`docs/architecture.md`); `gofmt`, `go vet`, `go test` and,
+  on `main`, an image pushed to GHCR tagged with the commit (`.github/workflows/middleware.yml`, not a Vercel check); excluded
+  from Vercel (`.vercelignore`). No Docker in this WSL: images are built by the CI. Go 1.22 here, 1.27.3 in CI and the image.
 - Vanilla HTML/CSS/JS, no build step, no server code but the two temporary relays of `api/` (see the trial in Open topics): `index.html` (the tool) and `legal.html` (legal
   notice and privacy), each with its static navigation and footer. Styles: `css/fonts.css`,
   `css/base.css` (variables, navigation, footer, cards), then `css/rendez-vous.css` or `css/legal.css`.

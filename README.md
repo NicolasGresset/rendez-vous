@@ -81,6 +81,7 @@ Development scripts (not deployed):
 ```
 index.html, legal.html   the tool, and its legal notice and privacy page
 api/                     ors.mjs, tisseo.mjs (Vercel Functions: relays holding the keys)
+middleware/              the server side (Go), being written: docs/architecture.md; not deployed by Vercel
 js/                      engine.js (candidates, scoring), ors.js, transitous.js, tisseo.js (routing),
                          motis.js, debug-motis.js, debug-view.js (local MOTIS: method by zones, debug view),
                          search.js, geocode.js, autocomplete.js (address search), keys.js (settings in localStorage),
