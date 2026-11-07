@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -46,10 +47,11 @@ func TestBrokenFilesAreRefused(t *testing.T) {
 		return `{"id": "node/1", "category": "amenity=bar", "name": "B", "lat": 43.6, "lon": 1.44` + zoneField + `}`
 	}
 	cases := map[string]string{
-		"not json":           `{"places": [`,
-		"zone out of range":  `{"zones": [` + zone + `], "places": [` + bar(`, "zone": 1`) + `]}`,
-		"negative zone":      `{"zones": [` + zone + `], "places": [` + bar(`, "zone": -1`) + `]}`,
-		"bar without zone":   `{"zones": [` + zone + `], "places": [` + bar(``) + `]}`,
+		"not json":          `{"places": [`,
+		"zone out of range": `{"zones": [` + zone + `], "places": [` + bar(`, "zone": 1`) + `]}`,
+		"negative zone":     `{"zones": [` + zone + `], "places": [` + bar(`, "zone": -1`) + `]}`,
+		"bar without zone": `{"zones": [` + zone + `], "places": [` + bar(`, "zone": 0`) + `, ` +
+			strings.Replace(bar(``), "node/1", "node/2", 1) + `]}`,
 		"zone without place": `{"zones": [` + zone + `], "places": []}`,
 		"zone of a station":  `{"zones": [{"kind": "station", "name": "S", "lat": 43.6, "lon": 1.44}], "places": []}`,
 		"zone of other kind": `{"zones": [{"kind": "cafe", "name": "C", "lat": 43.6, "lon": 1.44}], "places": [` + bar(`, "zone": 0`) + `]}`,
