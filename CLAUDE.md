@@ -187,6 +187,9 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
 
 ## Open topics (update when they move)
 
+- To do with the page's switch to the middleware (stated by the user 2026-11-08): remove the "Réglages" card, now obsolete (its
+  "Critère", "Bus/métro calculés par", "Lieux candidats évalués" and the keys go away; "Affichage" practical/debug and "Types de
+  lieux" to rethink: what the debug view shows once the computation is on the server).
 - To do, font (stated by the user 2026-11-05; nothing decided or coded): change it, the current one looks like a "vibe-coded" tool, not a tool for the general public.
 - To do, mobile view (a friend's suggestion, reported by the user 2026-11-05; nothing decided or coded): show the map after the form, and make the form smaller.
 - Inviting people widely: only once the home server is received and set up (stated by the user 2026-11-05); the tool is online, but the shared
