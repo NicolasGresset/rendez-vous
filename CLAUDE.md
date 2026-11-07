@@ -14,6 +14,9 @@ This file is excluded from the deployment (`.vercelignore`) but versioned on Git
   services) with trade-offs and ask before coding them. The user likes to measure and test before deciding.
 - Commit often on `main`; **push only when the user asks** (each push triggers a Vercel deploy).
 - Keep `docs/pipeline.md` (Mermaid diagrams, API calls, data sources) and `README.md` up to date with every change.
+- Record every architecture decision with its options and reason, when it is taken (asked by the user 2026-11-07): the
+  service's in `docs/architecture.md` (public: no IP address, nothing on the machine's defences), the machine's in the
+  private repository `~/repos/home-server` (`docs/decisions.md`, `docs/runbook.md`, copies of its configuration).
 - Keep API usage conservative.
 - UI rules (stated by the user, 2026-11-02): a click anywhere on a card folds or unfolds it, on every
   card of the project. Practical view: straight to the point, the default map and no display option.
