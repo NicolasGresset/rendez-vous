@@ -111,15 +111,20 @@ are out of scope.
 Target architecture (stated by the user, 2026-11-03): Transitous and Tisséo go away for the home server. The page makes a single API call
 (participants' positions and modes, then one answer); behind it, self-hosted engines and a middleware that splits the question and gathers the answer.
 
-1. **Home server** (bought, stated 2026-11-02, due around 2026-11-06/08: refurbished Lenovo ThinkCentre M720q
+1. **Home server** (received 2026-11-06: refurbished Lenovo ThinkCentre M720q
    Tiny, i5-8400T 6 cores, 16 GB, 512 GB SSD; other services will share it, so MOTIS does not get
-   all of it): a second-hand machine with Debian, hosted at home behind the ISP box with a port
-   opened, exposing routing services callable from anywhere. Goal: replace openrouteservice and
+   all of it), hosted at home behind the ISP box, exposing routing services callable from anywhere.
+   Goal: replace openrouteservice and
    Transitous (street times, transit journeys, paths), with home-made algorithms (pedagogical
-   interest), and deal with deployment, caching, latency (ping to the box from outside unknown).
-   Points raised: HTTPS needed (the site is HTTPS: mixed content), domain / dynamic DNS, security of an
-   exposed home machine, power draw of an old server vs a mini PC, fallback when the box is down.
-   It would also hold secret keys (Tisséo) and proxy APIs without CORS.
+   interest), and deal with deployment, caching, latency, fallback when the box is down.
+   Set up 2026-11-06/07 (configuration on the machine, not in this repository): Proxmox host `server`, one Debian 13 VM `vm`
+   running every service in Docker, isolated from the LAN by the Proxmox firewall; admin access from outside by WireGuard only;
+   `api.rendez-vous.gresset-bourgeois.fr` (CNAME to `home.gresset-bourgeois.fr`, OVH DynHost kept current from `vm`) served
+   by Caddy, Let's Encrypt, only TCP 443 opened; measured from 4G: ~35 ms a round trip, ~150 ms a new HTTPS connection.
+   Next: MOTIS 2.11.4 in Docker (not exposed), then the middleware. Decided by the user (2026-11-07): no map tiles on the
+   server (the browser keeps loading OSM's); the API never trusts a string from the user (structured, validated input).
+   To do: measure MOTIS geocoding (OSM addresses) against IGN Géoplateforme on real addresses, to drop IGN if good enough;
+   for other cities, the places file may grow too big for the browser (load per city, or search on the server).
 2. **Better meeting point algorithm** (the original goal; the user finds the current result
    disappointing): the plain barycenter ignores modes and is not the Fermat-Weber point (a weighted
    geometric median, Weiszfeld, weights ~ 1 / speed of each participant's mode, is easy); candidates
