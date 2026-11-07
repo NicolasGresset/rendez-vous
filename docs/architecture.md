@@ -202,6 +202,40 @@ reach further.
   `GET /v1/health` once the form is in use (the connection then stays open for the click, and a server that is down is
   known before the click); `<link rel="preconnect">` alone does not last (unused sockets are closed after seconds).
 
+### The MOTIS client (2026-11-07)
+
+`middleware/motis.go`. **First the same questions as the page** (decided by the user): the comparison of the proposals
+must show identical results before any change is made on purpose, otherwise a difference could not be told apart
+from a porting mistake.
+
+- Street times: `POST /api/v1/one-to-many`, one participant to many places, 4 h at most, points matched within 250 m
+  (car: + 5 min to park, added by the computation). Transit estimate: `POST /api/experimental/one-to-many-intermodal`,
+  forward from the participant. Exact trip: `GET /api/v6/plan`, arriving by the meeting time + 10 min, 5 itineraries,
+  `detailedTransfers=false`; the best is the page's `bestJourney` (least time from leaving to the meeting time or the
+  arrival, whichever is later; at equal time the latest departure).
+- Checked 2026-11-07 against a real MOTIS (`motis_integration_test.go`, build tag `integration`, not in CI: it runs the
+  page's `transitTrip` through Node on the same pairs): 110 pairs, 95 identical trips to the second, 15 without trip
+  on both sides.
+- Paths passed on as MOTIS encodes them (Google's polyline format, as the page receives them from Transitous today
+  and decodes): about 5 times lighter than coordinates. Line colours kept only when they are `#RRGGBB`.
+- **One limit for the whole middleware**: at most 6 calls to MOTIS in flight, every computation together (6 cores).
+  MOTIS already queues the calls beyond its threads (`n_threads`, all the cores by default), so a per-computation limit
+  would add a second queue; the middleware's own bound keeps work in flight finite, its waiting counted in the
+  computation's deadline. A generic, fair queue between computations is later work (the user's).
+- Timeouts, two kinds: **10 s per call of the middleware to MOTIS**; a deadline for the whole computation, from the
+  visitor's request to the answer (proposed 25 s, under the server's 30 s write timeout). A failed call is tried once
+  more after 2 s; an answer that does not fit the question (wrong number of durations) is not retried. Answers over
+  16 MB are refused.
+- **Cancellation**: each request carries a context, cancelled when the visitor's connection or HTTP/2 stream ends;
+  Caddy then cancels its request to the middleware, and the calls to MOTIS stop (no retry once cancelled).
+- After the comparison (decided by the user): a participant with transit but without walking may also get a trip
+  **entirely on foot, of 15 min at most** (today such a trip is dropped, so a place 400 m away counts as unreachable for
+  a bus/metro-only participant); longer, the place is unreachable for their modes. Then `detailedTransfers=true`
+  (the map would also draw the walks between two lines; no quota any more).
+- HTTP: visitor ↔ Caddy in HTTP/2 over TLS; Caddy ↔ middleware ↔ MOTIS in HTTP/1.1 inside the VM. HTTP/3 (QUIC, UDP
+  443) would save a round trip on a new connection and survive a phone switching networks; one request per computation
+  and the warm-up make that small. Possible later: UDP 443 to open on the box and publish.
+
 ### MOTIS on the server (2026-11-07)
 
 - Image `ghcr.io/motis-project/motis:2.11.4`, the version of the local evaluation, so results stay comparable.
