@@ -125,6 +125,14 @@ Target architecture (stated by the user, 2026-11-03): Transitous and Tisséo go 
    server (the browser keeps loading OSM's); the API never trusts a string from the user (structured, validated input).
    To do: measure MOTIS geocoding (OSM addresses) against IGN Géoplateforme on real addresses, to drop IGN if good enough;
    for other cities, the places file may grow too big for the browser (load per city, or search on the server).
+   MOTIS on `vm` (2026-11-07): `ghcr.io/motis-project/motis:2.11.4`, config of `docs/evaluation.md` plus geocoding and
+   reverse geocoding, input files copied from `~/motis`; Docker network `backend`, no port published; tested from inside.
+   **To do before 2026-12-02** (the GTFS copied ends then; the imported 40 days end 2026-12-16): automatic GTFS update,
+   proposed and postponed by the user. Proposal: a systemd timer on `vm` downloads the feed (as in `docs/evaluation.md`),
+   checks it (zip, size), imports into `next` while the server keeps running, and only on success swaps `next` -> `current`
+   (`previous` kept for a manual rollback) and restarts MOTIS (server on `/data/current`); a failure leaves everything as is
+   and is logged. To choose: nightly at 03:30, importing only if the feed changed or the last import is > 7 days old (A,
+   recommended), or weekly always (B); OSM by hand for now (or monthly); no alert yet (monitoring later).
 2. **Better meeting point algorithm** (the original goal; the user finds the current result
    disappointing): the plain barycenter ignores modes and is not the Fermat-Weber point (a weighted
    geometric median, Weiszfeld, weights ~ 1 / speed of each participant's mode, is easy); candidates
