@@ -149,6 +149,12 @@ Target architecture (stated by the user, 2026-11-03): Transitous and Tisséo go 
    category, position, zone and its other places, both scores, each participant's trip with mode, duration, arrival, path),
    `proposals` {equitable: [indices into places], egalitaire: […]}, data versions (GTFS, places file). Later: a second route
    for the times of another place of a zone, chosen in the page.
+   API security (decided by the user 2026-11-07): CORS for the site's origin only (not a protection against abuse);
+   per client 5 computations a minute and 100 a day (a computation = one `POST /v1/proposals`, the whole chain), with an
+   answer the page turns into a clear message; at most 4 computations at once for the service; body ≤ 16 KB and timeouts;
+   strict validation; two Docker networks (`edge` Caddy–middleware, `backend` middleware–MOTIS); minimal image, non-root,
+   read-only, no capabilities, memory limit; HSTS; no IP nor position in the logs (may change); images updated by hand
+   monthly. The thresholds are to be set from a load test of the whole chain (CPU, memory, response time, I/O, storage).
 2. **Better meeting point algorithm** (the original goal; the user finds the current result
    disappointing): the plain barycenter ignores modes and is not the Fermat-Weber point (a weighted
    geometric median, Weiszfeld, weights ~ 1 / speed of each participant's mode, is easy); candidates
