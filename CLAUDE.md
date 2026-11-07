@@ -133,6 +133,13 @@ Target architecture (stated by the user, 2026-11-03): Transitous and Tisséo go 
    (`previous` kept for a manual rollback) and restarts MOTIS (server on `/data/current`); a failure leaves everything as is
    and is logged. To choose: nightly at 03:30, importing only if the feed changed or the last import is > 7 days old (A,
    recommended), or weekly always (B); OSM by hand for now (or monthly); no alert yet (monitoring later).
+   Middleware (decided by the user 2026-11-07): all the intelligence leaves the browser; one POST from the page, the
+   middleware (validation, candidates, use of the precomputed zones, calls to MOTIS, score) answers the proposals. Written
+   in **Go**, new to the user (who knows Python well, C and C++ fairly, Rust a little), so explain Go as it comes; not
+   JavaScript (not mastered), the logic of `engine.js` / `debug-motis.js` is rewritten, `scripts/eval` should then go
+   through the API. Zones stay built offline (`scripts/build-zones.js`), the middleware loads the data file. A home-made
+   engine, if any, is a separate service in its own language. Precomputation while positions are entered: later, needs a
+   session id (and consent, `legal.html`).
 2. **Better meeting point algorithm** (the original goal; the user finds the current result
    disappointing): the plain barycenter ignores modes and is not the Fermat-Weber point (a weighted
    geometric median, Weiszfeld, weights ~ 1 / speed of each participant's mode, is easy); candidates
