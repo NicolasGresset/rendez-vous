@@ -13,12 +13,13 @@ const corsMaxAge = "7200"
 
 // knownPaths are the routes logged by name; any other path is logged as "other", so that no string chosen by
 // the client reaches the logs.
-var knownPaths = map[string]bool{"/v1/health": true}
+var knownPaths = map[string]bool{"/v1/health": true, "/v1/proposals": true}
 
 // newHandler builds the whole chain: request log, then CORS, then the routes.
 func newHandler(origins map[string]bool, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/health", handleHealth)
+	mux.HandleFunc("/v1/proposals", handleProposals)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found")
 	})
@@ -34,6 +35,19 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// handleProposals validates the question; the computation is not written yet (501).
+func handleProposals(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	if _, refusal := readQuestion(w, r, time.Now()); refusal != nil {
+		writeRequestError(w, refusal)
+		return
+	}
+	writeError(w, http.StatusNotImplemented, "not_implemented")
 }
 
 // withCORS lets the allowed origins read the answers, answers their preflight requests, and refuses any request
@@ -88,7 +102,8 @@ func (s *statusRecorder) WriteHeader(status int) {
 }
 
 // logRequests logs one line per request: method, route, status, duration. Never the IP address nor the body
-// (docs/architecture.md § Security of the API).
+// (docs/architecture.md § Security of the API). Successful health checks are not logged: Docker makes one every
+// 30 s, and the page one per visit (about 2,900 useless lines a day).
 func logRequests(logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -97,6 +112,9 @@ func logRequests(logger *slog.Logger, next http.Handler) http.Handler {
 		route := "other"
 		if knownPaths[r.URL.Path] {
 			route = r.URL.Path
+		}
+		if route == "/v1/health" && recorder.status == http.StatusOK {
+			return
 		}
 		method := r.Method
 		if len(method) > 10 {

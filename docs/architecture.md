@@ -12,7 +12,7 @@ needs from it.
 |---|---|
 | Server reachable in HTTPS at `api.rendez-vous.gresset-bourgeois.fr` | Done: Caddy forwards `/v1/*` to the middleware (HSTS, 413 beyond 16 KB, 404 elsewhere); from 5G: ~50 ms to connect, ~200 ms for a first request |
 | MOTIS (routing engine) on the server, not exposed | Done: tested from inside |
-| Middleware (Go), `middleware/` | Skeleton deployed and tested from outside (2026-11-07): `GET /v1/health`, CORS, request log, image (4 MB to download) built by CI; `POST /v1/proposals` not written |
+| Middleware (Go), `middleware/` | Skeleton deployed and tested from outside (2026-11-07): `GET /v1/health`, CORS, request log, image (4 MB to download) built by CI; `POST /v1/proposals` validates the question (computation not written) |
 | The page calling the middleware | Not started |
 | Automatic timetable (GTFS) update | Designed, postponed: **needed before 2026-12-02** |
 | Load test of the whole chain | To do once the middleware exists |
@@ -103,6 +103,15 @@ for the best, 3 distinct zones, then their places: `docs/evaluation.md` § Zones
 
 No string from the user is trusted: every field is typed, bounded or taken from a closed list, and anything
 else is refused with a `400` carrying a fixed error code (`{"error": "invalid_time"}`), never echoing the input.
+Implemented in `middleware/validate.go` (2026-11-07): the body must be `application/json` (so browsers always send a
+preflight), is read through a 16 KB limit, decoded refusing unknown fields and anything after the first value, then
+turned into typed values (time in Toulouse's zone, the time zone database built into the binary). Error codes:
+`unsupported_media_type` (415), `body_too_large` (413), `invalid_json`, `invalid_time`, `time_out_of_range`,
+`invalid_place_type`, `invalid_participants`, and, with `"participant": <index>` so that the page can point at the
+card, `invalid_position`, `outside_area`, `invalid_modes`, `invalid_people` (400). A meeting time up to 15 min in the
+past is accepted (the page offers the quarter hour already begun); until the end of the imported timetable is known,
+at most 30 days ahead. Go's decoder matches field names regardless of case (`MEETINGTIME` is accepted): harmless,
+the value still goes through the same checks. A valid question gets `501 not_implemented` until the computation exists.
 
 | Field | Rule |
 |---|---|
