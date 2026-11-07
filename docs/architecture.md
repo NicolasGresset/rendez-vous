@@ -236,6 +236,15 @@ from a porting mistake.
   443) would save a round trip on a new connection and survive a phone switching networks; one request per computation
   and the warm-up make that small. Possible later: UDP 443 to open on the box and publish.
 
+### Scores and ranking (2026-11-08)
+
+`middleware/score.go`, as `debug-motis.js` `scorePlaces` and `engine.js` `SCORES`: each participant's fastest mode
+among the times known (with transit, the time counts the wait until the meeting time when arriving early, the time
+shown does not), then both scores; a place someone cannot reach is left out; equal scores keep the candidates' order
+(JavaScript's sort is stable: `sort.SliceStable`, tested on 60 places since Go's sort is stable by chance below 12).
+Between two modes of equal time, the page's choice depends on the order its answers arrive; the middleware takes the
+first of walk, bike, car, transit: same score, only the mode shown may differ.
+
 ### MOTIS on the server (2026-11-07)
 
 - Image `ghcr.io/motis-project/motis:2.11.4`, the version of the local evaluation, so results stay comparable.
