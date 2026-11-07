@@ -12,7 +12,7 @@ needs from it.
 |---|---|
 | Server reachable in HTTPS at `api.rendez-vous.gresset-bourgeois.fr` | Done: answers a test text |
 | MOTIS (routing engine) on the server, not exposed | Done: tested from inside |
-| Middleware (Go) and `POST /v1/proposals` | Contract and security decided, not written |
+| Middleware (Go) and `POST /v1/proposals` | Contract, security and deployment decided, not written |
 | The page calling the middleware | Not started |
 | Automatic timetable (GTFS) update | Designed, postponed: **needed before 2026-12-02** |
 | Load test of the whole chain | To do once the middleware exists |
@@ -160,6 +160,33 @@ reach further.
 - The thresholds are starting values: they are to be set from a **load test** of the whole chain (response
   time, median and worst; CPU, memory, I/O and storage of each container), raising the number of
   simultaneous computations step by step (1, 2, 4, 8…) with requests drawn from the evaluation groups.
+
+### Deployment of the middleware (2026-11-07)
+
+- **Code in this repository**, in `middleware/` (excluded from the Vercel deployment). What the service is: the
+  middleware (the intelligence: the engineering choices, zones, representatives), the server's backend (address
+  completion, geocoding) and the interface, all designed for this service; they change together, so one repository
+  and one CI. A home-made routing engine, if any, would live elsewhere (and the middleware might then move with it).
+- **Image built by GitHub Actions**: tests, then build, then push to GHCR, tagged with the commit. The server only
+  pulls: deploying is changing the tag in its `compose.yaml`, rolling back is putting the previous one. What runs is
+  what was tested.
+- **Data coupled to the code**: the places and zones file is built into the image. The algorithms were tested on given
+  versions of the data, and that pairing is what is guaranteed.
+- Caddy kept in front, even for one service: it handles certificates (ACME), HTTP/2, and is the only exposed process,
+  apart from the application (a restart or a crash of the middleware does not touch HTTPS), and other services will
+  come. Go could serve TLS itself (`autocert`), at the cost of redoing all that.
+- Caddy: HSTS, body ≤ 16 KB, `/v1/*` to the middleware on `edge`, 404 for the rest. The middleware: CORS (including
+  the `OPTIONS` preflight), the client's IP from Caddy's `X-Forwarded-For` (trusted because only Caddy can reach it),
+  a `-healthcheck` mode of its own binary for Docker (the image has no shell). First deployed with `/v1/health` only,
+  to validate the whole chain (CI, image, server, Caddy) before the computation.
+- Limits: the per-client quotas and the queue belong to the middleware, which knows what a computation costs and
+  answers a precise error; Caddy's standard build has no rate limiting (a plugin means building and maintaining a
+  custom Caddy). A coarse flood limit common to all services could be added to the proxy later.
+- Latency (to do in the page): a `POST` with a JSON body triggers a CORS preflight (`OPTIONS`, one round trip),
+  cached by `Access-Control-Max-Age` (browsers cap it: 2 h in Chrome, 24 h in Firefox). A new connection costs
+  TCP + TLS (~150 ms measured from 4G, against ~35 ms on an open one). So the page warms the connection: a
+  `GET /v1/health` once the form is in use (the connection then stays open for the click, and a server that is down is
+  known before the click); `<link rel="preconnect">` alone does not last (unused sockets are closed after seconds).
 
 ### MOTIS on the server (2026-11-07)
 
