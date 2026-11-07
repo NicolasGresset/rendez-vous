@@ -12,3 +12,4 @@ playwright.config.mjs
 tests/
 .github/
 middleware/
+.dockerignore

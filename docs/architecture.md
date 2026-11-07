@@ -12,7 +12,7 @@ needs from it.
 |---|---|
 | Server reachable in HTTPS at `api.rendez-vous.gresset-bourgeois.fr` | Done: Caddy forwards `/v1/*` to the middleware (HSTS, 413 beyond 16 KB, 404 elsewhere); from 5G: ~50 ms to connect, ~200 ms for a first request |
 | MOTIS (routing engine) on the server, not exposed | Done: tested from inside |
-| Middleware (Go), `middleware/` | Skeleton deployed and tested from outside (2026-11-07): `GET /v1/health`, CORS, request log, image (4 MB to download) built by CI; `POST /v1/proposals` validates the question (computation not written) |
+| Middleware (Go), `middleware/` | Skeleton deployed and tested from outside (2026-11-07): `GET /v1/health`, CORS, request log, image (4 MB to download) built by CI; `POST /v1/proposals` validates the question; the places file is loaded and checked at start-up (computation not written) |
 | The page calling the middleware | Not started |
 | Automatic timetable (GTFS) update | Designed, postponed: **needed before 2026-12-02** |
 | Load test of the whole chain | To do once the middleware exists |
@@ -180,7 +180,12 @@ reach further.
   pulls: deploying is changing the tag in its `compose.yaml`, rolling back is putting the previous one. What runs is
   what was tested.
 - **Data coupled to the code**: the places and zones file is built into the image. The algorithms were tested on given
-  versions of the data, and that pairing is what is guaranteed.
+  versions of the data, and that pairing is what is guaranteed. The image is built from the repository's root
+  (`.dockerignore` keeps the context to `middleware/` and `data/pois-toulouse.json`), so a change of the file also rebuilds it.
+  At start-up the middleware keeps only the candidates (bars, pubs, biergartens, cafés, restaurants, metro and bus
+  stations), computes each zone's representative (its member closest to the zone's position, as `debug-motis.js`), and
+  refuses to start on a broken file (zone index out of range, a bar without zone, a zone without place…). The answers'
+  data version: the file's source dates and the first 12 digits of its SHA-256.
 - Caddy kept in front, even for one service: it handles certificates (ACME), HTTP/2, and is the only exposed process,
   apart from the application (a restart or a crash of the middleware does not touch HTTPS), and other services will
   come. Go could serve TLS itself (`autocert`), at the cost of redoing all that.

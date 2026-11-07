@@ -5,6 +5,7 @@
 // Configuration, by environment variables:
 //
 //	ALLOWED_ORIGINS  comma-separated origins allowed by CORS, e.g. "https://rendez-vous.gresset-bourgeois.fr"
+//	PLACES_FILE      the places and zones file (default /places.json, where the image puts data/pois-toulouse.json)
 //
 // With -healthcheck, it queries the health of the server running on this machine and exits (0: healthy):
 // Docker calls it, since the image has no shell nor wget.
@@ -37,6 +38,17 @@ func main() {
 		logger.Error("ALLOWED_ORIGINS is empty")
 		os.Exit(1)
 	}
+
+	placesFile := os.Getenv("PLACES_FILE")
+	if placesFile == "" {
+		placesFile = "/places.json"
+	}
+	data, err := loadData(placesFile)
+	if err != nil {
+		logger.Error("places file", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("places loaded", "counts", data.summary(), "sha256", data.Version.SHA256)
 
 	server := &http.Server{
 		Addr:    listenAddr,

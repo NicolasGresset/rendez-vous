@@ -1,0 +1,5 @@
+# Build context of middleware/Dockerfile (built from the repository's root): only what the image needs
+*
+!middleware/go.mod
+!middleware/*.go
+!data/pois-toulouse.json
