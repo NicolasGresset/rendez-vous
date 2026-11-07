@@ -30,7 +30,8 @@ instantly from the local file, then by the French IGN Géoplateforme.
 
 The full pipeline, with diagrams, API calls, quotas and data sources, is in
 [docs/pipeline.md](docs/pipeline.md); how the proposals were measured against the best places of the
-whole file is in [docs/evaluation.md](docs/evaluation.md).
+whole file is in [docs/evaluation.md](docs/evaluation.md); the move to a self-hosted server (middleware, API contract,
+security) and the reasons of each choice are in [docs/architecture.md](docs/architecture.md).
 
 ## Status
 
@@ -87,7 +88,8 @@ js/                      engine.js (candidates, scoring), ors.js, transitous.js,
                          participants.js, progress.js, map.js, results.js, slots.js, labels.js (interface)
 css/                     base.css (shared), rendez-vous.css, legal.css, fonts.css
 data/                    pois-toulouse.json (places), tisseo-area.json (build input), README.md (sources)
-docs/                    pipeline.md (a computation, end to end), evaluation.md (measures)
+docs/                    pipeline.md (a computation, end to end), evaluation.md (measures),
+                         architecture.md (the self-hosted target and its decisions)
 scripts/                 dev server, recorded computation, places build, eval/ (measures)
 tests/                   unit/ (Node's test runner), e2e/ (Playwright)
 ```
