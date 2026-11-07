@@ -140,6 +140,15 @@ Target architecture (stated by the user, 2026-11-03): Transitous and Tisséo go 
    through the API. Zones stay built offline (`scripts/build-zones.js`), the middleware loads the data file. A home-made
    engine, if any, is a separate service in its own language. Precomputation while positions are entered: later, needs a
    session id (and consent, `legal.html`).
+   API contract (decided by the user 2026-11-07, to be written in `docs/pipeline.md` once complete): `POST /v1/proposals`
+   {meetingTime "YYYY-MM-DDTHH:MM" Toulouse time, quarter hours, within the imported timetable; placeType station | bar |
+   cafe | restaurant; participants 2–10 of {lat, lon in the Tisséo area, modes ⊆ walk, bike, car, transit, non-empty,
+   people 1–15}}; unknown fields refused, body ≤ 16 KB, errors as a fixed code, never echoing the input. **No score in
+   the request**: the costly times are computed once and the answer ranks by both scores (the zone shortlist is the union
+   of each score's 20 best, overlap to measure); the user may drop one score later. Answer: `places` (complete: name,
+   category, position, zone and its other places, both scores, each participant's trip with mode, duration, arrival, path),
+   `proposals` {equitable: [indices into places], egalitaire: […]}, data versions (GTFS, places file). Later: a second route
+   for the times of another place of a zone, chosen in the page.
 2. **Better meeting point algorithm** (the original goal; the user finds the current result
    disappointing): the plain barycenter ignores modes and is not the Fermat-Weber point (a weighted
    geometric median, Weiszfeld, weights ~ 1 / speed of each participant's mode, is easy); candidates
