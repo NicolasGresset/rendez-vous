@@ -10,9 +10,9 @@ needs from it.
 
 | Part | State |
 |---|---|
-| Server reachable in HTTPS at `api.rendez-vous.gresset-bourgeois.fr` | Done: answers a test text |
+| Server reachable in HTTPS at `api.rendez-vous.gresset-bourgeois.fr` | Done: Caddy forwards `/v1/*` to the middleware (HSTS, 413 beyond 16 KB, 404 elsewhere); from 5G: ~50 ms to connect, ~200 ms for a first request |
 | MOTIS (routing engine) on the server, not exposed | Done: tested from inside |
-| Middleware (Go), `middleware/` | Skeleton: `GET /v1/health`, CORS, request log, image and CI (`.github/workflows/middleware.yml`); `POST /v1/proposals` not written |
+| Middleware (Go), `middleware/` | Skeleton deployed and tested from outside (2026-11-07): `GET /v1/health`, CORS, request log, image (4 MB to download) built by CI; `POST /v1/proposals` not written |
 | The page calling the middleware | Not started |
 | Automatic timetable (GTFS) update | Designed, postponed: **needed before 2026-12-02** |
 | Load test of the whole chain | To do once the middleware exists |
