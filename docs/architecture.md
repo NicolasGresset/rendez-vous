@@ -12,7 +12,7 @@ needs from it.
 |---|---|
 | Server reachable in HTTPS at `api.rendez-vous.gresset-bourgeois.fr` | Done: Caddy forwards `/v1/*` to the middleware (HSTS, 413 beyond 16 KB, 404 elsewhere); from 5G: ~50 ms to connect, ~200 ms for a first request |
 | MOTIS (routing engine) on the server, not exposed | Done: tested from inside |
-| Middleware (Go), `middleware/` | Skeleton deployed and tested from outside (2026-11-07): `GET /v1/health`, CORS, request log, image (4 MB to download) built by CI; `POST /v1/proposals` validates the question; places file, MOTIS client, score and method by zones checked against the page, the answer with street paths, errors 503 / 504, the limits per client and for the service (2026-11-08), `POST /v1/place` (not yet deployed); **deployed** (2026-11-08, image `229782d`): first real question from outside (3 participants, bars, Sunday 19:00) answered in 1.64 s with the network, 5 KB transferred (zstd) |
+| Middleware (Go), `middleware/` | Skeleton deployed and tested from outside (2026-11-07): `GET /v1/health`, CORS, request log, image (4 MB to download) built by CI; `POST /v1/proposals` validates the question; places file, MOTIS client, score and method by zones checked against the page, the answer with street paths, errors 503 / 504, the limits per client and for the service (2026-11-08), `POST /v1/place`; **deployed** (2026-11-08, image `a92fbe0`): first real question from outside (3 participants, bars, Sunday 19:00) answered in 1.64 s with the network, 5 KB transferred (zstd) |
 | The page calling the middleware | Not started: next (to discuss) |
 | Automatic timetable (GTFS) update | Designed, postponed: **needed before 2026-12-02** |
 | Load test of the whole chain | To do once the middleware exists |
@@ -191,7 +191,7 @@ looked up among the candidates loaded, and must be a place of a zone of the type
 answer: `{"place": {id, name, category, lat, lon, reachable, score, trips}, "data"}`; unlike a proposal, someone may
 not reach the place: then `reachable` is false, `score` absent and that participant's trip `null`. Same validation,
 deadline, errors and computations at once as the proposals, but its own quotas per client: 30 a minute, 300 a day
-(a visitor may look at several places in a row).
+(a visitor may look at several places in a row). Measured from outside on the server (2026-11-08, 3 participants, restaurants): the proposals 2.67 s, 7.6 KB; one other place 0.22 s, 1.7 KB.
 
 
 ### Security of the API (2026-11-07)
