@@ -249,6 +249,9 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   mostly repeat the same destination. The zone's other places stay listed, their times computed when chosen; the proposals do not change then.
 - Later (stated by the user 2026-11-02): on the home server, maybe an engine of one's own instead of MOTIS, doing only what is
   needed; the user has ideas on the transit times.
+  Confirmed by the middleware's writing (stated 2026-11-08): MOTIS does not natively do the exact computation wanted (the estimate
+  costs ~1.5 ms per place, its own queue of calls is out of reach), nor serve parallel users as the user wishes; an excellent start.
+  The many limits set for safety (calls, computations, quotas, deadlines) may over-constrain: the load test is to set them.
 - Tuned on Toulouse's bars, to do again elsewhere (stated by the user, 2026-11-02): the 5 min on foot of
   the zones, the 500 m between zones, the 20 exact zones and the 700 m between candidates are measures on this data. For
   another city, export the reasoning and redo the measures (`scripts/eval/centers.js`, `zones.js`), not the values.
