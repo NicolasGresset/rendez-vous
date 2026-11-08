@@ -1,11 +1,11 @@
 // Command middleware is the server side of Rendez-vous: it validates the page's requests, calls the routing
-// engines and answers the proposals (docs/architecture.md). For now it only answers GET /v1/health, so that the
-// whole deployment chain (CI, image, server, Caddy) is validated before the computation is written.
+// engine (MOTIS) and answers the proposals (docs/architecture.md): GET /v1/health and POST /v1/proposals.
 //
 // Configuration, by environment variables:
 //
 //	ALLOWED_ORIGINS  comma-separated origins allowed by CORS, e.g. "https://rendez-vous.gresset-bourgeois.fr"
 //	PLACES_FILE      the places and zones file (default /places.json, where the image puts data/pois-toulouse.json)
+//	MOTIS_URL        the MOTIS server (default http://motis:8080, its name on the Docker network backend)
 //
 // With -healthcheck, it queries the health of the server running on this machine and exits (0: healthy):
 // Docker calls it, since the image has no shell nor wget.
@@ -23,7 +23,11 @@ import (
 	"time"
 )
 
-const listenAddr = ":8080"
+const (
+	listenAddr = ":8080"
+	// motisParallel bounds the calls to MOTIS in flight, every computation together: the VM's 6 cores
+	motisParallel = 6
+)
 
 func main() {
 	healthcheck := flag.Bool("healthcheck", false, "query the local server's health and exit (0: healthy)")
@@ -50,9 +54,15 @@ func main() {
 	}
 	logger.Info("places loaded", "counts", data.summary(), "sha256", data.Version.SHA256)
 
+	motisURL := os.Getenv("MOTIS_URL")
+	if motisURL == "" {
+		motisURL = "http://motis:8080"
+	}
+
 	server := &http.Server{
-		Addr:    listenAddr,
-		Handler: newHandler(origins, logger),
+		Addr: listenAddr,
+		Handler: newHandler(origins, logger, &service{data: data, motis: NewMotisClient(motisURL, motisParallel),
+			deadline: computationDeadline, logger: logger}),
 		// Timeouts: a client cannot hold a connection by sending its request slowly
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,

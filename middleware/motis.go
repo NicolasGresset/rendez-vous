@@ -292,8 +292,43 @@ func (c *MotisClient) TransitTrip(ctx context.Context, from, to Point, slotStart
 	if !ok {
 		return nil, nil
 	}
-	trip := &Trip{Seconds: seconds, Wait: wait, Departure: best.StartTime, Arrival: best.EndTime}
-	for _, l := range best.Legs {
+	trip := &Trip{Seconds: seconds, Wait: wait, Departure: best.StartTime, Arrival: best.EndTime, Legs: legsOf(best)}
+	return trip, nil
+}
+
+// StreetPath asks MOTIS's /plan for a walk, bike or car path, as js/motis.js routePath: its legs (usually one), or nil
+// when MOTIS finds none.
+func (c *MotisClient) StreetPath(ctx context.Context, mode Mode, from, to Point) ([]Leg, error) {
+	motisMode, ok := streetModes[mode]
+	if !ok {
+		return nil, fmt.Errorf("not a street mode: %s", mode)
+	}
+	query := url.Values{
+		"fromPlace":     {coord(from.Lat) + "," + coord(from.Lon)},
+		"toPlace":       {coord(to.Lat) + "," + coord(to.Lon)},
+		"directModes":   {motisMode},
+		"transitModes":  {""},
+		"maxDirectTime": {strconv.Itoa(streetMaxSeconds)},
+	}
+	newRequest := func(ctx context.Context) (*http.Request, error) {
+		return http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/api/v6/plan?"+query.Encode(), nil)
+	}
+	var answer struct {
+		Direct []motisItinerary `json:"direct"`
+	}
+	if err := c.call(ctx, newRequest, &answer); err != nil {
+		return nil, err
+	}
+	if len(answer.Direct) == 0 {
+		return nil, nil
+	}
+	return legsOf(answer.Direct[0]), nil
+}
+
+// legsOf keeps of an itinerary's legs what the page shows and draws (js/transitous.js itineraryLegs).
+func legsOf(it motisItinerary) []Leg {
+	var legs []Leg
+	for _, l := range it.Legs {
 		leg := Leg{Mode: l.Mode, Departure: l.StartTime, Arrival: l.EndTime}
 		if l.From != nil {
 			leg.From = l.From.Name
@@ -304,17 +339,20 @@ func (c *MotisClient) TransitTrip(ctx context.Context, from, to Point, slotStart
 		if l.LegGeometry != nil && l.LegGeometry.Points != "" {
 			leg.Path = &Polyline{Points: l.LegGeometry.Points, Precision: l.LegGeometry.Precision}
 		}
-		if l.Mode != "WALK" {
+		if !streetLeg[l.Mode] {
 			leg.Line, leg.Headsign = l.RouteShortName, l.Headsign
 			if hexColor.MatchString(l.RouteColor) {
 				leg.Color = "#" + l.RouteColor[len(l.RouteColor)-6:]
 			}
 			leg.Stops = len(l.IntermediateStops) + 1
 		}
-		trip.Legs = append(trip.Legs, leg)
+		legs = append(legs, leg)
 	}
-	return trip, nil
+	return legs
 }
+
+// streetLeg: the legs MOTIS gives for walk, bike and car, which have no line
+var streetLeg = map[string]bool{"WALK": true, "BIKE": true, "CAR": true}
 
 // bestJourney is js/transitous.js bestJourney: among the journeys arriving by slotEnd, the one taking the least time
 // from leaving to being there when the slot starts or within it (arriving early counts the wait); at equal time,

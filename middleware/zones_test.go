@@ -49,6 +49,12 @@ func distanceMotis(t *testing.T) *MotisClient {
 			_ = json.NewEncoder(w).Encode(map[string]any{"transit_durations": out})
 		case "/api/v6/plan":
 			query, _ := url.ParseQuery(r.URL.RawQuery)
+			if mode := query.Get("directModes"); mode != "" { // a street path
+				fmt.Fprintf(w, `{"direct": [{"startTime": "2026-11-10T17:00:00Z", "endTime": "2026-11-10T17:10:00Z", "legs": [
+					{"mode": %q, "startTime": "2026-11-10T17:00:00Z", "endTime": "2026-11-10T17:10:00Z",
+					 "legGeometry": {"points": "_p~iF~ps|U", "precision": 7}}]}]}`, mode)
+				return
+			}
 			seconds := far(parse(query.Get("fromPlace"), ","), parse(query.Get("toPlace"), ","))/5 + 300
 			end, _ := time.Parse(time.RFC3339, query.Get("time"))
 			end = end.Add(-lateTolerance)

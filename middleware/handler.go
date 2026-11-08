@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -15,11 +17,23 @@ const corsMaxAge = "7200"
 // the client reaches the logs.
 var knownPaths = map[string]bool{"/v1/health": true, "/v1/proposals": true}
 
+// computationDeadline bounds a whole computation, from the visitor's request to the answer (under the server's 30 s
+// write timeout); each call to MOTIS has its own, shorter, timeout.
+const computationDeadline = 25 * time.Second
+
+// service is what the routes need: the places, MOTIS, and the deadline of a computation (shorter in tests).
+type service struct {
+	data     *Data
+	motis    *MotisClient
+	deadline time.Duration
+	logger   *slog.Logger
+}
+
 // newHandler builds the whole chain: request log, then CORS, then the routes.
-func newHandler(origins map[string]bool, logger *slog.Logger) http.Handler {
+func newHandler(origins map[string]bool, logger *slog.Logger, svc *service) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/health", handleHealth)
-	mux.HandleFunc("/v1/proposals", handleProposals)
+	mux.HandleFunc("/v1/proposals", svc.handleProposals)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found")
 	})
@@ -37,17 +51,41 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// handleProposals validates the question; the computation is not written yet (501).
-func handleProposals(w http.ResponseWriter, r *http.Request) {
+// handleProposals validates the question, runs the method by zones and answers the proposals. MOTIS failing
+// (after its retry) is a 503, the deadline passed a 504; a visitor who left gets nothing (the calls stopped).
+func (svc *service) handleProposals(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
 		return
 	}
-	if _, refusal := readQuestion(w, r, time.Now()); refusal != nil {
+	q, refusal := readQuestion(w, r, time.Now())
+	if refusal != nil {
 		writeRequestError(w, refusal)
 		return
 	}
-	writeError(w, http.StatusNotImplemented, "not_implemented")
+	ctx, cancel := context.WithTimeout(r.Context(), svc.deadline)
+	defer cancel()
+	answer, err := svc.answer(ctx, q)
+	switch {
+	case err == nil:
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, answer)
+	case r.Context().Err() != nil:
+		// The visitor left: nobody to answer
+	case errors.Is(ctx.Err(), context.DeadlineExceeded): // the computation's own deadline, whatever the call that hit it
+		writeError(w, http.StatusGatewayTimeout, "timeout")
+	default:
+		svc.logger.Error("computation", "error", err.Error())
+		writeError(w, http.StatusServiceUnavailable, "engine_unavailable")
+	}
+}
+
+func (svc *service) answer(ctx context.Context, q Question) (*Answer, error) {
+	result, err := propose(ctx, q, svc.data, svc.motis)
+	if err != nil {
+		return nil, err
+	}
+	return buildAnswer(ctx, q, svc.data, svc.motis, result)
 }
 
 // withCORS lets the allowed origins read the answers, answers their preflight requests, and refuses any request

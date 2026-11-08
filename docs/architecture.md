@@ -12,7 +12,7 @@ needs from it.
 |---|---|
 | Server reachable in HTTPS at `api.rendez-vous.gresset-bourgeois.fr` | Done: Caddy forwards `/v1/*` to the middleware (HSTS, 413 beyond 16 KB, 404 elsewhere); from 5G: ~50 ms to connect, ~200 ms for a first request |
 | MOTIS (routing engine) on the server, not exposed | Done: tested from inside |
-| Middleware (Go), `middleware/` | Skeleton deployed and tested from outside (2026-11-07): `GET /v1/health`, CORS, request log, image (4 MB to download) built by CI; `POST /v1/proposals` validates the question; places file, MOTIS client, score and method by zones written and checked against the page (2026-11-08); not yet wired to the route, no limits yet |
+| Middleware (Go), `middleware/` | Skeleton deployed and tested from outside (2026-11-07): `GET /v1/health`, CORS, request log, image (4 MB to download) built by CI; `POST /v1/proposals` validates the question; places file, MOTIS client, score and method by zones checked against the page, the answer with street paths, errors 503 / 504 (2026-11-08); not deployed, no limits yet |
 | The page calling the middleware | Not started |
 | Automatic timetable (GTFS) update | Designed, postponed: **needed before 2026-12-02** |
 | Load test of the whole chain | To do once the middleware exists |
@@ -124,24 +124,62 @@ the value still goes through the same checks. A valid question gets `501 not_imp
 | `people` | Integer, 1 to 15 |
 | Anything else | Unknown fields refused; body at most 16 KB |
 
-The answer is complete (the page needs no file to show it):
+The answer (decided 2026-11-08, `middleware/answer.go`) is complete, so that the page needs no file to show it, and
+indirect: places and zones in tables, the proposals as indices into `places`.
+
+| Field | Content |
+|---|---|
+| `meetingTime` | As asked |
+| `proposals` | Each kept zone's best place, best first (indices into `places`) |
+| `zones` | The kept zones: `name`, `kind`, `places` (their scored places, best first, indices into `places`), `others` (the zone's places without times: name, category, position; scored when chosen, by a later route) |
+| `places` | `name`, `category`, `lat`, `lon`, `zone` (index into `zones`, absent for a station), `score` (seconds, lower is better), `trips` |
+| `trips` | One per participant, in the question's order: `mode` (the fastest), `seconds` (scored: with transit, the wait until the meeting time when arriving early), `travel` (shown: door to door), `departure` and `arrival` (transit only), `legs` |
+| `legs` | `mode` (MOTIS's: `WALK`, `BIKE`, `CAR`, `BUS`, `SUBWAY`, `TRAM`…), `from`, `to`, `departure`, `arrival`, `path` (as MOTIS encodes it: Google's polyline and its precision), and for a line `line`, `headsign`, `color` (`#RRGGBB` only), `stops` |
+| `data` | The places file's source dates and the first digits of its SHA-256 |
+
+Street paths (walk, bike, car) come with **every scored place** (decided by the user 2026-11-08: any scored place shows
+at once; one call per participant whose fastest mode there is a street one; a path MOTIS cannot give leaves `legs`
+empty, as the page today). Measured 2026-11-08 (16-core PC, local MOTIS, groups T1 and Q3 of the evaluation, walk +
+transit or car, bike, walk + transit, bars, restaurants, stations): at most 28 street paths, **15–70 ms**; the answer
+**8–213 KB raw, 3–18 KB with gzip** (mostly the journeys' encoded paths), so Caddy compresses the answers (`encode zstd gzip`).
+
+A simple example: two participants, bars, one zone shown of three, one place of it scored, another not (paths cut):
 
 ```json
 {
-  "places": [
-    { "name": "…", "category": "amenity=bar", "lat": 43.60, "lon": 1.44,
-      "zone": { "name": "…", "others": ["…"] },
-      "score": 1520,
-      "trips": [ { "participant": 0, "mode": "transit", "duration": 1260, "arrival": "…", "path": "…" } ] }
+  "meetingTime": "2026-11-10T19:00",
+  "proposals": [0, 2, 4],
+  "zones": [
+    { "name": "Carmes", "kind": "bar", "places": [0, 1],
+      "others": [ { "name": "Le Filochard", "category": "amenity=bar", "lat": 43.5951, "lon": 1.4446 } ] }
   ],
-  "proposals": [0, 2, 1],
-  "data": { "gtfs": "2026-10-30", "places": "…" }
+  "places": [
+    { "name": "Le Bar Basque", "category": "amenity=bar", "lat": 43.5960, "lon": 1.4449, "zone": 0, "score": 1185,
+      "trips": [
+        { "mode": "transit", "seconds": 1260, "travel": 1140,
+          "departure": "2026-11-10T17:39:00Z", "arrival": "2026-11-10T17:58:00Z",
+          "legs": [
+            { "mode": "WALK", "from": "START", "to": "Jean Jaurès", "departure": "2026-11-10T17:39:00Z",
+              "arrival": "2026-11-10T17:44:00Z", "path": { "points": "…", "precision": 7 } },
+            { "mode": "SUBWAY", "from": "Jean Jaurès", "to": "Carmes", "departure": "2026-11-10T17:44:00Z",
+              "arrival": "2026-11-10T17:52:00Z", "line": "B", "color": "#FFCD00", "stops": 3, "path": { "points": "…", "precision": 7 } },
+            { "mode": "WALK", "from": "Carmes", "to": "END", "departure": "2026-11-10T17:52:00Z",
+              "arrival": "2026-11-10T17:58:00Z", "path": { "points": "…", "precision": 7 } } ] },
+        { "mode": "bike", "seconds": 960, "travel": 960,
+          "legs": [ { "mode": "BIKE", "departure": "…", "arrival": "…", "path": { "points": "…", "precision": 7 } } ] }
+      ] }
+  ],
+  "data": { "sources": { "osm": "2026-10-28", "gtfs": "2026-11-02", "addresses": "2026-11-02" }, "sha256": "4f2a9c1e07b3" }
 }
 ```
 
-`proposals` holds indices into `places`. `data` gives the versions of the timetable and of the places file,
-useful for the future report mode. Later: a second route giving the trips to another place of a zone, chosen
-in the page (today its times are computed when it is chosen), with the same validation.
+(Here the first participant arrives at 18:58, 2 min early: `seconds` counts those 2 min, `travel` does not. The score:
+the mean (1260 + 960) / 2 = 1110, plus half of what the longest trip has more, (1110 + 1260) / 2 = 1185.)
+
+Errors of the computation (decided 2026-11-08): MOTIS failing after its retry, `503 engine_unavailable`; the 25 s
+deadline passed, `504 timeout` (decided by the computation's own deadline, whatever call hit it); nobody can reach
+any place, `200` with empty lists; a visitor who left gets nothing (their calls stop). Later: a second route giving the
+trips to another place of a zone, chosen in the page, with the same validation.
 
 ### Security of the API (2026-11-07)
 

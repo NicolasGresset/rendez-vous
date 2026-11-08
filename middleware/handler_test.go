@@ -14,7 +14,7 @@ const siteOrigin = "https://rendez-vous.gresset-bourgeois.fr"
 // serve sends one request through the whole handler chain and returns the answer.
 func serve(t *testing.T, method, path string, headers map[string]string) *http.Response {
 	t.Helper()
-	handler := newHandler(parseOrigins(siteOrigin), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	handler := newHandler(parseOrigins(siteOrigin), slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 	req := httptest.NewRequest(method, path, nil)
 	for name, value := range headers {
 		req.Header.Set(name, value)

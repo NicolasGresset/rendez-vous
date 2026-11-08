@@ -159,21 +159,17 @@ func TestBodyRules(t *testing.T) {
 	}
 }
 
-func TestProposalsRoute(t *testing.T) {
+func TestProposalsRouteRefusesBadQuestions(t *testing.T) {
 	post := func(body string) *http.Response {
 		req := httptest.NewRequest(http.MethodPost, "/v1/proposals", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
-		newHandler(parseOrigins(siteOrigin), slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))).ServeHTTP(rec, req)
+		newHandler(parseOrigins(siteOrigin), slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)), nil).ServeHTTP(rec, req)
 		return rec.Result()
 	}
 	// A meeting time in the near future, whatever the day the test runs
 	soon := time.Now().In(toulouse).Add(time.Hour).Truncate(15 * time.Minute)
 	valid := strings.Replace(validBody, "2026-11-09T19:00", soon.Format(timeLayout), 1)
-
-	if res := post(valid); res.StatusCode != http.StatusNotImplemented {
-		t.Errorf("valid question: status %d, want 501", res.StatusCode)
-	}
 	res := post(strings.Replace(valid, `"people": 2`, `"people": 99`, 1))
 	if got := body(t, res); res.StatusCode != http.StatusBadRequest || got != `{"error":"invalid_people","participant":1}` {
 		t.Errorf("status %d, body %s", res.StatusCode, got)
@@ -185,7 +181,7 @@ func TestProposalsRoute(t *testing.T) {
 
 func TestSuccessfulHealthIsNotLogged(t *testing.T) {
 	var logs bytes.Buffer
-	handler := newHandler(parseOrigins(siteOrigin), slog.New(slog.NewTextHandler(&logs, nil)))
+	handler := newHandler(parseOrigins(siteOrigin), slog.New(slog.NewTextHandler(&logs, nil)), nil)
 	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/health", nil))
 	if logs.Len() != 0 {
 		t.Errorf("logged: %s", logs.String())
