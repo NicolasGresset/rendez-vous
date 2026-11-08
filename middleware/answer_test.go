@@ -19,7 +19,9 @@ func askProposals(t *testing.T, motis *MotisClient, deadline time.Duration, kind
 		t.Fatal(err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := newHandler(parseOrigins(siteOrigin), logger, &service{data: data, motis: motis, deadline: deadline, logger: logger})
+	svc := newService(data, motis, logger)
+	svc.deadline = deadline
+	handler := newHandler(parseOrigins(siteOrigin), logger, svc)
 	soon := time.Now().In(toulouse).Add(time.Hour).Truncate(15 * time.Minute).Format(timeLayout)
 	body := `{"meetingTime": "` + soon + `", "placeType": "` + kind + `", "participants": [
 		{"lat": 43.60331, "lon": 1.43941, "modes": ` + modes + `, "people": 1},

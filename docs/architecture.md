@@ -12,7 +12,7 @@ needs from it.
 |---|---|
 | Server reachable in HTTPS at `api.rendez-vous.gresset-bourgeois.fr` | Done: Caddy forwards `/v1/*` to the middleware (HSTS, 413 beyond 16 KB, 404 elsewhere); from 5G: ~50 ms to connect, ~200 ms for a first request |
 | MOTIS (routing engine) on the server, not exposed | Done: tested from inside |
-| Middleware (Go), `middleware/` | Skeleton deployed and tested from outside (2026-11-07): `GET /v1/health`, CORS, request log, image (4 MB to download) built by CI; `POST /v1/proposals` validates the question; places file, MOTIS client, score and method by zones checked against the page, the answer with street paths, errors 503 / 504 (2026-11-08); not deployed, no limits yet |
+| Middleware (Go), `middleware/` | Skeleton deployed and tested from outside (2026-11-07): `GET /v1/health`, CORS, request log, image (4 MB to download) built by CI; `POST /v1/proposals` validates the question; places file, MOTIS client, score and method by zones checked against the page, the answer with street paths, errors 503 / 504, the limits per client and for the service (2026-11-08); not deployed |
 | The page calling the middleware | Not started |
 | Automatic timetable (GTFS) update | Designed, postponed: **needed before 2026-12-02** |
 | Load test of the whole chain | To do once the middleware exists |
@@ -198,6 +198,14 @@ reach further.
 | Reaching MOTIS from the front | Two Docker networks: `edge` (Caddy–middleware) and `backend` (middleware–MOTIS); Caddy cannot reach MOTIS |
 | A compromised container | Minimal image (the Go binary alone, no shell), non-root user, read-only file system, no Linux capability, memory limit |
 
+- Implemented 2026-11-08 (`middleware/limits.go`): the client is the last address of `X-Forwarded-For` (set by Caddy
+  from the connection; only Caddy reaches the middleware), an IPv4 address or an IPv6 /64, an IPv4 address written as
+  IPv6 counted as IPv4; requests without a readable address share one count. Rolling windows: at most 5 computations
+  in 60 s and 100 in 24 h, counted when a valid question starts computing (an invalid one costs nothing; one refused
+  as busy is not counted). Refused: `429 {"error": "rate_limited", "retryAfter": s}` and a `Retry-After` header, the
+  wait being until the oldest computation leaves the window. Busy: 4 computations at once; a request waits up to
+  5 s for a place, then `503 {"error": "busy", "retryAfter": 10}`. Memory bounded: clients without a computation for
+  a day are forgotten every 10 min, and at most 100,000 clients are remembered (beyond, new ones are refused as busy).
 - Logs: **no IP address and no position** (an IP address is personal data under the GDPR); only time, route,
   status, duration, number of participants and error code. IP addresses live in memory only, for the limits.
   May be revisited.

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -27,6 +28,14 @@ type service struct {
 	motis    *MotisClient
 	deadline time.Duration
 	logger   *slog.Logger
+	limits   *rateLimiter  // per client
+	slots    chan struct{} // the computations running, maxComputations at most
+	wait     time.Duration // how long a request waits for a slot
+}
+
+func newService(data *Data, motis *MotisClient, logger *slog.Logger) *service {
+	return &service{data: data, motis: motis, deadline: computationDeadline, logger: logger, limits: newRateLimiter(),
+		slots: make(chan struct{}, maxComputations), wait: computationWait}
 }
 
 // newHandler builds the whole chain: request log, then CORS, then the routes.
@@ -63,6 +72,25 @@ func (svc *service) handleProposals(w http.ResponseWriter, r *http.Request) {
 		writeRequestError(w, refusal)
 		return
 	}
+	// Per client: refused before any work, with the wait; counted only once the computation runs
+	key := clientKey(r)
+	if ok, wait := svc.limits.allow(key, time.Now()); !ok {
+		writeRetry(w, http.StatusTooManyRequests, "rate_limited", retryAfter(wait))
+		return
+	}
+	// For the service: a place among the computations running, waited for a few seconds
+	select {
+	case svc.slots <- struct{}{}:
+		defer func() { <-svc.slots }()
+	case <-time.After(svc.wait):
+		svc.limits.undo(key)
+		writeRetry(w, http.StatusServiceUnavailable, "busy", busyRetrySeconds)
+		return
+	case <-r.Context().Done():
+		svc.limits.undo(key)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), svc.deadline)
 	defer cancel()
 	answer, err := svc.answer(ctx, q)
@@ -161,6 +189,12 @@ func logRequests(logger *slog.Logger, next http.Handler) http.Handler {
 		logger.Info("request", "method", method, "route", route, "status", recorder.status,
 			"ms", time.Since(start).Milliseconds())
 	})
+}
+
+// writeRetry refuses for now: the code, and when to come back (the Retry-After header and the body, in seconds).
+func writeRetry(w http.ResponseWriter, status int, code string, seconds int) {
+	w.Header().Set("Retry-After", strconv.Itoa(seconds))
+	writeJSON(w, status, map[string]any{"error": code, "retryAfter": seconds})
 }
 
 // writeError answers a fixed error code, never anything taken from the request.

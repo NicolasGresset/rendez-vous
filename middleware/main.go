@@ -59,10 +59,14 @@ func main() {
 		motisURL = "http://motis:8080"
 	}
 
+	svc := newService(data, NewMotisClient(motisURL, motisParallel), logger)
+	stopPurge := make(chan struct{})
+	defer close(stopPurge)
+	go svc.limits.purgeEvery(clientsPurgeEvery, stopPurge)
+
 	server := &http.Server{
-		Addr: listenAddr,
-		Handler: newHandler(origins, logger, &service{data: data, motis: NewMotisClient(motisURL, motisParallel),
-			deadline: computationDeadline, logger: logger}),
+		Addr:    listenAddr,
+		Handler: newHandler(origins, logger, svc),
 		// Timeouts: a client cannot hold a connection by sending its request slowly
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
