@@ -12,7 +12,7 @@ needs from it.
 |---|---|
 | Server reachable in HTTPS at `api.rendez-vous.gresset-bourgeois.fr` | Done: Caddy forwards `/v1/*` to the middleware (HSTS, 413 beyond 16 KB, 404 elsewhere); from 5G: ~50 ms to connect, ~200 ms for a first request |
 | MOTIS (routing engine) on the server, not exposed | Done: tested from inside |
-| Middleware (Go), `middleware/` | Skeleton deployed and tested from outside (2026-11-07): `GET /v1/health`, CORS, request log, image (4 MB to download) built by CI; `POST /v1/proposals` validates the question; places file, MOTIS client, score and method by zones checked against the page, the answer with street paths, errors 503 / 504, the limits per client and for the service (2026-11-08); **deployed** (2026-11-08, image `229782d`): first real question from outside (3 participants, bars, Sunday 19:00) answered in 1.64 s with the network, 5 KB transferred (zstd) |
+| Middleware (Go), `middleware/` | Skeleton deployed and tested from outside (2026-11-07): `GET /v1/health`, CORS, request log, image (4 MB to download) built by CI; `POST /v1/proposals` validates the question; places file, MOTIS client, score and method by zones checked against the page, the answer with street paths, errors 503 / 504, the limits per client and for the service (2026-11-08), `POST /v1/place` (not yet deployed); **deployed** (2026-11-08, image `229782d`): first real question from outside (3 participants, bars, Sunday 19:00) answered in 1.64 s with the network, 5 KB transferred (zstd) |
 | The page calling the middleware | Not started: next (to discuss) |
 | Automatic timetable (GTFS) update | Designed, postponed: **needed before 2026-12-02** |
 | Load test of the whole chain | To do once the middleware exists |
@@ -178,8 +178,21 @@ the mean (1260 + 960) / 2 = 1110, plus half of what the longest trip has more, (
 
 Errors of the computation (decided 2026-11-08): MOTIS failing after its retry, `503 engine_unavailable`; the 25 s
 deadline passed, `504 timeout` (decided by the computation's own deadline, whatever call hit it); nobody can reach
-any place, `200` with empty lists; a visitor who left gets nothing (their calls stop). Later: a second route giving the
-trips to another place of a zone, chosen in the page, with the same validation.
+any place, `200` with empty lists; a visitor who left gets nothing (their calls stop).
+
+Every place, scored or not, carries its `id` (the OpenStreetMap or GTFS id of the places file), to name it in the
+second route.
+
+**`POST /v1/place`** (decided by the user 2026-11-08, option A of three: computing every member of the kept zones at
+once would mean up to 86 restaurants instead of 15, and not offering them would drop a wanted feature): the trips to
+one other place of a kept zone, chosen in the page, since the proposals compute at most 5 places of a zone (the
+limit decided 2026-11-03). The body is the question plus `"place": "<id>"`; the id (64 characters at most) is only
+looked up among the candidates loaded, and must be a place of a zone of the type asked, else `400 invalid_place`. The
+answer: `{"place": {id, name, category, lat, lon, reachable, score, trips}, "data"}`; unlike a proposal, someone may
+not reach the place: then `reachable` is false, `score` absent and that participant's trip `null`. Same validation,
+deadline, errors and computations at once as the proposals, but its own quotas per client: 30 a minute, 300 a day
+(a visitor may look at several places in a row).
+
 
 ### Security of the API (2026-11-07)
 

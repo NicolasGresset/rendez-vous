@@ -16,7 +16,7 @@ const corsMaxAge = "7200"
 
 // knownPaths are the routes logged by name; any other path is logged as "other", so that no string chosen by
 // the client reaches the logs.
-var knownPaths = map[string]bool{"/v1/health": true, "/v1/proposals": true}
+var knownPaths = map[string]bool{"/v1/health": true, "/v1/proposals": true, "/v1/place": true}
 
 // computationDeadline bounds a whole computation, from the visitor's request to the answer (under the server's 30 s
 // write timeout); each call to MOTIS has its own, shorter, timeout.
@@ -28,13 +28,15 @@ type service struct {
 	motis    *MotisClient
 	deadline time.Duration
 	logger   *slog.Logger
-	limits   *rateLimiter  // per client
+	limits   *rateLimiter  // per client, computations
+	places   *rateLimiter  // per client, single places
 	slots    chan struct{} // the computations running, maxComputations at most
 	wait     time.Duration // how long a request waits for a slot
 }
 
 func newService(data *Data, motis *MotisClient, logger *slog.Logger) *service {
-	return &service{data: data, motis: motis, deadline: computationDeadline, logger: logger, limits: newRateLimiter(),
+	return &service{data: data, motis: motis, deadline: computationDeadline, logger: logger,
+		limits: newRateLimiter(perMinute, perDay), places: newRateLimiter(placesPerMinute, placesPerDay),
 		slots: make(chan struct{}, maxComputations), wait: computationWait}
 }
 
@@ -43,6 +45,7 @@ func newHandler(origins map[string]bool, logger *slog.Logger, svc *service) http
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/health", handleHealth)
 	mux.HandleFunc("/v1/proposals", svc.handleProposals)
+	mux.HandleFunc("/v1/place", svc.handlePlace)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found")
 	})
@@ -60,8 +63,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// handleProposals validates the question, runs the method by zones and answers the proposals. MOTIS failing
-// (after its retry) is a 503, the deadline passed a 504; a visitor who left gets nothing (the calls stopped).
+// handleProposals validates the question, runs the method by zones and answers the proposals.
 func (svc *service) handleProposals(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
@@ -72,28 +74,51 @@ func (svc *service) handleProposals(w http.ResponseWriter, r *http.Request) {
 		writeRequestError(w, refusal)
 		return
 	}
-	// Per client: refused before any work, with the wait; counted only once the computation runs
+	svc.run(w, r, svc.limits, func(ctx context.Context) (any, error) { return svc.answer(ctx, q) })
+}
+
+// handlePlace computes the trips to one other place of a kept zone, chosen in the page (the proposals give at most
+// 5 places of a zone with their trips): the same question, the place's id, the same limits but its own quotas.
+func (svc *service) handlePlace(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	q, place, refusal := readPlaceQuestion(w, r, time.Now(), svc.data)
+	if refusal != nil {
+		writeRequestError(w, refusal)
+		return
+	}
+	svc.run(w, r, svc.places, func(ctx context.Context) (any, error) {
+		return placeTrips(ctx, q, svc.data, svc.motis, place)
+	})
+}
+
+// run applies the limits, then computes within the deadline and answers. Per client: refused before any work, with
+// the wait; counted only once the computation runs. For the service: a place among the computations running, waited
+// for a few seconds. MOTIS failing (after its retry) is a 503, the deadline passed a 504; a visitor who left gets
+// nothing (the calls stopped).
+func (svc *service) run(w http.ResponseWriter, r *http.Request, limits *rateLimiter, compute func(context.Context) (any, error)) {
 	key := clientKey(r)
-	if ok, wait := svc.limits.allow(key, time.Now()); !ok {
+	if ok, wait := limits.allow(key, time.Now()); !ok {
 		writeRetry(w, http.StatusTooManyRequests, "rate_limited", retryAfter(wait))
 		return
 	}
-	// For the service: a place among the computations running, waited for a few seconds
 	select {
 	case svc.slots <- struct{}{}:
 		defer func() { <-svc.slots }()
 	case <-time.After(svc.wait):
-		svc.limits.undo(key)
+		limits.undo(key)
 		writeRetry(w, http.StatusServiceUnavailable, "busy", busyRetrySeconds)
 		return
 	case <-r.Context().Done():
-		svc.limits.undo(key)
+		limits.undo(key)
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), svc.deadline)
 	defer cancel()
-	answer, err := svc.answer(ctx, q)
+	answer, err := compute(ctx)
 	switch {
 	case err == nil:
 		w.Header().Set("Cache-Control", "no-store")

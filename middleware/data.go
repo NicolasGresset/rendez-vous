@@ -63,6 +63,7 @@ type Data struct {
 	Places  []Place
 	Zones   []Zone
 	ByType  map[PlaceType][]int // candidate places of each place type, indices in Places
+	ByID    map[string]int      // candidate places by id
 	Version DataVersion
 }
 
@@ -86,6 +87,7 @@ func loadData(path string) (*Data, error) {
 	sum := sha256.Sum256(raw)
 	data := &Data{
 		ByType:  map[PlaceType][]int{},
+		ByID:    map[string]int{},
 		Version: DataVersion{Sources: file.Sources, SHA256: hex.EncodeToString(sum[:])[:12]},
 	}
 	typeOf := map[string]PlaceType{}
@@ -122,6 +124,10 @@ func loadData(path string) (*Data, error) {
 		} else if placeType != "station" {
 			return nil, fmt.Errorf("place %s: a %s without zone", p.ID, placeType)
 		}
+		if _, twice := data.ByID[p.ID]; twice {
+			return nil, fmt.Errorf("place %s: twice", p.ID)
+		}
+		data.ByID[p.ID] = index
 		data.Places = append(data.Places, place)
 		data.ByType[placeType] = append(data.ByType[placeType], index)
 	}

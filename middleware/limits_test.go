@@ -34,7 +34,7 @@ func TestClientKey(t *testing.T) {
 }
 
 func TestFiveAMinute(t *testing.T) {
-	l := newRateLimiter()
+	l := newRateLimiter(perMinute, perDay)
 	start := time.Date(2026, 11, 8, 20, 0, 0, 0, time.UTC)
 	for k := 0; k < perMinute; k++ {
 		if ok, _ := l.allow("a", start.Add(time.Duration(k)*time.Second)); !ok {
@@ -54,7 +54,7 @@ func TestFiveAMinute(t *testing.T) {
 }
 
 func TestHundredADay(t *testing.T) {
-	l := newRateLimiter()
+	l := newRateLimiter(perMinute, perDay)
 	start := time.Date(2026, 11, 8, 0, 0, 0, 0, time.UTC)
 	for k := 0; k < perDay; k++ {
 		if ok, _ := l.allow("a", start.Add(time.Duration(k)*10*time.Minute)); !ok {
@@ -72,7 +72,7 @@ func TestHundredADay(t *testing.T) {
 }
 
 func TestUndoAndPurge(t *testing.T) {
-	l := newRateLimiter()
+	l := newRateLimiter(perMinute, perDay)
 	now := time.Date(2026, 11, 8, 20, 0, 0, 0, time.UTC)
 	for k := 0; k < perMinute; k++ {
 		l.allow("a", now)
@@ -89,7 +89,7 @@ func TestUndoAndPurge(t *testing.T) {
 }
 
 func TestClientsRememberedAreBounded(t *testing.T) {
-	l := newRateLimiter()
+	l := newRateLimiter(perMinute, perDay)
 	now := time.Now()
 	for k := 0; k < maxClients; k++ {
 		l.allow(fmt.Sprint(k), now)

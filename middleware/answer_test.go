@@ -56,7 +56,17 @@ func TestTheAnswer(t *testing.T) {
 			}
 		}
 	}
+	for _, zone := range answer.Zones {
+		for _, other := range zone.Others {
+			if other.ID == "" {
+				t.Errorf("an other place without id: %+v", other)
+			}
+		}
+	}
 	for j, p := range answer.Places {
+		if p.ID == "" {
+			t.Errorf("place %d without id", j)
+		}
 		if len(p.Trips) != 3 {
 			t.Fatalf("place %d: %d trips", j, len(p.Trips))
 		}

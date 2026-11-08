@@ -14,8 +14,10 @@ import (
 )
 
 const (
-	perMinute         = 5
+	perMinute         = 5 // computations (POST /v1/proposals) per client
 	perDay            = 100
+	placesPerMinute   = 30 // single places (POST /v1/place): lighter, and a visitor may look at several in a row
+	placesPerDay      = 300
 	maxComputations   = 4               // at once, for the whole service
 	computationWait   = 5 * time.Second // a request finding them busy waits this long for a place
 	busyRetrySeconds  = 10              // then is told to come back after this
@@ -47,14 +49,15 @@ func clientKey(r *http.Request) string {
 	return prefix.String()
 }
 
-// rateLimiter remembers, per client, the start times of its computations of the last 24 h (at most perDay).
+// rateLimiter remembers, per client, the start times of its requests of the last 24 h (at most perDay).
 type rateLimiter struct {
-	mu      sync.Mutex
-	clients map[string][]time.Time
+	mu                sync.Mutex
+	clients           map[string][]time.Time
+	perMinute, perDay int
 }
 
-func newRateLimiter() *rateLimiter {
-	return &rateLimiter{clients: map[string][]time.Time{}}
+func newRateLimiter(perMinute, perDay int) *rateLimiter {
+	return &rateLimiter{clients: map[string][]time.Time{}, perMinute: perMinute, perDay: perDay}
 }
 
 // allow records a computation of the client at now and returns true, or returns false and how long to wait.
@@ -73,12 +76,12 @@ func (l *rateLimiter) allow(key string, now time.Time) (bool, time.Duration) {
 	if len(times) == 0 && len(l.clients) >= maxClients {
 		return false, busyRetrySeconds * time.Second
 	}
-	if len(times) >= perDay {
+	if len(times) >= l.perDay {
 		l.clients[key] = times
 		return false, times[0].Add(24 * time.Hour).Sub(now)
 	}
-	if len(times) >= perMinute {
-		if oldest := times[len(times)-perMinute]; now.Sub(oldest) < time.Minute {
+	if len(times) >= l.perMinute {
+		if oldest := times[len(times)-l.perMinute]; now.Sub(oldest) < time.Minute {
 			l.clients[key] = times
 			return false, oldest.Add(time.Minute).Sub(now)
 		}

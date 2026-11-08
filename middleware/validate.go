@@ -103,26 +103,63 @@ func refuseParticipant(code string, index int) *requestError {
 
 // readQuestion decodes and validates the body of POST /v1/proposals. now is passed in for the tests.
 func readQuestion(w http.ResponseWriter, r *http.Request, now time.Time) (Question, *requestError) {
-	// A JSON body only: a browser then always sends a preflight first (CORS)
+	var req proposalsRequest
+	if refusal := decodeBody(w, r, &req); refusal != nil {
+		return Question{}, refusal
+	}
+	return validate(req, now)
+}
+
+// placeRequest is the body of POST /v1/place: the question, and one place of a kept zone (its id, from an answer).
+type placeRequest struct {
+	proposalsRequest
+	Place *string `json:"place"`
+}
+
+// maxPlaceIDLength bounds the place's id before it is looked up (an OpenStreetMap id such as "node/13013557499").
+const maxPlaceIDLength = 64
+
+// readPlaceQuestion decodes and validates the body of POST /v1/place: the place must be a candidate of a zone, of
+// the place type asked. Its id is only looked up in the places loaded, never used otherwise.
+func readPlaceQuestion(w http.ResponseWriter, r *http.Request, now time.Time, data *Data) (Question, int, *requestError) {
+	var req placeRequest
+	if refusal := decodeBody(w, r, &req); refusal != nil {
+		return Question{}, 0, refusal
+	}
+	q, refusal := validate(req.proposalsRequest, now)
+	if refusal != nil {
+		return q, 0, refusal
+	}
+	if req.Place == nil || len(*req.Place) > maxPlaceIDLength {
+		return q, 0, refuse("invalid_place")
+	}
+	index, found := data.ByID[*req.Place]
+	if !found || data.Places[index].Zone < 0 || data.Zones[data.Places[index].Zone].Kind != q.PlaceType {
+		return q, 0, refuse("invalid_place")
+	}
+	return q, index, nil
+}
+
+// decodeBody reads a JSON body into target: application/json only (a browser then always sends a preflight first,
+// CORS), 16 KB at most, no unknown field, exactly one JSON value.
+func decodeBody(w http.ResponseWriter, r *http.Request, target any) *requestError {
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
-		return Question{}, &requestError{status: http.StatusUnsupportedMediaType, code: "unsupported_media_type"}
+		return &requestError{status: http.StatusUnsupportedMediaType, code: "unsupported_media_type"}
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 	decoder.DisallowUnknownFields()
-	var req proposalsRequest
-	if err := decoder.Decode(&req); err != nil {
+	if err := decoder.Decode(target); err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			return Question{}, &requestError{status: http.StatusRequestEntityTooLarge, code: "body_too_large"}
+			return &requestError{status: http.StatusRequestEntityTooLarge, code: "body_too_large"}
 		}
-		return Question{}, refuse("invalid_json")
+		return refuse("invalid_json")
 	}
-	// Exactly one JSON value: anything after it is refused
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return Question{}, refuse("invalid_json")
+		return refuse("invalid_json")
 	}
-	return validate(req, now)
+	return nil
 }
 
 // validate turns a decoded request into a Question, or refuses it with the first rule broken.
