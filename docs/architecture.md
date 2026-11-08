@@ -287,7 +287,7 @@ from a porting mistake.
   16 MB are refused.
 - **Cancellation**: each request carries a context, cancelled when the visitor's connection or HTTP/2 stream ends;
   Caddy then cancels its request to the middleware, and the calls to MOTIS stop (no retry once cancelled).
-- After the comparison (decided by the user, done 2026-11-09): a participant with transit but without walking may also
+- After the comparison (decided by the user, done 2026-11-08): a participant with transit but without walking may also
   get a trip **entirely on foot, of 15 min at most** (before, such a trip was dropped, so a place 400 m away counted as
   unreachable for a bus/metro-only participant); longer, the place is unreachable for their modes. It is one more
   street call per such participant, and the trip then shows as a walk. And `detailedTransfers=true`: the map also draws

@@ -207,7 +207,7 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
 - Trial with a friend, until Sunday 2026-11-08 (asked by the user 2026-11-04): visitors enter no key, Tisséo is the default engine and
   the Vercel Functions `api/ors.mjs` and `api/tisseo.mjs` add the user's keys (`OPENROUTESERVICE_API_KEY`, `TISSEO_API_KEY` in Vercel's
   settings; the repository is public, so never in the code). Anyone can call them: quotas are the only limit. **Temporary: to undo
-  afterwards** (remove the two variables, revert the commit); kept until the new page replaces them, which removes every key dependency (decided by the user 2026-11-09). Where this file still says the key is the visitor's, it describes the state to return to.
+  afterwards** (remove the two variables, revert the commit); kept until the new page replaces them, which removes every key dependency (decided by the user 2026-11-08). Where this file still says the key is the visitor's, it describes the state to return to.
 - Extracted from the portfolio on 2026-10-30 (`git filter-repo`, 52 commits kept; early commits
   lack their styles, which lived in the portfolio's shared `css/style.css`). Pushed; Vercel project
   and DNS done, live at `rendez-vous.gresset-bourgeois.fr` (stated 2026-11-02). The portfolio (`~/repos/personal_web_page`) has
