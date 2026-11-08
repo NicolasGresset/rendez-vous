@@ -1,7 +1,7 @@
 // api.js - The calls to the service's API (docs/architecture.md § API contract). On the developer's machine they go
 // through the dev server (scripts/dev-server.js relays /v1/), the API accepting only the site's origin.
 
-const LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
+const LOCAL = ['localhost', '127.0.0.1'].includes(globalThis.location?.hostname);
 const API = LOCAL ? '' : 'https://api.rendez-vous.gresset-bourgeois.fr';
 const HEALTH_TIMEOUT_MS = 5000;
 

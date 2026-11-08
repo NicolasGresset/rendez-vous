@@ -93,30 +93,18 @@
                         characters), and your position when you click &laquo;&nbsp;ma position actuelle&nbsp;&raquo;,
                         to find its address.
                     </li>
-                    <li>
-                        <strong>openrouteservice</strong> (HeiGIT gGmbH, Germany), <code>api.openrouteservice.org</code>:
-                        the positions of the participants and of the candidate places, to get walking, cycling and
-                        driving times and paths, through a relay on this site (see below), with the author's API key.
-                    </li>
-                    <li>
-                        <strong>Transitous</strong> (community project, <a href="https://transitous.org"
-                            target="_blank" rel="noopener noreferrer">transitous.org</a>),
-                        <code>api.transitous.org</code>: only if you choose Transitous in the settings, the same
-                        positions with the arrival date and time slot, to get public transport journeys.
-                    </li>
-                    <li>
-                        <strong>Tisséo</strong> (Toulouse public transport, France), <code>api.tisseo.fr</code>:
-                        the same positions and times, to get public transport journeys (default choice), through a
-                        relay on this site (see below), with the author's API key.
-                    </li>
                 </ul>
                 <p>
-                    The relay is a small function run by the host (Vercel) that adds the API key to these requests
-                    and passes the answer back, so the positions and times sent to openrouteservice and Tisséo go
-                    through it. It stores nothing, and the positions travel in the body of the requests, not in their addresses.
+                    The times and journeys are computed by <strong>the author's own server</strong>,
+                    <code>api.rendez-vous.gresset-bourgeois.fr</code>, in France: it receives the positions of the
+                    participants, their modes of transport and numbers of people, the place type, the meeting time, and, like
+                    any server, your IP address. The connection is encrypted (HTTPS). The positions are used for the
+                    computation only: neither they nor your IP address are written to any log or kept after the
+                    answer. Your IP address is held in memory only, for at most 24 hours, to limit the number of
+                    computations per visitor. No third party receives these positions.
                 </p>
                 <p>
-                    The addresses you enter may be other people's: they go to these services as described, so a
+                    The addresses you enter may be other people's: they go to the services above as described, so a
                     nearby landmark (a metro station, a square) works as well as an exact home address. The
                     OpenStreetMap and Google Maps links of a proposed place send nothing until you follow them;
                     &laquo;&nbsp;Partager le lieu&nbsp;&raquo; hands the place's name, address and OpenStreetMap
@@ -124,12 +112,9 @@
                     the author's site…) send nothing until you follow them.
                 </p>
 
-                <h2>Cookies and local storage</h2>
+                <h2>Cookies and storage</h2>
                 <p>
-                    The tool sets no cookies, so there is no consent banner. It stores its settings (view, criterion,
-                    number of places, transit engine) in your browser's local storage, on your device only: they
-                    are sent nowhere, and clearing your browser data removes them. This storage only serves features you ask for, which
-                    exempts it from consent (article 82 of the French Data Protection Act). Your position is only
+                    The tool sets no cookies and stores nothing in your browser, so there is no consent banner. Your position is only
                     read when you click &laquo;&nbsp;ma position actuelle&nbsp;&raquo;, after your browser asks
                     your permission.
                 </p>
@@ -143,8 +128,8 @@
                 </p>
                 <ul>
                     <li>
-                        <strong>With me:</strong> nothing, unless you write to me. The tool has no database, no
-                        accounts and no logs of its own. If you send me an email, I keep it as long as
+                        <strong>With me:</strong> nothing, unless you write to me. The tool has no database and no
+                        accounts, and the server's logs hold neither IP addresses nor positions. If you send me an email, I keep it as long as
                         our exchange needs it, and delete it if you ask.
                     </li>
                     <li>

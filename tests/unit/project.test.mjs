@@ -17,14 +17,13 @@ const called = [...new Set(sources.flatMap(text => text.split('\n')
     .filter(host => !LINKS.includes(host) && !host.includes('tile.'));
 
 test('the page calls the services expected', () => {
-    assert.deepEqual(called.sort(), ['api.transitous.org', 'data.geopf.fr']);
+    assert.deepEqual(called.sort(), ['api.rendez-vous.gresset-bourgeois.fr', 'data.geopf.fr']);
 });
 
-test('the page asks for no key and offers Tisséo first: the relays hold the keys', () => {
+test('the page asks for no key', () => {
     const page = read('index.html');
     assert.ok(!/type="password"|obtenir une clé/.test(page));
-    assert.match(page, /name="transit-engine" value="tisseo" checked/);
-    ['api.openrouteservice.org', 'api.tisseo.fr'].forEach(host => assert.ok(read('legal.html').includes(host), host));
+    sources.forEach(text => assert.ok(!/api[_-]?key|localStorage/i.test(text)));
 });
 
 test('every service called is allowed by the Content-Security-Policy', () => {

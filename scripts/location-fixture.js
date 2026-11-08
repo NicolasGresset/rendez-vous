@@ -1,26 +1,21 @@
-// location-fixture.js - A stored Rendez-vous computation, replayed in the browser to test the
-// results' display and behavior without any API call. Not deployed.
+// location-fixture.js - A stored Rendez-vous computation, replayed in the browser to test the results' display and
+// behaviour without any call to the API. Not deployed.
 //
-//   node scripts/location-fixture.js record   one real computation (Transitous calls, ~24), saved
-//                                             in scripts/fixtures/rendez-vous.json (slimmed)
-//   node scripts/location-fixture.js slim     slims the saved answers again (after a slimAnswer change)
+//   node scripts/location-fixture.js record   one real computation and one other place of a zone, through the dev
+//                                             server, saved in scripts/fixtures/rendez-vous.json
 //   node scripts/location-fixture.js shot     replays it, screenshots the results under SHOT_DIR
 //
 // From a test script:
 //   const { withFirefox } = require('./scripts/firefox-bidi.js');
 //   const { openWithFixture, runComputation } = require('./scripts/location-fixture.js');
 //   await withFirefox(async page => {
-//       const scenario = await openWithFixture(page);   // clock, settings and network replaced, page loaded
+//       const scenario = await openWithFixture(page);   // clock and API replaced, page loaded
 //       await runComputation(page, scenario);           // form filled, computation done
-//       …                                      // page.evaluate(…), page.screenshot(…)
 //   });
 //
-// In the page (preload script, before any of its own): the clock is set back to the recording's
-// instant (same day, same slots, same Transitous times), Transitous is the engine picked,
-// and fetch is replaced for every other origin: recorded answers (Transitous, Géoplateforme),
-// made-up openrouteservice answers (straight lines at a fixed speed), an error for anything else.
-// The map tiles (images, not fetch) still load from OpenStreetMap.
-// Needs the dev server (node scripts/dev-server.js) on BASE_URL.
+// In the page (preload script, before any of its own): the clock is set back to the recording's instant (same day, same
+// slots), and the calls to the API (/v1/, relayed by the dev server) get the recorded answers. Other origins are left
+// alone: tests/e2e/support.mjs answers the address service and the map tiles. Needs the dev server on BASE_URL.
 
 const fs   = require('fs');
 const path = require('path');
@@ -29,13 +24,12 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3001';
 const FIXTURE_FILE = path.join(__dirname, 'fixtures/rendez-vous.json');
 const TIMEOUT_MS = 120000;
 
-// Recorded asking for arrivals by 12:45; the URLs were moved to 12:40 when the late tolerance became
-// 10 min, instead of 24 new Transitous calls (the journeys arriving later are simply not kept).
-// The scenario recorded: places typed in the address search (first local suggestion), modes,
-// people, and the arrival slot (when recording: the first quarter hour from an hour on, today's
-// slots being only those to come)
+// The scenario recorded: places typed in the address search (first local suggestion), modes, people, the place type (one
+// whose zones are large, for another place of a zone) and the meeting time (when recording: the first quarter hour
+// from an hour on, today's slots being only those to come)
 const SCENARIO = {
     slot: '12:30',
+    placeType: 'restaurant',
     participants: [
         { query: 'capitole', modes: ['walk', 'transit'], people: 1 },
         { query: 'ramonville', modes: ['transit', 'bike'], people: 2 },
@@ -43,12 +37,10 @@ const SCENARIO = {
     ],
 };
 
-// Runs in the page before its scripts. fixture: { now, responses } (replay) or { now: null }
-// (record: real clock, real calls, answers kept in window.__fixtureRecorded)
+// Runs in the page before its scripts. fixture: { now, answers } (replay) or { now: null } (record: real clock, real
+// calls, answers kept in window.__fixtureRecorded)
 function preload(fixture) {
     if (location.origin !== new URL(fixture.baseUrl).origin) return;
-    // The recorded answers are Transitous'
-    if (!localStorage.getItem('location.settings')) localStorage.setItem('location.settings', JSON.stringify({ engine: 'transitous' }));
 
     if (fixture.now != null) {
         const RealDate = Date;
@@ -60,43 +52,19 @@ function preload(fixture) {
         window.Date = FixtureDate;
     }
 
-    // openrouteservice, made up: straight line x 1.3 at a fixed speed (m/s), no call
-    const SPEEDS = { 'foot-walking': 1.25, 'cycling-regular': 4.2, 'driving-car': 8.3 };
-    const metres = ([lon1, lat1], [lon2, lat2]) => {
-        const rad = Math.PI / 180;
-        const x = (lon2 - lon1) * rad * Math.cos((lat1 + lat2) / 2 * rad);
-        return 6371000 * Math.hypot(x, (lat2 - lat1) * rad) * 1.3;
-    };
-    const orsAnswer = ({ path, body }) => {
-        const speed = SPEEDS[path.split('/')[1]];
-        if (path.startsWith('matrix/')) {
-            const at = i => body.locations[i];
-            return { durations: body.sources.map(s => body.destinations.map(d => metres(at(s), at(d)) / speed)) };
-        }
-        const [a, b] = body.coordinates;
-        const middle = [(a[0] + b[0]) / 2 + (b[1] - a[1]) * 0.15, (a[1] + b[1]) / 2 - (b[0] - a[0]) * 0.15];
-        return { features: [{ geometry: { coordinates: [a, middle, b] } }] };
-    };
-    const json = (data, status = 200) => new Response(JSON.stringify(data), { status,
-        headers: { 'Content-Type': 'application/json', 'x-ratelimit-limit': '50', 'x-ratelimit-remaining': '42' } });
-
     const realFetch = window.fetch.bind(window);
-    const recorded = window.__fixtureRecorded = [];
-    const answers = new Map((fixture.responses || []).map(r => [r.url, r]));
+    const recorded = window.__fixtureRecorded = {};
     window.fetch = async (input, init = {}) => {
         const url = new URL(typeof input === 'string' ? input : input.url, location.href);
-        if (url.pathname === '/api/ors') return json(orsAnswer(JSON.parse(init.body)));
-        if (url.origin === location.origin) return realFetch(input, init);
+        if (url.origin !== location.origin || !url.pathname.startsWith('/v1/')) return realFetch(input, init);
         if (fixture.now == null) {
             const res = await realFetch(input, init);
-            recorded.push({ url: url.href, status: res.status, text: await res.clone().text() });
+            recorded[url.pathname] = { status: res.status, text: await res.clone().text() };
             return res;
         }
-        const answer = answers.get(url.href);
-        if (!answer) {
-            console.error(`fixture: no recorded answer for ${url.href}`);
-            return json({ error: 'not in the fixture' }, 404);
-        }
+        const answer = fixture.answers[url.pathname];
+        if (url.pathname === '/v1/health') return new Response('{"status":"ok"}', { headers: { 'Content-Type': 'application/json' } });
+        if (!answer) throw new Error(`fixture: no recorded answer for ${url.pathname}`);
         return new Response(answer.text, { status: answer.status, headers: { 'Content-Type': 'application/json' } });
     };
 }
@@ -104,7 +72,7 @@ function preload(fixture) {
 // Installs the preload script and loads the page; record: real calls, kept for saving
 async function openWithFixture({ send, context }, { record = false, url = `${BASE_URL}/` } = {}) {
     const fixture = record ? { now: null } : JSON.parse(fs.readFileSync(FIXTURE_FILE, 'utf8'));
-    const args = JSON.stringify({ baseUrl: BASE_URL, now: fixture.now, responses: fixture.responses });
+    const args = JSON.stringify({ baseUrl: BASE_URL, now: fixture.now, answers: fixture.answers });
     await send('script.addPreloadScript', { functionDeclaration: `() => (${preload})(${args})`, contexts: [context] });
     await send('browsingContext.navigate', { context, url, wait: 'complete' });
     return fixture.scenario || SCENARIO;
@@ -118,7 +86,6 @@ const until = async (evaluate, expression, what) => {
     }
 };
 
-// Fills the form as SCENARIO says
 async function fillForm({ evaluate }, scenario = SCENARIO) {
     await until(evaluate, `document.querySelectorAll('#participants .participant').length >= 2`, 'participants');
     for (const [i, p] of scenario.participants.entries()) {
@@ -135,15 +102,15 @@ async function fillForm({ evaluate }, scenario = SCENARIO) {
             input.dispatchEvent(new Event('input', { bubbles: true }));
         })()`);
         // The first local suggestion, before the Géoplateforme call is due
-        await until(evaluate, `!document.querySelectorAll('#participants .participant')[${i}].querySelector('.address-options').hidden`, `suggestions for ${p.query}`);
+        await until(evaluate, `!document.querySelectorAll('#participants .participant')[${i}].querySelector('.address-options').hidden`, `suggestions ${i}`);
         await evaluate(`document.querySelectorAll('#participants .participant')[${i}].querySelector('[name="address"]')
             .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
     }
 }
 
-// Picks the scenario's time and starts the computation
 async function startComputation({ evaluate }, scenario = SCENARIO) {
     await evaluate(`(() => {
+        document.querySelector('[name="place-type"][value=${JSON.stringify(scenario.placeType)}]').click();
         const li = [...document.querySelectorAll('#slot-options li')].find(li => li.textContent.startsWith(${JSON.stringify(scenario.slot)}));
         if (!li) throw new Error('slot ${scenario.slot} not offered');
         li.click();
@@ -155,23 +122,7 @@ async function startComputation({ evaluate }, scenario = SCENARIO) {
 async function runComputation(page, scenario = SCENARIO) {
     await fillForm(page, scenario);
     await startComputation(page, scenario);
-    const { evaluate } = page;
-    await until(evaluate, `/Terminé|Aucun lieu/.test(document.getElementById('progress-text').textContent)`, 'computation');
-}
-
-// Transitous answers without what transitous.js does not read (alerts, walking instructions,
-// stops' details…): 5.5 MB down to a few hundred KB; other answers only compacted
-function slimAnswer(url, text) {
-    let data;
-    try { data = JSON.parse(text); } catch { return text; }
-    if (url.startsWith('https://api.transitous.org/')) {
-        const KEPT = ['mode', 'startTime', 'endTime', 'legGeometry', 'routeShortName', 'headsign', 'routeColor'];
-        data = { itineraries: (data.itineraries || []).map(it => ({ startTime: it.startTime, endTime: it.endTime,
-            legs: it.legs.map(leg => ({ ...Object.fromEntries(KEPT.filter(k => k in leg).map(k => [k, leg[k]])),
-                from: { name: leg.from?.name }, to: { name: leg.to?.name },
-                ...(leg.intermediateStops ? { intermediateStops: leg.intermediateStops.map(() => ({})) } : {}) })) })) };
-    }
-    return JSON.stringify(data);
+    await until(page.evaluate, `!document.getElementById('location-results').hidden`, 'computation');
 }
 
 async function main(command) {
@@ -183,27 +134,23 @@ async function main(command) {
         await withFirefox(async page => {
             await openWithFixture(page, { record: true });
             await runComputation(page);
-            const responses = JSON.parse(await page.evaluate('JSON.stringify(window.__fixtureRecorded)'));
-            responses.forEach(r => { r.text = slimAnswer(r.url, r.text); });
+            await page.evaluate(`[...document.querySelectorAll('.zone-other')].find(b => b.textContent.includes('calculer')).click()`);
+            await until(page.evaluate, `!!window.__fixtureRecorded['/v1/place']`, 'another place');
+            const answers = JSON.parse(await page.evaluate('JSON.stringify(window.__fixtureRecorded)'));
             fs.mkdirSync(path.dirname(FIXTURE_FILE), { recursive: true });
-            fs.writeFileSync(FIXTURE_FILE, `${JSON.stringify({ recorded: new Date(now).toISOString(), now, scenario: SCENARIO, responses }, null, 1)}\n`);
-            console.log(`${responses.length} answers saved in ${FIXTURE_FILE}`);
+            fs.writeFileSync(FIXTURE_FILE, `${JSON.stringify({ recorded: new Date(now).toISOString(), now, scenario: SCENARIO, answers }, null, 1)}\n`);
+            console.log(`${Object.keys(answers).join(', ')} saved in ${FIXTURE_FILE}`);
             if (page.errors.length) console.log('page errors:', page.errors);
         });
-    } else if (command === 'slim') {
-        const fixture = JSON.parse(fs.readFileSync(FIXTURE_FILE, 'utf8'));
-        fixture.responses.forEach(r => { r.text = slimAnswer(r.url, r.text); });
-        fs.writeFileSync(FIXTURE_FILE, `${JSON.stringify(fixture, null, 1)}\n`);
     } else if (command === 'shot') {
         await withFirefox(async page => {
             await runComputation(page, await openWithFixture(page));
-            console.log(await page.evaluate(`document.getElementById('progress-text').textContent`));
             console.log(await page.screenshot('rendez-vous-results.png', '#location-results'));
             if (page.errors.length) console.log('page errors:', page.errors);
         });
         console.log(`screenshots in ${SHOT_DIR}`);
     } else {
-        console.log('usage: node scripts/location-fixture.js record|slim|shot');
+        console.log('usage: node scripts/location-fixture.js record|shot');
     }
 }
 

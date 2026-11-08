@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { escapeHtml, formatDuration } from '../../js/labels.js';
-import { choiceText, placeLinks, proposalsOf, resultsHtml, shareText } from '../../js/results.js';
+import { choiceText, placeLinks, resultsHtml, shareText } from '../../js/results.js';
 
 const EVIL = '<img src=x onerror=alert(1)>';
 
@@ -21,19 +21,17 @@ test('choiceText: door-to-door time, or unreachable', () => {
     assert.equal(choiceText(null), 'injoignable');
 });
 
-const SLOT = { from: '2026-11-03 19:00', to: '2026-11-03 19:10' };
+const SLOT = { from: '2026-11-03 19:00' };
 const participant = { label: 'participant 1', color: '#2563EB', people: 1 };
 const place = (name, extra = {}) => ({ id: 'node/1', name, category: 'amenity=bar', lat: 43.6, lon: 1.44, score: 600, street: 'Rue X', city: 'Toulouse',
-    choices: [{ mode: 'walk', seconds: 600, travel: 600 }], times: [{ walk: { seconds: 600 } }], ...extra });
-const result = (candidates, ranking = candidates.map((_, j) => j)) => ({ slot: SLOT, metric: 'half', participants: [participant], candidates, ranking, best: ranking[0] });
+    choices: [{ mode: 'walk', seconds: 600, travel: 600 }], journeys: [null], ...extra });
+const result = candidates => ({ slot: SLOT, participants: [participant], candidates, proposals: candidates.map((_, j) => j), best: candidates.length ? 0 : null });
 const LABELS = { 'amenity=bar': 'bar' };
 
-test('a hostile place name stays text, in both views', () => {
-    for (const debug of [false, true]) {
-        const html = resultsHtml(result([place(EVIL)]), 0, LABELS, { debug });
-        assert.ok(!html.includes('<img'), html);
-        assert.ok(html.includes('&lt;img'));
-    }
+test('a hostile place name stays text', () => {
+    const html = resultsHtml(result([place(EVIL)]), 0, LABELS);
+    assert.ok(!html.includes('<img'), html);
+    assert.ok(html.includes('&lt;img'));
 });
 
 test('hostile names of a transit journey stay text', () => {
@@ -42,24 +40,19 @@ test('hostile names of a transit journey stay text', () => {
         { kind: 'line', seconds: 480, mode: 'bus', line: EVIL, headsign: EVIL, from: EVIL, to: EVIL, stops: 3, color: null,
             departure: '2026-11-03T17:52:00Z', arrival: '2026-11-03T18:00:00Z' },
     ] };
-    const html = resultsHtml(result([place('Bar', { choices: [{ mode: 'transit', seconds: 600, travel: 600 }], times: [{ transit: { seconds: 600, trip } }] })]), 0, LABELS);
+    const html = resultsHtml(result([place('Bar', { choices: [{ mode: 'transit', seconds: 600, travel: 600 }], journeys: [trip] })]), 0, LABELS);
     assert.ok(!html.includes('<img'), html);
 });
 
-test('no place chosen: says why, by what was searched', () => {
-    assert.match(resultsHtml({ ...result([]), best: null }, null, LABELS), /Aucun candidat trouvé/);
-    assert.match(resultsHtml({ ...result([place('Bar', { score: null })], []), best: null }, null, LABELS), /atteignable par tous/);
+test('no place chosen: says why', () => {
+    assert.match(resultsHtml({ ...result([]), best: null }, null, LABELS), /atteignable par tous/);
 });
 
-test('a place with a failed journey says so', () => {
-    const html = resultsHtml(result([place('Bar', { incomplete: true })]), 0, LABELS);
-    assert.match(html, /Calcul incomplet/);
-});
-
-test('at most 3 proposals, unless the computation picked them', () => {
-    const data = { ranking: [4, 3, 2, 1, 0] };
-    assert.deepEqual(proposalsOf(data), [4, 3, 2]);
-    assert.deepEqual(proposalsOf({ ...data, proposals: [1] }), [1]);
+test('hostile names of a zone and of its other places stay text', () => {
+    const zoneInfo = { index: 0, name: EVIL, kind: 'bar' };
+    const html = resultsHtml({ ...result([place('Bar', { zoneInfo }), { id: 'node/2', name: EVIL, score: null, pending: true, zoneInfo }]), proposals: [0] }, 0, LABELS);
+    assert.ok(!html.includes('<img'), html);
+    assert.match(html, /calculer/);
 });
 
 test('links: the OSM page of a place, a marker for a stop, encoded for Google', () => {

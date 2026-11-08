@@ -1,4 +1,4 @@
-// The page with the stored computation (scripts/location-fixture.js): API answers replayed, no third-party
+// The page with the stored computation (scripts/location-fixture.js): the API's answers replayed, no third-party
 // call at all (map tiles included), and every page error or CSP violation fails the test.
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
@@ -9,30 +9,43 @@ const fixtureTools = require('../../scripts/location-fixture.js');
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==', 'base64');
 
-// After the fixture's own: Géoplateforme answered here, API answers slowed by window.__delay, and counted
+// After the fixture's own: Géoplateforme answered here, the API's calls slowed by window.__delay, counted, kept, or
+// made to fail with window.__fail (per path: { status, body }, or 'network')
 function instrument() {
     const replayed = window.fetch;
-    window.__calls = { started: 0, transit: 0, aborted: 0 };
+    window.__calls = { started: 0, proposals: 0, place: 0, health: 0, aborted: 0, bodies: [] };
+    window.__fail = {};
     window.__violations = [];
     document.addEventListener('securitypolicyviolation', e => window.__violations.push(`${e.violatedDirective} ${e.blockedURI}`));
-    const json = data => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
+    const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
     window.fetch = (input, init = {}) => {
         const url = new URL(typeof input === 'string' ? input : input.url, location.href);
-        // The site's own files; its relays (/api/) are API calls like the others
-        if (url.origin === location.origin && !url.pathname.startsWith('/api/')) return replayed(input, init);
         if (url.hostname === 'data.geopf.fr') {
             if (url.pathname.includes('reverse')) return Promise.resolve(json({ features: [{ properties: { label: '1 Rue du Test 31000 Toulouse' } }] }));
             const text = url.searchParams.get('text');
             return Promise.resolve(json({ results: text.includes('zzservice') ? [{ fulltext: `<img src=x>${text} 31000 Toulouse`, kind: 'housenumber', x: 1.45, y: 43.6 }] : [] }));
         }
+        if (url.origin !== location.origin || !url.pathname.startsWith('/v1/')) return replayed(input, init);
+        const name = url.pathname.slice('/v1/'.length);
+        window.__calls[name]++;
+        if (name === 'health') {
+            if (window.__fail.health === 'network') return Promise.reject(new TypeError('network'));
+            return replayed(input, init);
+        }
         window.__calls.started++;
-        if (url.hostname === 'api.transitous.org') window.__calls.transit++;
+        window.__calls.bodies.push(JSON.parse(init.body));
         return new Promise((resolve, reject) => {
             let settled = false;
             const end = (done, value) => { settled = true; done(value); };
-            const timer = setTimeout(() => replayed(input, init).then(v => end(resolve, v), e => end(reject, e)), window.__delay || 0);
+            const answer = () => {
+                const fail = window.__fail[name];
+                if (fail === 'network') return end(reject, new TypeError('network'));
+                if (fail) return end(resolve, json(fail.body, fail.status));
+                return replayed(input, init).then(v => end(resolve, v), e => end(reject, e));
+            };
+            const timer = setTimeout(answer, window.__delay || 0);
             init.signal?.addEventListener('abort', () => {
-                if (settled) return; // the timeout of a call already answered
+                if (settled) return;
                 clearTimeout(timer);
                 window.__calls.aborted++;
                 end(reject, init.signal.reason);
@@ -46,11 +59,10 @@ export const test = base.extend({
     app: async ({ page }, use) => {
         const errors = [];
         page.on('pageerror', e => errors.push(`pageerror: ${e.message}`));
-        // Without a local MOTIS, the dev server's relay answers 502: only on the developer's machine
-        page.on('console', m => { if (m.type() === 'error' && !m.location().url.includes('/motis/')) errors.push(`console: ${m.text()}`); });
+        page.on('console', m => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
         await page.route('https://tile.openstreetmap.org/**', route => route.fulfill({ contentType: 'image/png', body: PNG }));
         const fixture = JSON.parse(fs.readFileSync(fixtureTools.FIXTURE_FILE, 'utf8'));
-        await page.addInitScript(fixtureTools.preload, { baseUrl: fixtureTools.BASE_URL, now: fixture.now, responses: fixture.responses });
+        await page.addInitScript(fixtureTools.preload, { baseUrl: fixtureTools.BASE_URL, now: fixture.now, answers: fixture.answers });
         await page.addInitScript(instrument);
         await page.goto('/');
         await expect(page.locator('#participants .participant')).toHaveCount(3);
@@ -64,7 +76,9 @@ export const test = base.extend({
             run: () => fixtureTools.runComputation(driver, scenario),
             delay: ms => page.evaluate(value => { window.__delay = value; }, ms),
             calls: () => page.evaluate(() => window.__calls),
-            resetCalls: () => page.evaluate(() => { window.__calls = { started: 0, transit: 0, aborted: 0 }; }),
+            resetCalls: () => page.evaluate(() => { window.__calls = { started: 0, proposals: 0, place: 0, health: 0, aborted: 0, bodies: [] }; }),
+            fail: (name, how) => page.evaluate(([n, h]) => { window.__fail[n] = h; }, [name, how]),
+            scenario,
         });
         expect(errors).toEqual([]);
         expect(await page.evaluate(() => window.__violations)).toEqual([]);

@@ -90,11 +90,10 @@ test('at least two participants; a typed address must be chosen', async ({ app }
     await expect(status).toContainText('Choisissez une adresse');
 });
 
-test('at most 5 participants with the public services', async ({ app }) => {
+test('at most 10 participants', async ({ app }) => {
     const add = app.page.locator('#add-participant');
-    await add.click();
-    await add.click();
-    await expect(app.page.locator('#participants .participant')).toHaveCount(5);
+    for (let k = 0; k < 7; k++) await add.click();
+    await expect(app.page.locator('#participants .participant')).toHaveCount(10);
     await expect(add).toBeHidden();
 });
 
