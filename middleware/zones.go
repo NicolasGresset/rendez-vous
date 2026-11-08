@@ -22,6 +22,9 @@ const (
 	proposalCount     = 3                // zones proposed
 	carParkingSeconds = 5 * 60           // added to every car trip, as engine.js CAR_PARKING_S
 	lateTolerance     = 10 * time.Minute // arriving after the meeting time + this is not allowed
+	// A participant with transit but without walking may still walk this long: a short walk is a valid way to go
+	// (decided by the user 2026-11-08); longer, the place is out of reach for their modes.
+	shortWalkMaxSeconds = 15 * 60
 )
 
 // group is a zone as the method sees it: a representative and its members. A station is a group of one.
@@ -261,6 +264,7 @@ func (c *computation) streetTimes(ctx context.Context, candidates []*Candidate) 
 	type call struct {
 		participant int
 		mode        Mode
+		shortOnly   bool // the short walk of a transit participant who did not choose walking
 		durations   []float64
 	}
 	var calls []*call
@@ -269,6 +273,9 @@ func (c *computation) streetTimes(ctx context.Context, candidates []*Candidate) 
 			if c.hasMode(i, mode) {
 				calls = append(calls, &call{participant: i, mode: mode})
 			}
+		}
+		if c.hasMode(i, ModeTransit) && !c.hasMode(i, ModeWalk) {
+			calls = append(calls, &call{participant: i, mode: ModeWalk, shortOnly: true})
 		}
 	}
 	tasks := make([]func(context.Context) error, len(calls))
@@ -284,7 +291,7 @@ func (c *computation) streetTimes(ctx context.Context, candidates []*Candidate) 
 	}
 	for _, cl := range calls {
 		for j, d := range cl.durations {
-			if d == Unreachable {
+			if d == Unreachable || (cl.shortOnly && d > shortWalkMaxSeconds) {
 				continue
 			}
 			if cl.mode == ModeCar {

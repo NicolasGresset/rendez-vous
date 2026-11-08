@@ -268,7 +268,7 @@ func (c *MotisClient) TransitTrip(ctx context.Context, from, to Point, slotStart
 		"time":              {motisTime(slotEnd)},
 		"arriveBy":          {"true"},
 		"maxItineraries":    {strconv.Itoa(planMaxItineraries)},
-		"detailedTransfers": {"false"},
+		"detailedTransfers": {"true"},
 	}
 	newRequest := func(ctx context.Context) (*http.Request, error) {
 		return http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/api/v6/plan?"+query.Encode(), nil)

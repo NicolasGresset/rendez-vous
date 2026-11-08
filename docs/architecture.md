@@ -287,10 +287,12 @@ from a porting mistake.
   16 MB are refused.
 - **Cancellation**: each request carries a context, cancelled when the visitor's connection or HTTP/2 stream ends;
   Caddy then cancels its request to the middleware, and the calls to MOTIS stop (no retry once cancelled).
-- After the comparison (decided by the user): a participant with transit but without walking may also get a trip
-  **entirely on foot, of 15 min at most** (today such a trip is dropped, so a place 400 m away counts as unreachable for
-  a bus/metro-only participant); longer, the place is unreachable for their modes. Then `detailedTransfers=true`
-  (the map would also draw the walks between two lines; no quota any more).
+- After the comparison (decided by the user, done 2026-11-09): a participant with transit but without walking may also
+  get a trip **entirely on foot, of 15 min at most** (before, such a trip was dropped, so a place 400 m away counted as
+  unreachable for a bus/metro-only participant); longer, the place is unreachable for their modes. It is one more
+  street call per such participant, and the trip then shows as a walk. And `detailedTransfers=true`: the map also draws
+  the walks between two lines. Checked against the page, which keeps `false`: the same 95 trips of 110 pairs and the
+  same 90 proposals of 90, so no choice changes; the answer grows by 1 to 4 % raw, at most 1 KB with gzip.
 - HTTP: visitor ↔ Caddy in HTTP/2 over TLS; Caddy ↔ middleware ↔ MOTIS in HTTP/1.1 inside the VM. HTTP/3 (QUIC, UDP
   443) would save a round trip on a new connection and survive a phone switching networks; one request per computation
   and the warm-up make that small. Possible later: UDP 443 to open on the box and publish.

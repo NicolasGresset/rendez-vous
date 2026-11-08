@@ -145,7 +145,7 @@ func TestTransitTripAsksAsThePage(t *testing.T) {
 	}
 	for name, want := range map[string]string{
 		"fromPlace": "43.6045,1.4442", "toPlace": "43.5557,1.4746", "time": "2026-11-03T18:10:00.000Z",
-		"arriveBy": "true", "maxItineraries": "5", "detailedTransfers": "false",
+		"arriveBy": "true", "maxItineraries": "5", "detailedTransfers": "true",
 	} {
 		if got := query[name]; len(got) != 1 || got[0] != want {
 			t.Errorf("%s = %v, want %s", name, got, want)

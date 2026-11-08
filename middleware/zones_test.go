@@ -181,3 +181,52 @@ func TestAFailureOfMotisFailsTheComputation(t *testing.T) {
 		t.Errorf("err %v", err)
 	}
 }
+
+// A fake MOTIS with fixed walking times: Unreachable for the transit calls' lack of journeys.
+func walkingMotis(t *testing.T, seconds float64) *MotisClient {
+	return fakeMotis(t, 6, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/one-to-many" {
+			t.Errorf("unexpected call %s", r.URL.Path)
+		}
+		var q struct {
+			Mode string   `json:"mode"`
+			Many []string `json:"many"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&q)
+		var out []map[string]float64
+		for range q.Many {
+			out = append(out, map[string]float64{"duration": seconds})
+		}
+		_ = json.NewEncoder(w).Encode(out)
+	})
+}
+
+func TestShortWalkOfATransitParticipant(t *testing.T) {
+	data := &Data{Places: []Place{{Lat: 43.6, Lon: 1.44}}}
+	cases := []struct {
+		name    string
+		modes   []Mode
+		seconds float64
+		walks   bool
+	}{
+		{"transit only, a short walk", []Mode{ModeTransit}, 600, true},
+		{"transit only, exactly 15 min", []Mode{ModeTransit}, 900, true},
+		{"transit only, over 15 min", []Mode{ModeTransit}, 901, false},
+		{"transit and bike, a short walk", []Mode{ModeBike, ModeTransit}, 600, true},
+		{"walk and transit: no limit", []Mode{ModeWalk, ModeTransit}, 1800, true},
+		{"bike only: no walk", []Mode{ModeBike}, 600, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			q := Question{Participants: []Participant{{Lat: 43.59, Lon: 1.43, Modes: tc.modes, People: 1}}}
+			c := &computation{question: q, data: data, motis: walkingMotis(t, tc.seconds)}
+			cand := newCandidate(0, 1)
+			if err := c.streetTimes(context.Background(), []*Candidate{cand}); err != nil {
+				t.Fatal(err)
+			}
+			if _, walks := cand.Times[0][ModeWalk]; walks != tc.walks {
+				t.Errorf("times %v, want a walk: %v", cand.Times[0], tc.walks)
+			}
+		})
+	}
+}
