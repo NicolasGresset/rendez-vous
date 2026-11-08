@@ -28,17 +28,16 @@ This file is excluded from the deployment (`.vercelignore`) but versioned on Git
 - `middleware/` (2026-11-07): the server side in Go, being written (`docs/architecture.md`); `gofmt`, `go vet`, `go test` and,
   on `main`, an image pushed to GHCR tagged with the commit (`.github/workflows/middleware.yml`, not a Vercel check); excluded
   from Vercel (`.vercelignore`). No Docker in this WSL: images are built by the CI. Go 1.22 here, 1.27.3 in CI and the image.
-  `go test -tags integration -run Integration ./...` (not in CI) compares the Go MOTIS client with the page's `transitTrip`
-  on a real MOTIS (`~/motis`: `./motis server -d data`, stop it afterwards); it needs Node. `zones_integration_test.go` does the
-  same for the whole method (90 questions, 3.5 min); it needs `onetomany_max_many: 4000` (the local `data/config.yml` had 128
-  on 2026-11-08, the user's experiments: run a copy of `data` with 4000 rather than editing it).
-- Vanilla HTML/CSS/JS, no build step, no server code but the two temporary relays of `api/` (see the trial in Open topics): `index.html` (the tool) and `legal.html` (legal
+  `go test -tags integration -run Integration -v ./...` (not in CI) measures the method and the answers on a real MOTIS (`~/motis`:
+  `./motis server -d <data>`, stop it afterwards); it needs `onetomany_max_many: 4000` (the local `data/config.yml` had 128 on
+  2026-11-08, the user's experiments: run a copy of `data` with 4000 rather than editing it). The port was checked identical to the
+  former page on 90 questions (2026-11-08) before the page's engines were removed.
+- Vanilla HTML/CSS/JS, no build step, no server code (it is in `middleware/`): `index.html` (the tool) and `legal.html` (legal
   notice and privacy), each with its static navigation and footer. Styles: `css/fonts.css`,
   `css/base.css` (variables, navigation, footer, cards), then `css/rendez-vous.css` or `css/legal.css`.
-  Code and CSS classes keep the tool's former `location` name (`location-*` classes, `location.*`
-  localStorage keys).
+  Code and CSS classes keep the tool's former `location` name (`location-*` classes).
 - Local dev: `node scripts/dev-server.js` (port 3001; the portfolio's uses 3000); it applies
-  `vercel.json`'s `cleanUrls` and headers, and `CSP_REPORT=1` (or `only`, not enforced) logs
+  `vercel.json`'s `cleanUrls` and headers, relays `/v1/` to the API (`API_URL`, default the deployed one, which accepts only the site's origin), and `CSP_REPORT=1` (or `only`, not enforced) logs
   Content-Security-Policy violations.
 - `vercel.json`: `cleanUrls` (`/legal`; `/legal.html` and `/index.html` 308-redirect), a
   Content-Security-Policy for every path, long cache for `assets/fonts/`. **Any new external service
@@ -62,36 +61,26 @@ This file is excluded from the deployment (`.vercelignore`) but versioned on Git
   `pgrep -f <profile>` never finds it and a kill hits only its shell (Firefox survives, keeps its
   port: "exit 69" on the next start, and recreates its profile after `rm`); a Bash background task
   killed by hand reports "failed, exit 143/144", which is not a Firefox failure. Startup ~9 s.
-- UI tests without API calls: `scripts/location-fixture.js` replays a stored computation
-  (`scripts/fixtures/rendez-vous.json`: 3 participants, Transitous answers recorded 2026-11-02, slimmed;
-  page clock set back to the recording, openrouteservice made up in the page). `openWithFixture(page)`
-  then `runComputation(page, scenario)` inside `withFirefox`; `node scripts/location-fixture.js shot`
-  screenshots the results, `record` re-records (~24 Transitous calls, when the format or the candidates change).
-  Use it for every graphical / UX change of the results.
-- Evaluation of the proposals (since 2026-10-30, `docs/evaluation.md`): `scripts/eval/` compares
-  the tool's 3 proposals (its own `evaluate()`, calls redirected) with the best candidate places of
-  the whole file, on 10 fixed groups x 3 mode configurations, with exact times from a **local
-  MOTIS** (`~/motis`, Tisséo GTFS + OSM extract, port 8080, setup in the doc; no quota). Oracle
-  files in `~/motis/eval`. Scores there: mean per person, and mean + ½ (max − mean).
-  With the dev server on `localhost` and MOTIS running, the page's debug view also offers a
-  "MOTIS local" engine scoring every candidate place, a test case picker, Tisséo lines and a time
-  map (`js/motis.js`, `js/debug-motis.js`, doc § Debug view; deployed but unused elsewhere).
+- UI tests without API calls: `scripts/location-fixture.js` replays a recorded answer of the API (`scripts/fixtures/rendez-vous.json`: 3
+  participants, restaurants, `/v1/proposals` and `/v1/place`, page clock set back to the recording). `openWithFixture(page)` then
+  `runComputation(page, scenario)` inside `withFirefox`; `node scripts/location-fixture.js shot` screenshots the results, `record` re-records
+  (when the answer's format changes). Use it for every graphical / UX change of the results.
+- Evaluation of the proposals (since 2026-10-30, `docs/evaluation.md`): `scripts/eval/` compares proposals with the best candidate places of
+  the whole file, on 10 fixed groups x 3 mode configurations, with exact times from a **local MOTIS** (`~/motis`, Tisséo GTFS + OSM extract, port
+  8080, setup in the doc; no quota). Oracle files in `~/motis/eval`. Shared helpers: `common.js`. `baseline.js` asks a local middleware
+  (`API_URL`, default port 8090) through the API, which refuses a past date: build the oracle for a date to come in a directory of its own (`EVAL_DATE`, `EVAL_DIR`).
 - `docs/`, `scripts/`, `data/README.md` (sources, ODbL licence of the places file) and
   `data/tisseo-area.json` (input of the places build) are not deployed.
 
 ## The tool (`index.html`, `js/`)
 
-Proposes the 3 meeting places with the best score (équitable or égalitaire) for a meeting time with a fixed late tolerance (10 min),
-Toulouse area. Fully client-side; the user's own openrouteservice key is stored in localStorage only.
-Full pipeline: `docs/pipeline.md`.
+Proposes 3 meeting places for a meeting time with a fixed late tolerance (10 min), Toulouse area. Computed on the server
+(`docs/architecture.md`); the page asks and shows. Full pipeline: `docs/pipeline.md`.
 
-- `main.js` keys, settings, the computation's events and the results; `participants.js` the cards and their points on the map;
-  `autocomplete.js` an address field's list, `geocode.js` Géoplateforme, `progress.js` bar and steps, `debug-view.js` the page's debug
-  view with MOTIS (split from a 1,250-line `main.js` on 2026-11-03); `search.js` local address search (no DOM), `slots.js`
-  arrival slot picker, `map.js` Leaflet drawing, `results.js` results HTML, `labels.js` shared labels, duration format and `escapeHtml`;
-  `cancel.js` the signal cancelling the work of a stale result; `engine.js` candidates and scoring, `ors.js` openrouteservice (matrix 50/day,
-  directions 200/day), `transitous.js` public transport (Transitous `/plan`, max 3 parallel calls,
-  > 720 calls / 24 h needs coordination) or `tisseo.js` (optional, visitor's key), `keys.js` localStorage.
+- `main.js` the form's submission, the answer, the results; `api.js` the API's calls and its error messages; `answer.js` from the form to the
+  question and from the answer to what is shown (polylines decoded there); `participants.js` the cards and their points on the map; `autocomplete.js` an
+  address field's list, `geocode.js` Géoplateforme, `search.js` local address search (no DOM), `slots.js` meeting time picker, `map.js` Leaflet
+  drawing, `results.js` results HTML, `labels.js` shared labels, duration format and `escapeHtml`; `cancel.js` the signal cancelling the work of a stale result.
 - Address search: local instant lookup in `data/pois-toulouse.json` (≥ 2 chars), then IGN Géoplateforme
   completion (≥ 3 chars, Haute-Garonne, addresses and IGN points of interest, no companies).
 - `data/pois-toulouse.json`: one list `places` (~17,400) with one `category` code each (OSM `key=value`
@@ -187,9 +176,6 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
 
 ## Open topics (update when they move)
 
-- To do with the page's switch to the middleware (stated by the user 2026-11-08): remove the "Réglages" card, now obsolete (its
-  "Critère", "Bus/métro calculés par", "Lieux candidats évalués" and the keys go away; "Affichage" practical/debug and "Types de
-  lieux" to rethink: what the debug view shows once the computation is on the server).
 - To do, font (stated by the user 2026-11-05; nothing decided or coded): change it, the current one looks like a "vibe-coded" tool, not a tool for the general public.
 - To do, mobile view (a friend's suggestion, reported by the user 2026-11-05; nothing decided or coded): show the map after the form, and make the form smaller.
 - Inviting people widely: only once the home server is received and set up (stated by the user 2026-11-05); the tool is online, but the shared
@@ -204,10 +190,8 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   trial, so not new; cancelling during a computation, suggestions). `choosing another proposal` failed on GitHub (Firefox, click without effect), not
   reproduced here: smooth scrolling suspected, a much slower one in Firefox did not trigger it either, cause unknown. One retry on CI since then; a test
   reported flaky there is still worth a look. To do: make the cancellation tests independent of the machine's speed.
-- Trial with a friend, until Sunday 2026-11-08 (asked by the user 2026-11-04): visitors enter no key, Tisséo is the default engine and
-  the Vercel Functions `api/ors.mjs` and `api/tisseo.mjs` add the user's keys (`OPENROUTESERVICE_API_KEY`, `TISSEO_API_KEY` in Vercel's
-  settings; the repository is public, so never in the code). Anyone can call them: quotas are the only limit. **Temporary: to undo
-  afterwards** (remove the two variables, revert the commit); kept until the new page replaces them, which removes every key dependency (decided by the user 2026-11-08). Where this file still says the key is the visitor's, it describes the state to return to.
+- The trial with a friend (visitors entering no key, the site's keys in Vercel Functions) ended with the page's switch to the middleware (2026-11-08):
+  the relays are removed from the code; **the variables `OPENROUTESERVICE_API_KEY` and `TISSEO_API_KEY` are to be removed from Vercel's settings** once the new page is live.
 - Extracted from the portfolio on 2026-10-30 (`git filter-repo`, 52 commits kept; early commits
   lack their styles, which lived in the portfolio's shared `css/style.css`). Pushed; Vercel project
   and DNS done, live at `rendez-vous.gresset-bourgeois.fr` (stated 2026-11-02). The portfolio (`~/repos/personal_web_page`) has
@@ -240,7 +224,7 @@ Quotas: monitored per key, possibly paid beyond thresholds one day (doc § 2.3).
   touched, then the next one to fill; none during and after a computation), a double click only
   zooms, points draggable on computers only (the user feared it would misbehave on phones). Doc § 2.
   Works on the user's phone (stated 2026-11-03).
-- Participants (decided 2026-11-02): 5 at most with the public services, whose quota is shared; 10 with the local MOTIS.
+- Participants (the API's limit, 2026-11-08): 10 at most.
 - Links to stops (decided 2026-11-02): no link to their OSM page, a marker there and a Google Maps text search (kind,
   name, city), checked on Carmes. OSM has several points per bus stop; 36 of the 37 metro stations would match.
 - Zones kept (stated by the user 2026-11-02: good engineering, `docs/evaluation.md` § What the zones bring). Maximum of places per zone
