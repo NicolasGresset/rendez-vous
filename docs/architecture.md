@@ -321,6 +321,16 @@ with `scripts/eval`.
   stations, MOTIS's one-to-all (the times at every stop from one search) instead of the per-point estimate; for zones,
   precomputed walks from each representative to its stops.
 
+### The page on the middleware (decided by the user 2026-11-08)
+
+- **No fallback**: when the server does not answer, the page says the service is unavailable for a while, as soon as
+  the warm-up call fails (before the click). No visitor key any more; the server's uptime is to be monitored.
+- **The former code goes**: the engines and their keys (`engine.js`, `ors.js`, `transitous.js`, `tisseo.js`, `motis.js`,
+  `debug-motis.js`, `keys.js`) and the trial's relays (`api/`); `scripts/eval` goes through the API.
+- **No debug view** for now: it served the development; debugging will be local, when working on a home-made engine
+  or a better estimate.
+- **No settings card**: its score, engine, candidate count and keys have no object any more.
+
 ### MOTIS on the server (2026-11-07)
 
 - Image `ghcr.io/motis-project/motis:2.11.4`, the version of the local evaluation, so results stay comparable.
