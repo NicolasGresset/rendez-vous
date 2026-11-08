@@ -13,7 +13,7 @@
 
 import fs from 'fs';
 import { CASES, CONFIGS, CATEGORY_SETS } from './cases.js';
-import { CATEGORIES } from '../../js/engine.js';
+import { CATEGORIES } from './common.js';
 import { candidatePlaces, loadOracle } from './oracle.js';
 import { loadJourneys } from './journeys.js';
 import { METRICS } from './scoring.js';

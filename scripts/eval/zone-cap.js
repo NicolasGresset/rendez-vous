@@ -7,7 +7,7 @@
 // Usage: node scripts/eval/zone-cap.js
 
 import fs from 'fs';
-import { forEachLimited, transitTrip } from '../../js/transitous.js';
+import { forEachLimited, transitTrip } from './common.js';
 import { CASES, CONFIGS, DATE, SLOT, TOLERANCE_MIN } from './cases.js';
 import { MOTIS_URL } from './motis.js';
 import { loadOracle } from './oracle.js';

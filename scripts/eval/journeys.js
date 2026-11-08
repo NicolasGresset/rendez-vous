@@ -10,7 +10,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { forEachLimited, parseParis } from '../../js/transitous.js';
+import { forEachLimited, parseParis } from './common.js';
 import { MOTIS_URL } from './motis.js';
 import { CASES, DATE, SLOT } from './cases.js';
 import { EVAL_DIR, candidatePlaces } from './oracle.js';

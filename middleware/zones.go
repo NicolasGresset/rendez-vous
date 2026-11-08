@@ -1,6 +1,6 @@
 package main
 
-// The method by zones, coarse then finer, as js/debug-motis.js scoreZones (docs/evaluation.md § Zones): every
+// The method by zones, coarse then finer (docs/evaluation.md § Zones): every
 // zone's representative estimated (one search per participant, not per zone), the best ones exact, the best zones far
 // enough apart kept, then a few other places of each kept zone exact. Stations have no zones: each station is a zone
 // of its own (decided by the user 2026-11-08), so there is no second round for them.
@@ -13,14 +13,14 @@ import (
 	"time"
 )
 
-// The method's constants, as js/debug-motis.js; measured on Toulouse's bars, to measure again on other data.
+// The method's constants, measured on Toulouse's bars, to measure again on other data.
 const (
 	zoneShortlist     = 20               // representatives scored exactly, then more by this step while too few zones are kept
 	zoneEstimateLead  = 60 * time.Minute // the estimate leaves this long before the meeting time
 	zoneSpacingM      = 500              // between the zones kept
 	zoneExactPlaces   = 5                // places of a kept zone scored exactly, its representative included
 	proposalCount     = 3                // zones proposed
-	carParkingSeconds = 5 * 60           // added to every car trip, as engine.js CAR_PARKING_S
+	carParkingSeconds = 5 * 60           // added to every car trip
 	lateTolerance     = 10 * time.Minute // arriving after the meeting time + this is not allowed
 	// A participant with transit but without walking may still walk this long: a short walk is a valid way to go
 	// (decided by the user 2026-11-08); longer, the place is out of reach for their modes.
@@ -256,7 +256,7 @@ func (c *computation) transitParticipants() int {
 }
 
 // streetTimes: walk, bike and car times of every participant to every candidate, one call per participant and mode.
-// Rounded to the second, the car's with its parking time, as js/debug-motis.js streetTimes. The calls run at once,
+// Rounded to the second, the car's with its parking time. The calls run at once,
 // each keeping its durations apart; they are written into the candidates' times once all are done, from this goroutine
 // only (a Go map must not be written by two goroutines at once: two modes of one participant share a map).
 func (c *computation) streetTimes(ctx context.Context, candidates []*Candidate) error {

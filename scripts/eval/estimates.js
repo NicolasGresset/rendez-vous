@@ -4,15 +4,11 @@
 // bar. Bars only, walk + transit. Needs the local MOTIS; ~1 min per meeting time. Usage: node scripts/eval/estimates.js
 
 import fs from 'fs';
-import { CATEGORIES } from '../../js/engine.js';
-import { forEachLimited, transitTrip } from '../../js/transitous.js';
+import { CATEGORIES } from './common.js';
+import { forEachLimited, transitTrip } from './common.js';
 import { CASES } from './cases.js';
 import { MOTIS_URL, streetDurations, transitDurationsTo } from './motis.js';
 import { METRICS } from './scoring.js';
-
-// transitous.js calls Transitous: sent to the local server instead
-const realFetch = globalThis.fetch;
-globalThis.fetch = (url, init) => realFetch(String(url).replace('https://api.transitous.org', MOTIS_URL), init);
 
 // Tuesday evening (the oracle's), off-peak on a weekday, late, and Sunday morning
 const MEETINGS = [['2026-11-03', '19:00'], ['2026-11-03', '14:30'], ['2026-11-03', '22:00'], ['2026-11-08', '10:30']];

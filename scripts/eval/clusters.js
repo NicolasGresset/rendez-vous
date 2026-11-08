@@ -4,7 +4,7 @@
 // kept) against the 8 spaced candidates. Usage: node scripts/eval/clusters.js
 
 import fs from 'fs';
-import { CATEGORIES } from '../../js/engine.js';
+import { CATEGORIES } from './common.js';
 import { CASES, CONFIGS } from './cases.js';
 import { candidatePlaces, loadOracle } from './oracle.js';
 import { oracleScores } from './scoring.js';

@@ -6,6 +6,7 @@
 //	ALLOWED_ORIGINS  comma-separated origins allowed by CORS, e.g. "https://rendez-vous.gresset-bourgeois.fr"
 //	PLACES_FILE      the places and zones file (default /places.json, where the image puts data/pois-toulouse.json)
 //	MOTIS_URL        the MOTIS server (default http://motis:8080, its name on the Docker network backend)
+//	LISTEN_ADDR      where to listen (default :8080)
 //
 // With -healthcheck, it queries the health of the server running on this machine and exits (0: healthy):
 // Docker calls it, since the image has no shell nor wget.
@@ -24,7 +25,7 @@ import (
 )
 
 const (
-	listenAddr = ":8080"
+	defaultAddr = ":8080"
 	// motisParallel bounds the calls to MOTIS in flight, every computation together: the VM's 6 cores
 	motisParallel = 6
 )
@@ -33,7 +34,7 @@ func main() {
 	healthcheck := flag.Bool("healthcheck", false, "query the local server's health and exit (0: healthy)")
 	flag.Parse()
 	if *healthcheck {
-		os.Exit(checkHealth("http://127.0.0.1" + listenAddr + "/v1/health"))
+		os.Exit(checkHealth("http://127.0.0.1" + defaultAddr + "/v1/health"))
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -54,6 +55,10 @@ func main() {
 	}
 	logger.Info("places loaded", "counts", data.summary(), "sha256", data.Version.SHA256)
 
+	listenAddr := os.Getenv("LISTEN_ADDR")
+	if listenAddr == "" {
+		listenAddr = defaultAddr
+	}
 	motisURL := os.Getenv("MOTIS_URL")
 	if motisURL == "" {
 		motisURL = "http://motis:8080"

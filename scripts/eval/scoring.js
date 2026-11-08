@@ -1,5 +1,5 @@
 // scoring.js - Scores of the evaluation (lower is better), from each participant's fastest time in
-// seconds and the people leaving with them: the tool's two scores (engine.js SCORES), the mean time
+// seconds and the people leaving with them: the mean and the service's score (middleware/score.go), the mean time
 // per person ("égalitaire") and the mean plus half the excess of the longest trip over the mean
 // ("équitable", Ogryczak's (1 - β) mean + β max with β = 1/2)
 

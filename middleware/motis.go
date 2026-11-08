@@ -1,7 +1,6 @@
 package main
 
-// The MOTIS client: the same questions as the page's debug view asks its local MOTIS (js/motis.js, js/transitous.js),
-// so that the middleware's proposals can be compared with the page's before anything is changed on purpose
+// The MOTIS client: street times, transit estimates, exact transit trips and street paths
 // (docs/architecture.md § The MOTIS client).
 
 import (
@@ -23,9 +22,9 @@ const (
 	motisCallTimeout   = 10 * time.Second // one call of the middleware to MOTIS
 	motisRetryDelay    = 2 * time.Second  // a failed call is tried once more after this
 	motisMaxAnswer     = 16 << 20         // an answer larger than this is refused (a /plan is ~200 KB)
-	streetMaxSeconds   = 4 * 3600         // as js/motis.js STREET_MAX_S
-	matchingDistanceM  = 250              // as js/motis.js MATCHING_DISTANCE_M
-	planMaxItineraries = 5                // as js/transitous.js PLAN_OPTIONS
+	streetMaxSeconds   = 4 * 3600         // a street time beyond this is no use
+	matchingDistanceM  = 250              // points matched to the streets within this
+	planMaxItineraries = 5                // journeys asked of /plan
 )
 
 // Unreachable marks a duration MOTIS did not find.
@@ -38,7 +37,7 @@ type Point struct{ Lat, Lon float64 }
 
 func coord(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) } // shortest form, as JavaScript prints it
 
-// motisTime is the time format of the page's calls (Date.toISOString).
+// motisTime is an ISO 8601 time in UTC, with milliseconds.
 func motisTime(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05.000Z") }
 
 // MotisClient calls one MOTIS server. Its slots bound the calls in flight for the whole middleware, every
@@ -129,7 +128,7 @@ func (c *MotisClient) postJSON(path string, payload any) func(context.Context) (
 }
 
 // StreetDurations gives the walk, bike or car durations in seconds from one point to many (Unreachable when none),
-// as js/motis.js streetDurations: one forward search, 4 h at most, points matched to the streets within 250 m.
+// by one forward search, 4 h at most, points matched to the streets within 250 m.
 func (c *MotisClient) StreetDurations(ctx context.Context, mode Mode, one Point, many []Point) ([]float64, error) {
 	motisMode, ok := streetModes[mode]
 	if !ok {
@@ -167,7 +166,7 @@ func (c *MotisClient) StreetDurations(ctx context.Context, mode Mode, one Point,
 }
 
 // TransitEstimates gives cheap transit durations in seconds from one point to many, leaving at departure
-// (Unreachable when none), as js/motis.js transitEstimatesFrom: one RAPTOR search forward, no journey rebuilt,
+// (Unreachable when none): one RAPTOR search forward, no journey rebuilt,
 // the wait for the first vehicle counted.
 func (c *MotisClient) TransitEstimates(ctx context.Context, one Point, many []Point, departure time.Time) ([]float64, error) {
 	payload := struct {
@@ -208,7 +207,7 @@ type Polyline struct {
 	Precision int    `json:"precision"`
 }
 
-// Leg is a walk or a ride of a journey, with what the page shows and draws (js/transitous.js itineraryLegs).
+// Leg is a walk or a ride of a journey, with what the page shows and draws.
 type Leg struct {
 	Mode      string    `json:"mode"` // MOTIS's: WALK, BUS, SUBWAY, TRAM…; the page names them
 	From      string    `json:"from,omitempty"`
@@ -260,7 +259,7 @@ type motisItinerary struct {
 var hexColor = regexp.MustCompile(`^#?[0-9a-fA-F]{6}$`)
 
 // TransitTrip asks MOTIS's /plan for journeys arriving by slotEnd and keeps the best for the slot [slotStart, slotEnd],
-// as js/transitous.js transitTrip; nil when no journey with a transit line arrives in time.
+// nil when no journey with a transit line arrives in time.
 func (c *MotisClient) TransitTrip(ctx context.Context, from, to Point, slotStart, slotEnd time.Time) (*Trip, error) {
 	query := url.Values{
 		"fromPlace":         {coord(from.Lat) + "," + coord(from.Lon)},
@@ -296,7 +295,7 @@ func (c *MotisClient) TransitTrip(ctx context.Context, from, to Point, slotStart
 	return trip, nil
 }
 
-// StreetPath asks MOTIS's /plan for a walk, bike or car path, as js/motis.js routePath: its legs (usually one), or nil
+// StreetPath asks MOTIS's /plan for a walk, bike or car path: its legs (usually one), or nil
 // when MOTIS finds none.
 func (c *MotisClient) StreetPath(ctx context.Context, mode Mode, from, to Point) ([]Leg, error) {
 	motisMode, ok := streetModes[mode]
@@ -325,7 +324,7 @@ func (c *MotisClient) StreetPath(ctx context.Context, mode Mode, from, to Point)
 	return legsOf(answer.Direct[0]), nil
 }
 
-// legsOf keeps of an itinerary's legs what the page shows and draws (js/transitous.js itineraryLegs).
+// legsOf keeps of an itinerary's legs what the page shows and draws.
 func legsOf(it motisItinerary) []Leg {
 	var legs []Leg
 	for _, l := range it.Legs {
@@ -354,7 +353,7 @@ func legsOf(it motisItinerary) []Leg {
 // streetLeg: the legs MOTIS gives for walk, bike and car, which have no line
 var streetLeg = map[string]bool{"WALK": true, "BIKE": true, "CAR": true}
 
-// bestJourney is js/transitous.js bestJourney: among the journeys arriving by slotEnd, the one taking the least time
+// bestJourney: among the journeys arriving by slotEnd, the one taking the least time
 // from leaving to being there when the slot starts or within it (arriving early counts the wait); at equal time,
 // the latest departure. Returns the time and the wait in seconds.
 func bestJourney(journeys []motisItinerary, slotStart, slotEnd time.Time) (best motisItinerary, seconds, wait float64, ok bool) {

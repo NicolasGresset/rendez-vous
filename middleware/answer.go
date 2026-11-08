@@ -135,7 +135,7 @@ type streetPathCall struct {
 	legs     []Leg
 }
 
-// fillStreetPaths asks MOTIS the street paths at once. A path MOTIS cannot give is left out, as the page does; the
+// fillStreetPaths asks MOTIS the street paths at once. A path MOTIS cannot give is left out: the
 // computation's end (cancelled, out of time) stops them all.
 func fillStreetPaths(ctx context.Context, motis *MotisClient, calls []streetPathCall) error {
 	tasks := make([]func(context.Context) error, len(calls))
@@ -173,7 +173,7 @@ type PlaceTrips struct {
 	Trips     []*AnswerTrip `json:"trips"`
 }
 
-// placeTrips computes one place's trips, as js/debug-motis.js scoreZonePlace: street times, exact transit, each
+// placeTrips computes one place's trips: street times, exact transit, each
 // participant's fastest mode, the score when everyone reaches it, the street paths.
 func placeTrips(ctx context.Context, q Question, data *Data, motis *MotisClient, place int) (*PlaceAnswer, error) {
 	c := &computation{question: q, data: data, motis: motis, slotStart: q.MeetingTime, slotEnd: q.MeetingTime.Add(lateTolerance)}

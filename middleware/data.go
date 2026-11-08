@@ -10,7 +10,7 @@ import (
 	"sort"
 )
 
-// Categories of candidate places for each place type, as engine.js CATEGORIES. A place of another category is only
+// Categories of candidate places for each place type. A place of another category is only
 // for the page's address search: the middleware does not keep it.
 var placeCategories = map[PlaceType][]string{
 	"station":    {"metro", "bus"},
@@ -149,7 +149,7 @@ func loadData(path string) (*Data, error) {
 		if len(zone.Members) == 0 {
 			return nil, fmt.Errorf("zone %d (%s) has no place", i, zone.Name)
 		}
-		// As debug-motis.js closestMember: the first of the closest, in the file's order
+		// The first of the closest, in the file's order
 		best := math.Inf(1)
 		for _, m := range zone.Members {
 			if d := haversine(zone.Lat, zone.Lon, data.Places[m].Lat, data.Places[m].Lon); d < best {
@@ -164,7 +164,7 @@ func finitePosition(lat, lon float64) bool {
 	return !math.IsNaN(lat) && !math.IsNaN(lon) && math.Abs(lat) <= 90 && math.Abs(lon) <= 180
 }
 
-// haversine is the great-circle distance in metres, as engine.js haversine.
+// haversine is the great-circle distance in metres.
 func haversine(lat1, lon1, lat2, lon2 float64) float64 {
 	const earthRadiusM = 6371000
 	rad := math.Pi / 180

@@ -5,7 +5,7 @@
 // Usage: node scripts/eval/diversity.js
 
 import fs from 'fs';
-import { CATEGORIES } from '../../js/engine.js';
+import { CATEGORIES } from './common.js';
 import { CASES, CONFIGS, CATEGORY_SETS } from './cases.js';
 import { candidatePlaces, loadOracle } from './oracle.js';
 import { METRICS, oracleScores } from './scoring.js';

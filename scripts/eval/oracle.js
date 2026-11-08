@@ -1,6 +1,6 @@
 // oracle.js - Exact travel times of every participant of every case (cases.js) to every candidate
 // place of data/pois-toulouse.json, from a local MOTIS server (motis.js): walk, bike, car (raw,
-// without the parking time), and transit computed as the tool does (transitous.js transitTrip:
+// without the parking time), and transit computed as the service does (common.js transitTrip:
 // /plan arriving by the end of the slot, an early arrival counting the wait until it starts).
 // Also transitEstimate: MOTIS one-to-many durations for an arrival at the end of the slot (one
 // call per place for all participants, ~100x cheaper; it counts the time up to the end of the
@@ -13,20 +13,16 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { CATEGORIES } from '../../js/engine.js';
-import { parseParis, forEachLimited, transitTrip } from '../../js/transitous.js';
-import { MOTIS_URL, streetDurations, transitDurationsTo } from './motis.js';
+import { CATEGORIES } from './common.js';
+import { parseParis, forEachLimited, transitTrip } from './common.js';
+import { streetDurations, transitDurationsTo } from './motis.js';
 import { CASES, DATE, SLOT, TOLERANCE_MIN } from './cases.js';
 
 export const EVAL_DIR = process.env.EVAL_DIR || path.join(os.homedir(), 'motis', 'eval');
 const PARALLEL = 16;
 const SLOT_TO = SLOT.replace(/\d+$/, m => String(Number(m) + TOLERANCE_MIN).padStart(2, '0'));
 
-// transitous.js calls Transitous: sent to the local server instead
-const realFetch = globalThis.fetch;
-globalThis.fetch = (url, init) => realFetch(String(url).replace('https://api.transitous.org', MOTIS_URL), init);
-
-// Candidate places (the categories engine.js can pick from), in file order
+// Candidate places, in file order
 export function candidatePlaces(data) {
     const categories = new Set(Object.values(CATEGORIES).flat());
     return data.places.filter(p => categories.has(p.category));

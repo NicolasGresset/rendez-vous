@@ -1,7 +1,6 @@
 package main
 
-// The score and ranking of the method by zones, as js/debug-motis.js scorePlaces and the "équitable" score of
-// js/engine.js SCORES (docs/evaluation.md § Scores). One score only (decided by the user 2026-11-08): the tool says
+// The score and ranking of the method by zones (docs/evaluation.md § Scores). One score only (decided by the user 2026-11-08): the tool says
 // which places it finds best, without asking a newcomer to choose a metric. Lower is better.
 
 import (
@@ -9,8 +8,7 @@ import (
 	"sort"
 )
 
-// modeOrder decides between two modes of equal time (the page's order is that of its asynchronous answers, so
-// arbitrary): the same time either way, only the mode shown can differ.
+// modeOrder decides between two modes of equal time: the same time either way, only the mode shown can differ.
 var modeOrder = []Mode{ModeWalk, ModeBike, ModeCar, ModeTransit}
 
 // Choice is a participant's fastest mode to a place. Seconds is what is scored (with transit, the wait until the
@@ -76,7 +74,7 @@ func newCandidate(place, participants int) *Candidate {
 }
 
 // rank sets every candidate's choices and score, and returns the indices of those everyone can reach, best first.
-// Equal scores keep the candidates' order, as JavaScript's stable sort does.
+// Equal scores keep the candidates' order.
 func rank(candidates []*Candidate, people []int) []int {
 	var reachable []int
 	for j, c := range candidates {
