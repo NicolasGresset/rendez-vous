@@ -1,7 +1,7 @@
-// map.js - Leaflet drawing on the page's OpenStreetMap map: barycenter, candidates and the
-// participants' paths (participant markers stay with the form, in main.js)
+// map.js - Leaflet drawing on the page's OpenStreetMap map: the places and the participants' paths (participant
+// markers stay with the form, in participants.js)
 
-import { MODE_LABELS, COLORS, formatDuration, escapeHtml } from './labels.js';
+import { MODE_LABELS, formatDuration, escapeHtml } from './labels.js';
 
 export const TOULOUSE = [43.6045, 1.4440]; // place du Capitole
 
@@ -14,22 +14,15 @@ export function createMap(elementId) {
     return map;
 }
 
-export function drawCenter(layer, center) {
-    L.circleMarker([center.lat, center.lon], { radius: 4, color: COLORS.center, fillOpacity: 1, weight: 1, bubblingMouseEvents: false })
-        .bindTooltip('barycentre')
-        .addTo(layer);
-}
-
-// Candidates. proposals: indices of the best ones, numbered pins from 1; selected: the one shown,
-// an orange pin (numbered if a proposal); the others are small grey pins, drawn only when all is
-// true (debug view), or for those in `also`. A click on a marker is not a click on the map (which places the active
-// participant)
-export function drawCandidates(layer, candidates, categoryLabels, { selected = null, proposals = [], all = true, also = [], onSelect = null } = {}) {
+// Candidates. proposals: indices of the best ones, numbered pins from 1; selected: the one shown, an orange pin
+// (numbered if a proposal); those in `also` are small grey pins, the others are not drawn. A click on a marker is not a
+// click on the map (which places the active participant)
+export function drawCandidates(layer, candidates, categoryLabels, { selected = null, proposals = [], also = [], onSelect = null } = {}) {
     candidates.forEach((c, j) => {
         const isSelected = j === selected;
         const rank = proposals.indexOf(j);
-        if (rank < 0 && !isSelected && !all && !also.includes(j)) return;
-        const tooltip = `${rank >= 0 ? `${rank + 1}. ` : ''}${escapeHtml(c.name)} · ${categoryLabels[c.category]}`
+        if (rank < 0 && !isSelected && !also.includes(j)) return;
+        const tooltip = `${rank >= 0 ? `${rank + 1}. ` : ''}${escapeHtml(c.name)} · ${escapeHtml(categoryLabels[c.category] ?? '')}`
             + (c.choices ? ` · ${c.score != null ? `trajets ${c.choices.map(choice => formatDuration(choice.travel)).join(', ')}` : 'injoignable'}` : '');
         // Every place is a pin: numbered for the proposals, orange for the chosen one, small and
         // grey for the other candidates. Tip of a pin of size s: s / √2 below its center
@@ -71,135 +64,4 @@ export function drawRoute(group, p, place, route, color) {
             .bindTooltip(escapeHtml(label), { sticky: true })
             .addTo(group);
     });
-}
-
-// ---- Debug view with the local MOTIS (debug-motis.js) ----
-
-// Every enumerated place as a dot colored by how far its score is from the best (green: the best,
-// yellow: 50 % worse, red: twice the best or more), and the best 3 as green numbered pins. ranking: indices, best first.
-// Drawn on a canvas: thousands of dots stay fluid
-export function drawEnumeration(layer, places, ranking, categoryLabels, metricLabel) {
-    if (!ranking.length) return;
-    const best = places[ranking[0]].score;
-    const renderer = L.canvas({ padding: 0.3 });
-    [...ranking].reverse().forEach(j => {
-        const p = places[j];
-        const excess = Math.min(1, (p.score - best) / best);
-        const color = `hsl(${Math.round(120 * (1 - excess))} 75% 42%)`;
-        const pct = Math.round((p.score / best - 1) * 100);
-        L.circleMarker([p.lat, p.lon], { renderer, radius: 3.5, color, weight: 1, fillColor: color, fillOpacity: 0.8,
-            bubblingMouseEvents: false })
-            .bindTooltip(`${escapeHtml(p.name)} · ${categoryLabels[p.category]} · ${metricLabel} ${formatDuration(p.score)}`
-                + ` (${pct ? `+${pct} %` : 'le meilleur'})${p.estimated ? ' · bus/métro estimé' : ''}`)
-            .addTo(layer);
-    });
-    ranking.slice(0, 3).forEach((j, rank) => {
-        const p = places[j];
-        L.marker([p.lat, p.lon], {
-            icon: L.divIcon({ className: 'rank-marker', html: `<span class="rank-pin rank-pin--best"><span>${rank + 1}</span></span>`,
-                iconSize: [26, 26], iconAnchor: [13, Math.round(13 + 26 / Math.SQRT2)], tooltipAnchor: [0, -13] }),
-            zIndexOffset: 800, keyboard: false, title: '',
-        }).bindTooltip(`meilleur n° ${rank + 1} du fichier : ${escapeHtml(p.name)} · ${metricLabel} ${formatDuration(p.score)}`)
-            .addTo(layer);
-    });
-}
-
-// The barycenter's search radius, as engine.js used it
-export function drawRadius(layer, center, radius) {
-    L.circle([center.lat, center.lon], { radius, color: COLORS.center, weight: 1, dashArray: '4 6', fill: false, interactive: false })
-        .addTo(layer);
-}
-
-// Transit lines (motis.js networkLines): metro and tram drawn thick, buses thin, in `pane` (under
-// the other drawings)
-export function drawNetworkLines(layer, lines, pane) {
-    const heavy = new Set(['SUBWAY', 'TRAM', 'RAIL', 'AERIAL_LIFT']);
-    [...lines].sort((a, b) => heavy.has(a.mode) - heavy.has(b.mode)).forEach(line => {
-        L.polyline(line.path, { pane, color: line.color, weight: heavy.has(line.mode) ? 5 : 2,
-            opacity: heavy.has(line.mode) ? 0.85 : 0.45, interactive: true })
-            .bindTooltip(`${MODE_LABELS.transit} ${escapeHtml(line.names.join(', '))}`, { sticky: true })
-            .addTo(layer);
-    });
-}
-
-// Convex hull of points (Andrew's monotone chain), in order around it
-function convexHull(points) {
-    const sorted = [...points].sort((a, b) => a.lon - b.lon || a.lat - b.lat);
-    const cross = (o, a, b) => (a.lon - o.lon) * (b.lat - o.lat) - (a.lat - o.lat) * (b.lon - o.lon);
-    const half = list => list.reduce((hull, p) => {
-        while (hull.length >= 2 && cross(hull[hull.length - 2], hull[hull.length - 1], p) <= 0) hull.pop();
-        hull.push(p);
-        return hull;
-    }, []).slice(0, -1);
-    return sorted.length < 3 ? sorted : [...half(sorted), ...half([...sorted].reverse())];
-}
-
-// A zone's places: their hull (a zone of 2 is a line), with its tooltip, and a dot for each
-function drawZoneShape(layer, places, color, label) {
-    if (places.length > 1) {
-        const list = places.map(p => escapeHtml(p.name)).join('<br>');
-        L.polygon(convexHull(places).map(p => [p.lat, p.lon]), { color, weight: 9, lineJoin: 'round',
-            opacity: 0.4, fillOpacity: 0.3, bubblingMouseEvents: false })
-            .bindTooltip(`<strong>${label}</strong><br>${list}`, { sticky: true })
-            .addTo(layer)
-            .bringToBack();
-    }
-    places.forEach(p => L.circleMarker([p.lat, p.lon], { radius: 3, color, weight: 1, fillColor: color, fillOpacity: 1,
-        bubblingMouseEvents: false })
-        .bindTooltip(`${escapeHtml(p.name)}<br>${label}`).addTo(layer));
-}
-
-const placesCount = n => `${n} lieu${n > 1 ? 'x' : ''}`;
-
-// Zones of one kind (data file, scripts/build-zones.js): each zone in its own color (neighbours
-// differ thanks to the golden angle), its name from MIN_LABELLED_PLACES places on, lone places as dots
-const MIN_LABELLED_PLACES = 3;
-export function drawZones(layer, zones, places, kind) {
-    const members = zones.map(() => []);
-    places.forEach(p => { if (p.zone != null) members[p.zone].push(p); });
-    zones.forEach((zone, index) => {
-        if (zone.kind !== kind) return;
-        const inZone = members[index];
-        const color = inZone.length > 1 ? `hsl(${Math.round(index * 137.5) % 360} 80% 40%)` : COLORS.center;
-        drawZoneShape(layer, inZone, color, `${escapeHtml(zone.name)} · ${placesCount(inZone.length)}`);
-        if (inZone.length >= MIN_LABELLED_PLACES) {
-            L.tooltip({ permanent: true, direction: 'center', className: 'zone-label', interactive: false })
-                .setLatLng([zone.lat, zone.lon]).setContent(`${escapeHtml(zone.name)} (${inZone.length})`).addTo(layer);
-        }
-    });
-}
-
-// The zones proposed (debug-motis.js scoreZones): each zone and a numbered pin on its best place
-export function drawZoneResults(layer, zones, metricLabel) {
-    zones.forEach((zone, rank) => {
-        const best = zone.places[0];
-        const all = [...zone.places, ...zone.unscored];
-        drawZoneShape(layer, all, COLORS.zone, `Zone n° ${rank + 1} : ${escapeHtml(zone.name)} · ${placesCount(all.length)}`);
-        L.marker([best.lat, best.lon], {
-            icon: L.divIcon({ className: 'rank-marker', html: `<span class="rank-pin rank-pin--zone"><span>${rank + 1}</span></span>`,
-                iconSize: [26, 26], iconAnchor: [13, Math.round(13 + 26 / Math.SQRT2)], tooltipAnchor: [0, -13] }),
-            zIndexOffset: 900, keyboard: false, title: '',
-        }).bindTooltip(`Zone n° ${rank + 1}, ${escapeHtml(zone.name)} : ${escapeHtml(best.name)} · ${metricLabel} ${formatDuration(best.score)}`)
-            .addTo(layer);
-    });
-}
-
-// Time map (debug-motis.js timeGrid, scored with scorePlaces): one pixel per cell, stretched (and
-// smoothed by the browser) over the grid's box, same colors as the places relative to the grid's
-// best cell; cells nobody can reach all stay clear
-export function drawTimeGrid(layer, grid) {
-    const scores = grid.cells.map(c => c.score).filter(s => s != null);
-    if (!scores.length) return;
-    const best = Math.min(...scores);
-    const canvas = document.createElement('canvas');
-    canvas.width = grid.cols;
-    canvas.height = grid.rows;
-    const context = canvas.getContext('2d');
-    grid.cells.forEach((cell, k) => {
-        if (cell.score == null) return;
-        context.fillStyle = `hsl(${Math.round(120 * (1 - Math.min(1, (cell.score - best) / best)))} 80% 45%)`;
-        context.fillRect(k % grid.cols, Math.floor(k / grid.cols), 1, 1);
-    });
-    L.imageOverlay(canvas.toDataURL(), [[grid.south, grid.west], [grid.north, grid.east]],
-        { opacity: 0.45, interactive: false, className: 'time-grid' }).addTo(layer);
 }

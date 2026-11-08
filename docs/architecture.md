@@ -345,6 +345,14 @@ with `scripts/eval`.
 - **No debug view** for now: it served the development; debugging will be local, when working on a home-made engine
   or a better estimate.
 - **No settings card**: its score, engine, candidate count and keys have no object any more.
+- **One place type at a time** (decided by the user 2026-11-08: one goes to a bar or to a restaurant, not to both): four
+  exclusive choices in the form, as the API takes one `placeType`.
+- Wired 2026-11-08: `js/api.js` (the calls and the French messages of the error codes), `js/answer.js` (from the form to
+  the question, from the answer to what is shown; polylines decoded there). No progress bar any more: a line of text
+  while the server computes (about 1 to 3 s). The connection is warmed up (`GET /v1/health`) at the first use of the form.
+  The page still loads the places file for the instant address search. On the developer's machine the dev server relays
+  `/v1/` to the API (`API_URL`), which accepts only the site's origin. The answers carry each place's address, for the
+  links and the share button.
 
 ### MOTIS on the server (2026-11-07)
 

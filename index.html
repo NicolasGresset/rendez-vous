@@ -42,45 +42,6 @@
 
     <main>
         <div class="container page-main location-layout">
-            <!-- ======= SETTINGS: view, score and transit engine (stored only in this browser) ======= -->
-            <details class="chart-card location-keys">
-                <summary class="chart-title">Réglages</summary>
-                <div class="location-settings-row">
-                    <fieldset class="location-categories" id="view-mode">
-                        <legend>Affichage</legend>
-                        <div class="chips">
-                            <label class="chip"><input type="radio" name="view-mode" value="practical" checked><span>pratique</span></label>
-                            <label class="chip"><input type="radio" name="view-mode" value="debug"><span>debug</span></label>
-                        </div>
-                        <p class="location-muted">Debug : barycentre et candidats sur la carte, étapes du calcul, appels API, score de chaque candidat.</p>
-                    </fieldset>
-                    <fieldset class="location-categories" id="score-metric">
-                        <legend>Critère</legend>
-                        <div class="chips">
-                            <label class="chip"><input type="radio" name="score-metric" value="half" checked><span>équitable</span></label>
-                            <label class="chip"><input type="radio" name="score-metric" value="mean"><span>égalitaire</span></label>
-                        </div>
-                        <!-- The selected criterion's explanation (main.js) -->
-                        <p class="location-muted" id="score-description"></p>
-                    </fieldset>
-                </div>
-                <fieldset class="location-categories" id="transit-engine">
-                    <legend>Bus/métro calculés par</legend>
-                    <div class="chips">
-                        <label class="chip"><input type="radio" name="transit-engine" value="tisseo" checked><span>Tisséo</span></label>
-                        <label class="chip"><input type="radio" name="transit-engine" value="transitous"><span>Transitous</span></label>
-                    </div>
-                </fieldset>
-                <div class="location-field location-candidates">
-                    <label for="candidate-count">Lieux candidats évalués</label>
-                    <select id="candidate-count">
-                        <option>1</option><option>2</option><option>3</option><option>4</option>
-                        <option>5</option><option>6</option><option>7</option><option selected>8</option>
-                    </select>
-                    <span class="location-muted">8 au plus : chaque lieu coûte un trajet bus/métro par participant.</span>
-                </div>
-            </details>
-
             <!-- ======= INPUTS: one form over two cards (display: contents, see the CSS) ======= -->
             <!-- autocomplete="off": Firefox would otherwise restore the previous checkbox states on reload -->
             <form class="location-form" id="location-form" novalidate autocomplete="off">
@@ -99,13 +60,13 @@
                         <h2 class="chart-title" id="meeting-title">Lieu et horaire</h2>
                     </div>
                     <div class="location-meeting-fields">
-                        <fieldset class="location-categories" id="categories">
-                            <legend>Types de lieux</legend>
+                        <fieldset class="location-categories" id="place-type">
+                            <legend>Type de lieu</legend>
                             <div class="chips">
-                                <label class="chip"><input type="checkbox" name="categories" value="station"><span>stations</span></label>
-                                <label class="chip"><input type="checkbox" name="categories" value="bar" checked><span>bars</span></label>
-                                <label class="chip"><input type="checkbox" name="categories" value="cafe"><span>cafés</span></label>
-                                <label class="chip"><input type="checkbox" name="categories" value="restaurant"><span>restaurants</span></label>
+                                <label class="chip"><input type="radio" name="place-type" value="station"><span>stations</span></label>
+                                <label class="chip"><input type="radio" name="place-type" value="bar" checked><span>bars</span></label>
+                                <label class="chip"><input type="radio" name="place-type" value="cafe"><span>cafés</span></label>
+                                <label class="chip"><input type="radio" name="place-type" value="restaurant"><span>restaurants</span></label>
                             </div>
                         </fieldset>
                         <!-- Custom list: a native <select> cannot limit how many ranges it shows -->
@@ -122,24 +83,6 @@
                 </section>
             </form>
 
-            <!-- ======= PROGRESS & API CALLS ======= -->
-            <!-- Shown from the first computation on -->
-            <section class="chart-card location-progress" id="location-progress" aria-labelledby="location-progress-title" hidden>
-                <div class="chart-header">
-                    <h2 class="chart-title" id="location-progress-title">Calcul</h2>
-                </div>
-                <!-- Practical view: one bar; debug view: every step and the API calls -->
-                <div class="progress-simple">
-                    <progress id="progress-bar" max="1" value="0"></progress>
-                    <span class="location-muted" id="progress-text" aria-live="polite"></span>
-                </div>
-                <ol class="progress-steps" id="progress-steps" aria-live="polite" hidden></ol>
-                <details class="location-calls-panel">
-                    <summary>Appels API (débogage)</summary>
-                    <dl class="location-calls" id="location-calls"></dl>
-                </details>
-            </section>
-
             <!-- ======= MAP ======= -->
             <section class="chart-card location-map-card" aria-labelledby="location-map-title">
                 <div class="chart-header">
@@ -148,8 +91,6 @@
                         <li><span class="location-swatch location-swatch--participant">1</span>participant</li>
                         <li><span class="rank-pin location-swatch--rank"><span>1</span></span>proposition</li>
                         <li><span class="rank-pin rank-pin--selected location-swatch--rank"></span>lieu choisi</li>
-                        <li class="debug-only"><span class="location-swatch location-swatch--center"></span>barycentre</li>
-                        <li class="debug-only"><span class="rank-pin location-swatch--rank location-swatch--candidate"></span>autre candidat</li>
                     </ul>
                 </div>
                 <p class="location-map-hint location-muted" id="map-hint" aria-live="polite"></p>
@@ -163,10 +104,8 @@
             <p class="location-sources location-muted">
                 Données : lieux &copy; contributeurs OpenStreetMap et arrêts &copy; Tisséo (GTFS), sous licence ODbL ;
                 adresses : IGN Géoplateforme.
-                Itinéraires : openrouteservice (marche, vélo, voiture), API Tisséo ou
-                <a href="https://transitous.org" target="_blank" rel="noopener noreferrer">Transitous</a>
-                (<a href="https://transitous.org/sources/" target="_blank" rel="noopener noreferrer">sources des données</a>)
-                (bus/métro).
+                Itinéraires : <a href="https://github.com/motis-project/motis" target="_blank" rel="noopener noreferrer">MOTIS</a>,
+                sur les données OpenStreetMap et Tisséo.
                 Plus d'infos <a href="https://github.com/NicolasGresset/rendez-vous" target="_blank" rel="noopener noreferrer">sur GitHub</a>.
             </p>
         </div>

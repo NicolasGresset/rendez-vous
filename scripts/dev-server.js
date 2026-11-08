@@ -7,19 +7,19 @@
 //
 // /api/... runs the functions of api/ as Vercel does, with the keys of .env (OPENROUTESERVICE_API_KEY, TISSEO_API_KEY).
 //
-// /motis/... is relayed to a local MOTIS server (MOTIS_URL, default http://localhost:8080; see
-// docs/evaluation.md): the page's debug view engine calls it on its own origin, so neither the
-// Content-Security-Policy nor CORS are involved. Not on Vercel: there the engine is not offered.
+// /v1/... is relayed to the API (API_URL, default the deployed one): it accepts only the site's origin, and here the
+// page calls its own origin, so neither CORS nor the Content-Security-Policy are involved.
 
 const http = require('http');
+const https = require('https');
 const fs   = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = process.env.PORT || 3001;
 const CSP_REPORT_PATH = '/__csp-report';
-const MOTIS_PREFIX = '/motis/';
-const MOTIS_URL = process.env.MOTIS_URL || 'http://localhost:8080';
+const API_PREFIX = '/v1/';
+const API_URL = process.env.API_URL || 'https://api.rendez-vous.gresset-bourgeois.fr';
 
 try {
     process.loadEnvFile(path.join(ROOT, '.env'));
@@ -56,7 +56,7 @@ const MIME = {
 
 http.createServer((req, res) => {
     const url = new URL(req.url, `http://localhost:${PORT}`);
-    if (!url.pathname.startsWith(MOTIS_PREFIX)) console.log(req.method, url.pathname);
+    console.log(req.method, url.pathname);
 
     if (url.pathname === CSP_REPORT_PATH) {
         let body = '';
@@ -83,13 +83,15 @@ http.createServer((req, res) => {
         });
         return;
     }
-    if (url.pathname.startsWith(MOTIS_PREFIX)) {
-        const target = new URL(url.pathname.slice(MOTIS_PREFIX.length - 1) + url.search, MOTIS_URL);
-        const proxied = http.request(target, { method: req.method, headers: { 'content-type': req.headers['content-type'] || '' } }, answer => {
+    // The API accepts only the site's origin: here, its calls are relayed, without one
+    if (url.pathname.startsWith(API_PREFIX)) {
+        const target = new URL(url.pathname + url.search, API_URL);
+        const client = target.protocol === 'https:' ? https : http;
+        const proxied = client.request(target, { method: req.method, headers: { 'content-type': req.headers['content-type'] || '' } }, answer => {
             res.writeHead(answer.statusCode, { 'Content-Type': answer.headers['content-type'] || 'application/json' });
             answer.pipe(res);
         });
-        proxied.on('error', () => { res.statusCode = 502; res.end('{"error":"MOTIS unreachable"}'); });
+        proxied.on('error', () => { res.statusCode = 502; res.end('{"error":"engine_unavailable"}'); });
         req.pipe(proxied);
         return;
     }

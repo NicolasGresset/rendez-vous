@@ -63,9 +63,13 @@ func TestTheAnswer(t *testing.T) {
 			}
 		}
 	}
+	addressless := 0
 	for j, p := range answer.Places {
 		if p.ID == "" {
 			t.Errorf("place %d without id", j)
+		}
+		if p.Street == "" && p.City == "" && p.Postcode == "" {
+			addressless++
 		}
 		if len(p.Trips) != 3 {
 			t.Fatalf("place %d: %d trips", j, len(p.Trips))
@@ -81,6 +85,19 @@ func TestTheAnswer(t *testing.T) {
 				t.Errorf("place %d, participant %d: walk without its path: %+v", j, i, trip)
 			}
 		}
+	}
+	if addressless == len(answer.Places) {
+		t.Error("no place has an address")
+	}
+}
+
+func TestAddressesAreFlatInTheJSON(t *testing.T) {
+	raw, err := json.Marshal(AnswerPlace{Name: "Bar", Address: Address{Street: "1 Rue X", City: "Toulouse"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := string(raw); !strings.Contains(s, `"street":"1 Rue X"`) || !strings.Contains(s, `"city":"Toulouse"`) || strings.Contains(s, "Address") {
+		t.Errorf("%s", s)
 	}
 }
 

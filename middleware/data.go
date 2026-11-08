@@ -36,6 +36,9 @@ type placesFile struct {
 		Lat      float64 `json:"lat"`
 		Lon      float64 `json:"lon"`
 		Zone     *int    `json:"zone"`
+		Street   string  `json:"street"`
+		Postcode string  `json:"postcode"`
+		City     string  `json:"city"`
 	} `json:"places"`
 }
 
@@ -46,6 +49,14 @@ type Place struct {
 	Name     string
 	Lat, Lon float64
 	Zone     int // index in Data.Zones, -1 for a station (stations have no zone)
+	Address  Address
+}
+
+// Address is a place's address, as far as it is known, for the page's links and its share button.
+type Address struct {
+	Street   string `json:"street,omitempty"`
+	Postcode string `json:"postcode,omitempty"`
+	City     string `json:"city,omitempty"`
 }
 
 // Zone is a group of places within a short walk of each other (docs/evaluation.md § Zones).
@@ -113,7 +124,8 @@ func loadData(path string) (*Data, error) {
 		if !finitePosition(p.Lat, p.Lon) {
 			return nil, fmt.Errorf("place %s: position invalid", p.ID)
 		}
-		place := Place{ID: p.ID, Category: p.Category, Name: p.Name, Lat: p.Lat, Lon: p.Lon, Zone: -1}
+		place := Place{ID: p.ID, Category: p.Category, Name: p.Name, Lat: p.Lat, Lon: p.Lon, Zone: -1,
+			Address: Address{Street: p.Street, Postcode: p.Postcode, City: p.City}}
 		index := len(data.Places)
 		if p.Zone != nil {
 			if *p.Zone < 0 || *p.Zone >= len(data.Zones) || data.Zones[*p.Zone].Kind != placeType {

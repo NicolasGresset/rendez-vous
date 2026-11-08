@@ -61,7 +61,7 @@ function rowHtml(uid, checkedModes) {
 // moment, scrollToSection and setStatus: of the page, onStale(): a change makes the displayed result
 // stale, onGeocode(): a geocoding call is made
 export function createParticipants({ map, finePointer, getData, defaultModes, maxParticipants, scrollToSection, setStatus,
-    onStale, onGeocode }) {
+    onStale }) {
     const form = document.getElementById('location-form');
     const list = document.getElementById('participants');
     const addBtn = document.getElementById('add-participant');
@@ -162,7 +162,6 @@ export function createParticipants({ map, finePointer, getData, defaultModes, ma
     async function placeAt(row, lat, lon, fallbackLabel, options) {
         setPosition(row, { lat, lon, label: `${fallbackLabel} (adresse en cours…)` }, options);
         placed(row);
-        onGeocode();
         const label = await reverseGeocode(lat, lon);
         if (row.dataset.lat !== String(lat) || row.dataset.lon !== String(lon)) return; // moved meanwhile
         row.querySelector('[name="address"]').value = label || fallbackLabel;
@@ -281,7 +280,7 @@ export function createParticipants({ map, finePointer, getData, defaultModes, ma
         list.appendChild(row);
         attachAutocomplete(row, {
             localPlaces,
-            addresses: text => { onGeocode(); return suggestPlaces(text); },
+            addresses: suggestPlaces,
             onChoose: option => { setPosition(row, option); placed(row); },
             onChosen: () => focusNextParticipant(row),
             onEdit: () => { if (row.dataset.lat) setPosition(row, null); },
@@ -368,7 +367,7 @@ export function createParticipants({ map, finePointer, getData, defaultModes, ma
         const untouched = row => !row.dataset.lat && !row.querySelector('[name="address"]').value.trim();
         const rows = [...list.children].filter(row => !untouched(row));
         if (rows.length < 2) throw new Error('Choisissez une adresse pour au moins deux participants.');
-        if (rows.length > maxParticipants()) throw new Error(`Ce moteur de transports en commun accepte ${maxParticipants()} participants au plus : retirez-en ${rows.length - maxParticipants()}.`);
+        if (rows.length > maxParticipants()) throw new Error(`${maxParticipants()} participants au plus : retirez-en ${rows.length - maxParticipants()}.`);
         return rows.map(row => {
             const label = participantLabel(row);
             const modes = [...row.querySelectorAll('[name="modes"]:checked')].map(c => c.value);

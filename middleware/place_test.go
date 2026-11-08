@@ -58,6 +58,9 @@ func TestThePlaceRoute(t *testing.T) {
 			t.Errorf("participant %d: %+v", i, trip)
 		}
 	}
+	if p.Address != bar.Address {
+		t.Errorf("address %+v, want %+v", p.Address, bar.Address)
+	}
 	if p.Trips[1].Mode != ModeBike || p.Trips[1].Legs[0].Mode != "BIKE" {
 		t.Errorf("the cyclist: %+v", p.Trips[1])
 	}

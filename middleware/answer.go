@@ -33,14 +33,15 @@ type OtherPlace struct {
 }
 
 type AnswerPlace struct {
-	ID       string       `json:"id"`
-	Name     string       `json:"name"`
-	Category string       `json:"category"`
-	Lat      float64      `json:"lat"`
-	Lon      float64      `json:"lon"`
-	Zone     *int         `json:"zone,omitempty"` // index in Answer.Zones; absent for a station
-	Score    float64      `json:"score"`          // seconds, lower is better
-	Trips    []AnswerTrip `json:"trips"`          // one per participant, in the question's order
+	ID       string  `json:"id"`
+	Name     string  `json:"name"`
+	Category string  `json:"category"`
+	Lat      float64 `json:"lat"`
+	Lon      float64 `json:"lon"`
+	Address
+	Zone  *int         `json:"zone,omitempty"` // index in Answer.Zones; absent for a station
+	Score float64      `json:"score"`          // seconds, lower is better
+	Trips []AnswerTrip `json:"trips"`          // one per participant, in the question's order
 }
 
 // AnswerTrip is a participant's fastest way to a place.
@@ -81,7 +82,7 @@ func buildAnswer(ctx context.Context, q Question, data *Data, motis *MotisClient
 		for k, cand := range zr.Places {
 			p := data.Places[cand.Place]
 			index := len(answer.Places)
-			ap := AnswerPlace{ID: p.ID, Name: p.Name, Category: p.Category, Lat: p.Lat, Lon: p.Lon, Zone: zoneIndex, Score: cand.Score}
+			ap := AnswerPlace{ID: p.ID, Name: p.Name, Category: p.Category, Lat: p.Lat, Lon: p.Lon, Address: p.Address, Zone: zoneIndex, Score: cand.Score}
 			for i, choice := range cand.Choices {
 				trip, street := tripOf(choice, cand.Trips[i])
 				if street {
@@ -161,11 +162,12 @@ type PlaceAnswer struct {
 // PlaceTrips is a place's trips. Unlike the proposals, someone may not reach it: then Reachable is false, Score is
 // absent and that participant's trip is null.
 type PlaceTrips struct {
-	ID        string        `json:"id"`
-	Name      string        `json:"name"`
-	Category  string        `json:"category"`
-	Lat       float64       `json:"lat"`
-	Lon       float64       `json:"lon"`
+	ID       string  `json:"id"`
+	Name     string  `json:"name"`
+	Category string  `json:"category"`
+	Lat      float64 `json:"lat"`
+	Lon      float64 `json:"lon"`
+	Address
 	Reachable bool          `json:"reachable"`
 	Score     *float64      `json:"score,omitempty"`
 	Trips     []*AnswerTrip `json:"trips"`
@@ -183,7 +185,7 @@ func placeTrips(ctx context.Context, q Question, data *Data, motis *MotisClient,
 		return nil, err
 	}
 	p := data.Places[place]
-	answer := &PlaceAnswer{Place: PlaceTrips{ID: p.ID, Name: p.Name, Category: p.Category, Lat: p.Lat, Lon: p.Lon,
+	answer := &PlaceAnswer{Place: PlaceTrips{ID: p.ID, Name: p.Name, Category: p.Category, Lat: p.Lat, Lon: p.Lon, Address: p.Address,
 		Trips: make([]*AnswerTrip, len(q.Participants))}, Data: data.Version}
 	var paths []streetPathCall
 	var pathOf []int // the participant of each path
