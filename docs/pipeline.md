@@ -1,52 +1,42 @@
 # Rendez-vous — processing pipeline
 
-How the meeting point finder (`index.html`; code in `js/`) turns participants into a
-ranked list of places. Everything runs in the browser, except two small Vercel Functions (`api/ors.mjs`, `api/tisseo.mjs`)
-that relay the page's openrouteservice and Tisséo calls with the author's keys (`OPENROUTESERVICE_API_KEY`, `TISSEO_API_KEY`
-in Vercel's settings, never in the repository or the page). Temporary, for a friend to try the tool until 2026-11-08: visitors
-enter no key. The settings stay in `localStorage` (`location.settings`: view, score, number of candidates, transit engine).
+How the meeting point finder turns participants into proposed places. The page (`index.html`, `js/`, static, on Vercel)
+collects the participants and asks **one question** to the service's API; the server (`middleware/`, Go, on the author's
+home server, behind Caddy) computes with a self-hosted MOTIS and answers. Architecture, API contract and the reasons of
+each choice: `docs/architecture.md`. No key, no settings and nothing stored in the browser.
 
 Participants have no name field (removed 2026-10-29): they are "participant 1, 2…", with a color each,
 shown as a disc in their color with their number (the label is kept for screen readers). The
 proposals are numbered pins (map, legend, results), so that places and people do not look alike;
-the chosen place is orange, and a pin without a number when it is not a proposal (picked in the
-debug view's list); the other candidates (debug view) are small grey pins.
+the chosen place is orange, and a pin without a number when it is not a proposal (another place of its
+zone); the other places of the chosen place's zone are small grey pins.
 
 People per participant (2026-10-29): after the modes, a chip (a person icon and 1) opening a
-stepper − [n] +, folded again when the focus leaves it with one person (1 by default, no upper
-bound, anything typed reads as the nearest whole number from 1), for a team or a company leaving from
-one place with the same modes (people going another way: a second participant at the same place).
-Every person counts as one: the barycenter is weighted by the people, the total is the sum over
-every person (n x the participant's time) and the mean divides by the number of people; the gap
-(longest - shortest) does not change, since the people of one participant share its trip. No API call
-depends on it. Shown as ×n next to the participant's disc on the map and in their trip.
-At least 2 participants with a position are needed.
+stepper − [n] +, folded again when the focus leaves it with one person (1 by default; the API accepts 1 to 15 and says so
+beyond), for a team or a company leaving from one place with the same modes (people going another way: a second
+participant at the same place). Every person counts as one in the mean time; the longest trip does not depend on the
+people. Shown as ×n next to the participant's disc on the map and in their trip. 2 to 10 participants with a position.
 
-Two views, picked in "Réglages" (`location--debug` class on the layout, CSS only, no new computation):
+One place type at a time (stations, bars, cafés or restaurants: one goes to a bar or to a restaurant, not to both), and a
+meeting time among today's quarter hours. The results: the 3 proposals (each a zone's best place, with the zone as
+context), each participant's trip as one line (mode, time, lines taken) and its steps folded under "Voir l'itinéraire"
+(a click anywhere on the card folds or unfolds them), the paths on the map, and the zone's other places, folded, any of
+them computed when chosen.
 
-- **pratique** (default): one progress bar; the map shows the participants and the 3 proposals;
-  each participant's trip is one line (mode, time, lines taken), the steps folded under
-  "Voir l'itinéraire" (each person usually follows their own navigation app to the shared address);
-  a click anywhere on the trip card also folds or unfolds them (except on the unfolded steps
-  themselves, or when text is selected);
-- **debug**: the computation steps and the "Appels API" panel; the map also shows the
-  barycenter and every other candidate; the results add a list of every candidate with its score,
-  and the trips' steps are shown unfolded.
-
-A change to a participant, to the place types, to the number of candidates or to the transit engine makes the
-result stale, also during a computation: the computation stops at once, its calls in progress are
-cancelled (`js/cancel.js`, one `AbortSignal` down to every `fetch`), no call follows and nothing of it is
-shown; the progress says "Calcul annulé : paramètres modifiés". Another score or view changes nothing.
+A change to a participant or to the place type makes the result stale, also during a computation: its call is cancelled
+(`js/cancel.js`, one `AbortSignal`), nothing of it is shown. While the server computes (about 1 to 3.5 s), a line of text
+says so. The API's refusals become messages in French (`js/api.js`): too many computations (with the wait), a busy
+service, a computation too long, a time gone by, a participant outside the area, a service unavailable.
 
 The diagrams are [Mermaid](https://mermaid.js.org/) code: GitHub renders them, and any
 Mermaid editor (e.g. https://mermaid.live) can display or export them.
 
 Legend used in the diagrams:
 
-- **blue**: external API call (network, counted in the page's "Appels API" panel)
-- **green**: local data (`data/pois-toulouse.json`, served with the page, no API call)
+- **blue**: a call over the network
+- **green**: local data (`data/pois-toulouse.json`)
 - **orange**: algorithm choice
-- **grey**: browser storage or user input
+- **grey**: user input
 
 ## 1. Overview
 
@@ -66,28 +56,35 @@ flowchart TB
         STOPS["scripts/build-places.js:<br/>stop areas, metro if a metro line stops,<br/>else bus; tram / cable car only dropped"]:::algo
         REVCSV[("IGN Géoplateforme<br/>reverse/csv, bulk")]:::api
         ADDR["address of every place: OSM address<br/>when it has a street, else nearest BAN address,<br/>'près de' beyond 30 m"]:::algo
+        ZONES["scripts/build-zones.js (local MOTIS):<br/>bars, cafés, restaurants grouped into zones<br/>within 5 min on foot"]:::algo
         GEOFABRIK --> OSMIUM --> OSMPLACES
         GTFS --> STOPS
         OSMPLACES --> MERGE["one list"]
         STOPS --> MERGE
-        MERGE --> REVCSV --> ADDR
+        MERGE --> REVCSV --> ADDR --> ZONES
     end
 
-    ADDR --> DATA[("data/pois-toulouse.json<br/>~17,500 places, one category each,<br/>candidates: bars, restaurants, metro, bus<br/>name, position, address")]:::local
+    ZONES --> DATA[("data/pois-toulouse.json<br/>~17,400 places, one category each;<br/>candidates and their zones")]:::local
 
     subgraph BROWSER["In the browser (js/)"]
         direction TB
-        INPUT["Participants (2 to 5, 10 with the local MOTIS): position + modes<br/>people (1 by default)<br/>(walk and transit checked by default)<br/>Meeting time (quarter hours, today, Europe/Paris)<br/>Place types: stations / bars / restaurants"]:::user
+        INPUT["Participants (2 to 10): position, modes, people<br/>Place type (one), meeting time (today, quarter hours)"]:::user
         SEARCH["2. Address search"]
-        ENGINE["3. Computation (engine.js)"]
-        RESULT["4. Result: chosen place,<br/>trip details, map paths"]
-        INPUT --> SEARCH --> ENGINE --> RESULT
+        RESULT["Results: proposals, trips, paths on the map"]
+        INPUT --> SEARCH
     end
 
-    KEY[("Relays api/ors.mjs, api/tisseo.mjs<br/>(Vercel Functions, the author's keys)")]:::api
-    ENGINE --> KEY
+    subgraph SERVER["Home server (Docker), behind Caddy"]
+        direction TB
+        MW["middleware (Go): validation, limits,<br/>3. method by zones, score, answer"]:::algo
+        MOTIS[("MOTIS 2.11.4<br/>Tisséo GTFS + OSM extract")]:::api
+        MW --> MOTIS
+    end
+
     DATA --> SEARCH
-    DATA --> ENGINE
+    DATA -->|"built into the image"| MW
+    INPUT -->|"POST /v1/proposals"| MW
+    MW -->|"answer"| RESULT
 ```
 
 ## 2. Address search (search.js, geocode.js, autocomplete.js, participants.js)
@@ -121,7 +118,7 @@ whose card was focused or touched last; at load, the first one. Once it is place
 "ma position actuelle" or the map, the next participant without a position becomes active, none if
 all are placed, and none once the computation starts, so that a click on the result map moves
 nobody. A single click waits 300 ms: a double click (or double tap) only zooms. Clicks on the
-participants', candidates' and barycenter's points do not reach the map. A participant's point is
+participants' and places' points do not reach the map. A participant's point is
 a disc in their color with their number, as in their card (no permanent label). On computers
 (`pointer: fine`), it can be dragged (by hand, written when it was a circle marker, which Leaflet
 does not drag); not on touch screens, where it would fight with panning. The map does not recenter
@@ -161,7 +158,7 @@ earlier (2026-10-29, bench not kept): counting a swap as one typo catches 13 % m
 same cost; a deletion index (SymSpell) would take 24–32 MB and 0.2–0.6 s to build, for 0.1 ms
 less. Not done: phonetic matching ("jores" for "jaures", two typos at 5 letters; declined).
 
-## 3. Computation (engine.js)
+## 3. Computation (middleware/zones.go)
 
 ```mermaid
 flowchart TB
@@ -169,127 +166,85 @@ flowchart TB
     classDef local fill:#DCFCE7,stroke:#15803D,color:#0C1A2E
     classDef algo fill:#FFEDD5,stroke:#EA580C,color:#0C1A2E
 
-    START(["Participants, slot, place types"]) --> CENTER["Barycenter<br/>mean of latitudes and longitudes,<br/>weighted by the people"]:::algo
-    CENTER --> CAND["Candidates"]:::algo
-    DATA[("pois-toulouse.json")]:::local --> CAND
+    START(["Question: participants, place type, meeting time T"]) --> VALID["Validation (validate.go): types, bounds,<br/>Tisséo area, quarter hours; then the limits<br/>per client and for the service (limits.go)"]:::algo
+    VALID --> GROUPS["Groups: the zones of the place type<br/>(each with its representative), or every station alone"]:::algo
+    DATA[("pois-toulouse.json<br/>loaded at start-up")]:::local --> GROUPS
 
-    subgraph CANDIDATES["Candidate selection (no API call)"]
-        direction TB
-        R0["Only the candidate categories, 4 types: stations (metro, bus),<br/>bars (amenity=bar, pub, biergarten),<br/>cafés (amenity=cafe), restaurants"]:::algo
-        R1["Haversine distance to the barycenter,<br/>dedupe same category + name"]:::algo
-        R2["Radius 1 km, + 500 m while fewer candidates than<br/>the number set (default 8), up to 5 km"]:::algo
-        R3["Quota per type (maximums): the number of<br/>candidates set in the page (1 to 8, default 8)<br/>split evenly, first types first:<br/>8 over 3 types: 3 stations, 3 bars, 2 restaurants"]:::algo
-        R4["Stations: half the quota (rounded up)<br/>to the metro first, closest stops fill the rest"]:::algo
-        R5["Closest first, a place within 700 m of one<br/>already kept is skipped, across types too"]:::algo
-        R0 --> R1 --> R2 --> R3 --> R4 --> R5
+    subgraph FIRST["First round: every representative estimated"]
+        STREET[("Street times: one-to-many<br/>1 call per participant and street mode<br/>(+ walk, 15 min at most, for transit without walk);<br/>car + 5 min to park")]:::api
+        EST[("Transit estimate: one-to-many-intermodal<br/>1 forward search per transit participant,<br/>leaving T − 60 min")]:::api
     end
-    CAND --> CANDIDATES
+    GROUPS --> FIRST
+    FIRST --> RANK1["Each participant's fastest mode,<br/>score, ranking"]:::algo
 
-    CANDIDATES --> TIMES["Travel times<br/>every participant x candidate x mode"]
+    RANK1 --> EXACT[("Exact transit: /plan for the 20 best,<br/>arriving by T + 10 min, 5 itineraries;<br/>shortest time from leaving to T or arrival,<br/>then latest departure")]:::api
+    EXACT --> KEEP["Keep the 3 best groups at least 500 m apart;<br/>fewer: 20 more exact, again"]:::algo
 
-    subgraph STREET["Walk, bike, car"]
-        MATRIX[("openrouteservice matrix<br/>1 call per mode used (max 3)<br/>no time of day, no traffic")]:::api
-        PARK["car: + 5 min to park"]:::algo
-        MATRIX --> PARK
-    end
+    KEEP --> SECOND[("Second round: up to 4 other places per kept zone,<br/>farthest first; street times and exact transit")]:::api
+    SECOND --> FINAL["Score = (mean per person + longest) / 2;<br/>zones best first by their best place"]:::algo
+    FINAL --> PATHS[("Street paths of every scored place:<br/>/plan with a street mode, 1 per participant on foot, bike or car")]:::api
+    PATHS --> ANSWER["Answer: proposals, zones (their places,<br/>the others without times), each trip with its legs"]:::algo
 
-    subgraph TRANSIT["Transit (engine picked in the page)"]
-        PLAN[("Transitous /api/v6/plan (default)<br/>1 call per transit participant x candidate,<br/>3 at a time; arriveBy = meeting time + 10 min;<br/>maxItineraries=5, detailedTransfers=false")]:::api
-        TISSEO[("Tisséo /v2/journeys.xml (through api/tisseo.mjs)<br/>2 calls per participant x candidate, 6 at a time:<br/>4 journeys leaving 1 h before meeting time + 10 min,<br/>then 4 leaving (shortest travel time + 10 min) before it")]:::api
-        WINDOW["keep journeys arriving by meeting time + 10 min;<br/>time = journey + wait until the meeting time<br/>when arriving early (walking included);<br/>shortest time wins, then latest departure"]:::algo
-        RETRY["technical failure: 1 retry after 2 s;<br/>failing twice = journey failed,<br/>its candidate is 'incomplete'"]:::algo
-        WINDOW --- RETRY
-        PLAN --> WINDOW
-        TISSEO --> WINDOW
-    end
-
-    TIMES --> STREET
-    TIMES --> TRANSIT
-    PARK --> SCORE
-    WINDOW --> SCORE
-
-    SCORE["Each participant: fastest available mode<br/>Score (Réglages, rankCandidates), every person counted:<br/>équitable (default) = (mean per person + longest) / 2, or<br/>égalitaire = mean per person<br/>(candidate unreachable by one participant: excluded)"]:::algo
-    SCORE --> BEST["Ranking: lowest score first, equal scores by lower total;<br/>complete candidates only (incomplete ones only if no complete<br/>one is reachable); the first 3 are the proposals, the first one<br/>is shown; changing the score re-ranks without any call"]:::algo
-
-    BEST --> ROUTES["Paths to the chosen place"]
-    ROUTES --> DIRECTIONS[("openrouteservice directions<br/>1 call per walk / bike / car participant")]:::api
-    ROUTES --> LEGS["Transit: legs of the journey already fetched<br/>(lines, direction; stops count with Transitous only)"]:::local
-
-    BEST -.->|"user picks another proposal<br/>(button or map; debug view: any candidate)"| OTHER["Same details for that place:<br/>transit legs kept, ORS directions<br/>fetched once per place shown"]:::algo
+    ANSWER -.->|"the visitor chooses another place of a zone"| PLACE["POST /v1/place: that place's street times,<br/>exact transit, score, paths"]:::algo
 ```
 
-## 4. API calls of one computation
+Times of the whole computation, measured on a 16-core PC with MOTIS local (3 or 4 participants, walk + transit): bars
+~1 s, restaurants ~2 s, stations ~3.3 s, the estimate being most of it (`docs/architecture.md` § The method by zones);
+from outside on the server: 1.6 to 3.5 s with the network, another place 0.2 s.
 
-With `P` participants (at most 5, 10 with the local MOTIS), `C` candidates (at most 8), `M` street modes used by
-someone (at most 3) and `T` participants who may take transit:
+## 4. Calls of one computation
+
+With `P` participants, `S` the street calls (each participant's street modes, plus one walk for a transit participant
+without walking) and `T` participants who may take transit:
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant U as User
-    participant B as Browser (engine.js)
-    participant J as pois-toulouse.json
-    participant ORS as openrouteservice
-    participant TR as Transitous or Tisséo
+    participant B as Browser
+    participant C as Caddy + middleware
+    participant M as MOTIS
 
+    U->>B: first use of the form
+    B->>C: GET /v1/health (opens the connection, says if the service answers)
     U->>B: Trouver le lieu
-    B->>J: candidates around the barycenter (local, no call)
-    J-->>B: C places
-    par street modes
-        B->>ORS: matrix x M (P x C durations each)
-        ORS-->>B: durations + quota left
-    and transit
-        loop T x C journeys, 3 at a time (Tisséo: 6, 2 calls each)
-            B->>TR: journeys arriving by the end of the slot
-            TR-->>B: itineraries
-        end
+    B->>C: POST /v1/proposals
+    par first round
+        C->>M: street times x S (one-to-many)
+    and
+        C->>M: transit estimates x T
     end
-    Note over B: score of each participant's fastest times (équitable or égalitaire)<br/>3 proposals = lowest scores
-    B-->>U: proposals + trip details of the first one
-    loop each walk / bike / car participant
-        B->>ORS: directions (path to the chosen place)
-        ORS-->>B: path
+    loop 20 representatives at a time, until 3 zones 500 m apart
+        C->>M: /plan x T per representative
     end
-    B-->>U: paths on the map
-    opt user picks another place
-        B->>ORS: directions, once per place shown
+    C->>M: second round: street times x S, /plan x T per other place (up to 12)
+    C->>M: street paths, /plan x (participants on foot, bike or car) per scored place
+    C-->>B: proposals, zones, trips (zstd or gzip)
+    B-->>U: proposals, trips, paths on the map
+    opt the user chooses another place of a zone
+        B->>C: POST /v1/place
+        C->>M: street times, /plan, paths for that place
+        C-->>B: its trips
     end
 ```
 
-| Service | Calls per computation | Limit |
+| Call | Per computation | Limit |
 |---|---|---|
-| openrouteservice matrix | `M` ≤ 3 | 50 / day (free plan) |
-| openrouteservice directions | ≤ `P` for the chosen place, + ≤ `P` per other place shown | 200 / day (free plan) |
-| Tisséo journeys (default) | 2 × `T` × `C` ≤ 80 | per key (all visitors share the author's), monitored by Tisséo; paid beyond thresholds if they ever set some |
-| Transitous plan (instead of Tisséo) | `T` × `C` ≤ 40 | > 720 / 24 h: coordinate with Transitous |
+| `GET /v1/health` | once per page, at the first use of the form | not logged when it answers |
+| `POST /v1/proposals` | 1 | per client 5 a minute and 100 a day (IPv4 address or IPv6 /64); 4 computations at once for the service |
+| `POST /v1/place` | 1 per other place of a zone chosen | per client 30 a minute and 300 a day |
+| MOTIS (from the middleware only) | `S` + `T` + 20 to 40 × `T` + up to 12 × (`S` + `T`) + up to 15 × `P` | 6 calls at once, 10 s each, the computation 25 s |
 | Géoplateforme completion | 1 per pause while typing (≥ 3 chars) | none stated |
 | Géoplateforme reverse | 1 per "ma position actuelle", map click or drag of a point | none stated |
-| Local data | 0 (one static file, loaded once) | — |
+
+A computation's answer weighs 8 to 220 KB raw, 3 to 19 KB compressed (measured 2026-11-08). `detailedTransfers=true`: the
+map also draws the walks between two lines.
 
 Links of the chosen place (no call until followed): its OpenStreetMap page (`openstreetmap.org/node/…`
 for an OSM feature, a marker at its position for a Tisséo stop) and a Google Maps search (name and
 address, so that Google shows the place's own page; position for a stop). "Partager le lieu" sends
-name, address, slot and the OpenStreetMap link to the system share sheet (`navigator.share`), or
+name, address, meeting time and the OpenStreetMap link to the system share sheet (`navigator.share`), or
 copies them to the clipboard where there is none (most computers).
-
-Transitous answer size (measured 2026-10-28 on 12 trips, 18:00–18:15 slot): by default `/plan`
-returns up to ~14 journeys over 2 h with turn-by-turn walking steps, ~400 KB raw (~100 KB gzip) per
-call. `maxItineraries=5&detailedTransfers=false` halves it and kept the same best journey on 11/12
-trips (one 1 min longer). Stops, lines, colors and the first and last walks' geometry stay, but
-`detailedTransfers=false` drops the geometry of walks between two lines: the map draws nothing there, the
-steps still list them (checked 2026-11-03, 1 Transitous call and the local MOTIS). Local MOTIS, 136 trips x 4 times of a
-Tuesday (Tisséo only): the same best journey as ~29 journeys over 3 h, on every trip; `detailedTransfers=false` alone saves ~11 %.
-`timetableView=false` would be ~8x lighter but returns only the latest-arriving journey, worse on
-7/12 trips (up to +14 min) since it drops faster journeys arriving early.
-
-Relays: the page POSTs `{ path, body }` to `/api/ors` and the journey fields to `/api/tisseo` (a POST, so that positions
-stay out of the request logs). They let through only the services and fields the page uses, relay the openrouteservice quota
-headers, and never relay an error's body, which might repeat the key. A key refused or not configured reaches the page as a
-401 or 403, and the computation stops with "Clé … refusée". Nothing limits who calls them: the quotas are the only limit. To
-end the trial: remove the two variables in Vercel, or revert the commit.
-
-Tisséo API notes (checked 2026-10-28): `journeys.xml` read with `DOMParser`; no arrival-time search, hence the two calls; Tisséo network
-only (no TER, no liO coaches); it gives no count of stops travelled.
 
 ## 5. Data sources and licences
 
@@ -298,9 +253,7 @@ only (no TER, no liO coaches); it gives no count of stops travelled.
 | Bars, restaurants, companies, shops, schools… | OpenStreetMap via Geofabrik, data of 2026-10-27 | ODbL |
 | Metro stations, bus stops | Tisséo GTFS, 2026-10-28 | ODbL |
 | Place addresses | OpenStreetMap, else IGN Géoplateforme (Base Adresse Nationale), 2026-10-28 | ODbL / Licence Ouverte |
-| Transit journeys (default) | Tisséo API v2, with the author's key | ODbL |
-| Transit journeys (optional) | Transitous (networks' open GTFS) | open-source, non-commercial, light use |
-| Walk, bike, car | openrouteservice | free plan, the author's key |
+| Walk, bike, car, transit | the author's MOTIS on the Tisséo GTFS and an OpenStreetMap extract | ODbL |
 | Map tiles | OpenStreetMap | tile usage policy |
 
 ## 6. Place categories
@@ -330,10 +283,10 @@ Labels: a listed code gets its own label (`office=company` → "entreprise"); an
 The code always keeps the precise OSM tag, so a label can be refined later without
 regenerating the file's codes.
 
-Candidates: the engine only picks `amenity=bar`, `pub`, `biergarten` (the page's "bars"), `amenity=cafe` ("cafés"), `amenity=restaurant`, `metro` and `bus`
-places (`CATEGORIES` in `engine.js`); every other place is for the address search only. Only
-candidates keep their OSM or GTFS `id` (the engine keys its route cache with it); the ids of
-the other places would weigh a quarter of the file.
+Candidates: the service only proposes `amenity=bar`, `pub`, `biergarten` (the page's "bars"), `amenity=cafe` ("cafés"),
+`amenity=restaurant`, `metro` and `bus` places (`placeCategories` in `middleware/data.go`); every other place is for the
+address search only. Only candidates keep their OSM or GTFS `id` (the API names a place by it); the ids of the other
+places would weigh a quarter of the file.
 
 Duplicates: within one source, the same name (accents and case ignored) closer than 300 m is
 one place, whatever its categories: it takes the category first in the order bar, restaurant,
@@ -366,11 +319,8 @@ the place closest to the zone's centroid. Names, automatic: a lone place's own n
 to the representative; several zones on one stop: the closest to it keeps the name, the others
 take their most represented street not taken yet (ties in alphabetical order), else the stop and a number.
 161 zones of bars (36 of 3 places or more, 21 of 2, 104 of 1; largest 12), 109 of cafés (31, 17, 61; 15),
-581 of restaurants (153, 124, 304; 31). Used by the debug view only (dev server + local MOTIS): its
-map layers, and the method by zones (`js/debug-motis.js` `scoreZones`, doc `docs/evaluation.md`); not by the
-engine. With the local MOTIS engine, the practical view uses that method too (`evaluateByZones`: same events and
-candidates as the engine's `evaluate`), when no station is picked: each zone's best place is a proposal, with its zone as
-context, and the zone's other places can be chosen in a folded list or, for the chosen place's zone, as small grey pins. A map without options, and another score computes again.
-Within a zone kept, 5 places get exact times: the representative, then each time the place farthest from those picked, as the crow flies (the
-distance to a set being the one to its closest member; `docs/evaluation.md` § A maximum of places). The others are listed without a time: choosing one computes it
-(`scoreZonePlace`: 1 street call per participant and street mode, then 1 `/plan` per transit participant), without changing the proposals.
+581 of restaurants (153, 124, 304; 31). Used by the service (`middleware/zones.go`, § 3): the middleware loads the file
+at start-up, keeps the candidates, and refuses to start on an inconsistent one. Within a zone kept, 5 places get exact
+times: the representative, then each time the place farthest from those picked, as the crow flies (the distance to a
+set being the one to its closest member; `docs/evaluation.md` § A maximum of places). The others are listed without a
+time: choosing one asks `POST /v1/place`, without changing the proposals.

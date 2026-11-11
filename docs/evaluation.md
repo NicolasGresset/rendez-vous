@@ -72,15 +72,17 @@ from 2026-10-29 to 2026-12-02. A new feed changes the times: the oracle must the
   2026-11-03, 19:00, late tolerance 10 min (the tool's default; 15 min, the former slot, until the
   first results below). Candidate categories: bars (the tool's default) and all three.
 - `oracle.js`: for every case, every participant's time to every candidate place by walk, bike,
-  car and transit. Transit is computed as the tool does (`transitTrip` of `transitous.js`
-  against the local server): `/plan` arriving by the meeting time + tolerance, an early arrival counting the
+  car and transit. Transit is computed as the service does (`transitTrip` of `common.js`,
+  the rule of `middleware/motis.go`, against the local server): `/plan` arriving by the meeting time + tolerance, an early arrival counting the
   wait until it starts. About 2.5 min per case (~12,000 `/plan` calls of ~20 ms). It also keeps
   MOTIS one-to-many durations for an arrival at meeting time + tolerance (`transitEstimate`), ~100
   times cheaper but counting the time up to that limit (checked with 15 min: 0 to 15 min more, plus ~2 min).
-- `baseline.js`: the tool's `evaluate()` of `engine.js`, unchanged, on every case, configuration
-  and category set; its Transitous calls go to the local server and its openrouteservice
-  matrices are answered with MOTIS street times, so that the tool and the oracle use the same
-  times. Its 3 proposals are compared with the 3 best candidate places of the file.
+- `baseline.js`: since 2026-11-08, the service's proposals, asked to its API (a local middleware on a MOTIS with the
+  oracle's timetable), for every case, configuration and place type, compared with the 3 best candidate places of the
+  file. The API refuses a past date: the oracle is then built for a date to come (`EVAL_DATE`, `EVAL_DIR`). Until
+  2026-11-08 it ran the former page's `evaluate()` (`engine.js`, removed), its Transitous calls sent to the local server
+  and its openrouteservice matrices answered with MOTIS street times: the results of 2026-10-30 to 2026-11-03 below were
+  measured that way.
 - `scoring.js`: two scores, lower is better: the mean time per person (the tool's "temps
   total" gives the same ranking), and the mean plus half the excess of the longest trip over the
   mean, `(1 − β)·mean + β·max` with β = ½ (decided 2026-10-30). Unlike the tool's "moyenne +
@@ -91,10 +93,13 @@ from 2026-10-29 to 2026-12-02. A new feed changes the times: the oracle must the
   case), then every place ranked under each rule (late tolerance 0, 5, 10, 15 min; with or without
   the first one to arrive counting the time until the second one arrives) and compared with the
   tool's (10 min, without), for the transit and mixed configurations.
-- `validate.js`: the oracle against the services the tool uses: 30 transit trips also asked to
-  the Tisséo API (60 calls), and 3 openrouteservice matrices (walk, bike, car; 10 x 10).
+- `validate.js` (removed 2026-11-08 with openrouteservice and the Tisséo API): the oracle against the services the tool
+  used then: 30 transit trips also asked to the Tisséo API (60 calls), and 3 openrouteservice matrices (walk, bike, car;
+  10 x 10).
 
-## Debug view in the page (developer's machine only)
+## Debug view in the page (developer's machine only; removed 2026-11-08)
+
+Removed with the page's engines when the computation moved to the server. What it offered, for the measures made with it below:
 
 With the dev server and a local MOTIS, the page offers a fourth transit engine, "MOTIS local
 (debug)", and the debug view a test case picker (the cases of `cases.js`, x 3 mode
@@ -165,7 +170,7 @@ proposal minus the best score of the file, in minutes per person.
   tool proposes 33 min, the best place (the Méroc bus stop, 1.8 km from the barycenter) 16 min.
   The tool found only 5 candidates around a barycenter in a sparse area.
 
-Full tables: `node scripts/eval/baseline.js` (20 s once the oracle is built).
+Full tables then: `baseline.js` as it was (20 s once the oracle was built). Since 2026-11-08 it asks the API (§ The service against the best places).
 
 The same with a 10 min tolerance (the tool's default since 2026-10-30), oracle rebuilt: hardly any
 change. Gap median / mean / max: mean score 1.3 / 1.7 / 6.7 (bars) and 1.5 / 2.2 / 7.0 (all);
@@ -272,7 +277,7 @@ rebuilt; the figures above were on 240 bars. `baseline.js`, gap median / mean / 
 | mean + ½ (max − mean) | bars | 0.8 | 1.6 | 7.1 | 3 |
 | mean + ½ (max − mean) | all four | 1.4 | 2.0 | 7.3 | 1 |
 
-### The method with the zones (`zones.js`, 2026-11-02, in the debug view, not in the engine)
+### The method with the zones (`zones.js`, 2026-11-02, in the debug view then; the service's method since 2026-11-08)
 
 Bars, 30 rows, mean + ½ (max − mean), against the best bar of the file. Each zone's representative scored
 within a radius of the barycenter (growing until 8 zones), the best 3 zones at least 700 m apart,
@@ -405,3 +410,19 @@ minutes on the first proposal (mean / max) and per zone kept, against every plac
 Farthest first is clearly better on restaurants, the only kind with large zones, and slightly worse on bars and cafés. 3 and 8 places per zone
 are in the script's output. Real time of the third phase's journeys on the local MOTIS (16-core PC, 8 in parallel, walk + transit, 10 groups, mean /
 most): restaurants 0.86 / 1.90 s for every place, 0.31 / 0.49 s for 5 farthest first; bars 0.40 / 0.78 s, 0.26 / 0.42 s. Tuesday 19:00 only.
+
+### The service against the best places of the file (`baseline.js` through the API, 2026-11-08)
+
+The first run through the API, to check the script, on one group only: T1 (centre, compact), Tuesday 2026-11-10 at 19:00,
+a local middleware on the local MOTIS, oracle built for that date. Score: mean + ½ (max − mean), in minutes; gap: the
+service's first proposal minus the best place of the file of that type; rank among the places everyone can reach.
+
+| modes | bars | cafés | restaurants | stations |
+|---|---|---|---|---|
+| walk + transit | 0 (1st of 313) | 0 (1st of 254) | 0 (1st of 1,426) | 0 (1st of 1,779) |
+| car, bike, walk + transit | 0.1 (4th of 309) | 0.3 (3rd of 247) | 0.3 (7th of 1,415) | 0 (1st of 1,777) |
+| walk + bike | 0 (1st of 316) | 0 (1st of 257) | 0 (1st of 1,455) | 0 (1st of 1,779) |
+
+Stations as zones of their own (decided 2026-11-08) give the best station of the file in all three configurations here.
+One group of ten: the whole table (10 groups, oracle ~2.5 min per group) is still to run before concluding.
+
